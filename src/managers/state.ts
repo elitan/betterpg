@@ -1,0 +1,297 @@
+import * as fs from 'fs/promises';
+import { State, Database, Branch, Backup } from '../types/state';
+
+export class StateManager {
+  private state: State | null = null;
+  private lockFile: string;
+
+  constructor(private filePath: string) {
+    this.lockFile = `${filePath}.lock`;
+  }
+
+  // State operations
+  async load(): Promise<void> {
+    try {
+      const content = await fs.readFile(this.filePath, 'utf-8');
+      this.state = JSON.parse(content);
+      this.validate();
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error('State file not found. Run "bpg init" first.');
+      }
+      throw new Error(`Failed to load state: ${error.message}`);
+    }
+  }
+
+  async save(): Promise<void> {
+    if (!this.state) {
+      throw new Error('State not loaded');
+    }
+
+    await this.acquireLock();
+
+    try {
+      const tempFile = `${this.filePath}.tmp`;
+      await fs.writeFile(tempFile, JSON.stringify(this.state, null, 2), 'utf-8');
+      await fs.rename(tempFile, this.filePath);
+    } finally {
+      await this.releaseLock();
+    }
+  }
+
+  async initialize(pool: string, datasetBase: string, basePort: number): Promise<void> {
+    this.state = {
+      version: '1.0.0',
+      initializedAt: new Date().toISOString(),
+      zfsPool: pool,
+      zfsDatasetBase: `${pool}/${datasetBase}`,
+      nextPort: basePort,
+      databases: [],
+      backups: [],
+    };
+
+    await this.save();
+  }
+
+  // Database operations
+  async addDatabase(db: Database): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    if (this.state.databases.some(d => d.name === db.name)) {
+      throw new Error(`Database '${db.name}' already exists`);
+    }
+
+    this.state.databases.push(db);
+    await this.save();
+  }
+
+  async getDatabase(nameOrID: string): Promise<Database | null> {
+    if (!this.state) throw new Error('State not loaded');
+
+    return this.state.databases.find(
+      db => db.name === nameOrID || db.id === nameOrID
+    ) || null;
+  }
+
+  async getDatabaseByName(name: string): Promise<Database | null> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.databases.find(db => db.name === name) || null;
+  }
+
+  async getDatabaseByID(id: string): Promise<Database | null> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.databases.find(db => db.id === id) || null;
+  }
+
+  async updateDatabase(db: Database): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const index = this.state.databases.findIndex(d => d.id === db.id);
+    if (index === -1) {
+      throw new Error(`Database ${db.id} not found`);
+    }
+
+    this.state.databases[index] = db;
+    await this.save();
+  }
+
+  async deleteDatabase(nameOrID: string): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const index = this.state.databases.findIndex(
+      db => db.name === nameOrID || db.id === nameOrID
+    );
+
+    if (index === -1) {
+      throw new Error(`Database '${nameOrID}' not found`);
+    }
+
+    this.state.databases.splice(index, 1);
+    await this.save();
+  }
+
+  async listDatabases(): Promise<Database[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return [...this.state.databases];
+  }
+
+  // Branch operations
+  async addBranch(databaseID: string, branch: Branch): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const db = this.state.databases.find(d => d.id === databaseID);
+    if (!db) {
+      throw new Error(`Database ${databaseID} not found`);
+    }
+
+    if (db.branches.some(b => b.name === branch.name)) {
+      throw new Error(`Branch '${branch.name}' already exists`);
+    }
+
+    db.branches.push(branch);
+    await this.save();
+  }
+
+  async getBranch(nameOrID: string): Promise<{ branch: Branch; database: Database } | null> {
+    if (!this.state) throw new Error('State not loaded');
+
+    for (const db of this.state.databases) {
+      const branch = db.branches.find(b => b.name === nameOrID || b.id === nameOrID);
+      if (branch) {
+        return { branch, database: db };
+      }
+    }
+
+    return null;
+  }
+
+  async updateBranch(databaseID: string, branch: Branch): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const db = this.state.databases.find(d => d.id === databaseID);
+    if (!db) {
+      throw new Error(`Database ${databaseID} not found`);
+    }
+
+    const index = db.branches.findIndex(b => b.id === branch.id);
+    if (index === -1) {
+      throw new Error(`Branch ${branch.id} not found`);
+    }
+
+    db.branches[index] = branch;
+    await this.save();
+  }
+
+  async deleteBranch(databaseID: string, branchID: string): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const db = this.state.databases.find(d => d.id === databaseID);
+    if (!db) {
+      throw new Error(`Database ${databaseID} not found`);
+    }
+
+    const index = db.branches.findIndex(b => b.id === branchID);
+    if (index === -1) {
+      throw new Error(`Branch ${branchID} not found`);
+    }
+
+    db.branches.splice(index, 1);
+    await this.save();
+  }
+
+  async listAllBranches(): Promise<Branch[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.databases.flatMap(db => db.branches);
+  }
+
+  // Port management
+  async allocatePort(): Promise<number> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const port = this.state.nextPort;
+    this.state.nextPort++;
+    await this.save();
+
+    return port;
+  }
+
+  isPortInUse(port: number): boolean {
+    if (!this.state) throw new Error('State not loaded');
+
+    for (const db of this.state.databases) {
+      if (db.port === port) return true;
+      if (db.branches.some(b => b.port === port)) return true;
+    }
+
+    return false;
+  }
+
+  // Backup operations
+  async addBackup(backup: Backup): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+    this.state.backups.push(backup);
+    await this.save();
+  }
+
+  async getBackupsForDatabase(databaseID: string): Promise<Backup[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.backups.filter(b => b.databaseId === databaseID);
+  }
+
+  async deleteOldBackups(retentionDays: number): Promise<Backup[]> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - retentionDays);
+
+    const toDelete = this.state.backups.filter(b =>
+      new Date(b.timestamp) < cutoff
+    );
+
+    this.state.backups = this.state.backups.filter(b =>
+      new Date(b.timestamp) >= cutoff
+    );
+
+    await this.save();
+    return toDelete;
+  }
+
+  // Utility
+  getState(): State {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state;
+  }
+
+  private validate(): void {
+    if (!this.state) throw new Error('State is null');
+
+    if (!this.state.version || !this.state.zfsPool || !this.state.databases) {
+      throw new Error('Invalid state structure');
+    }
+
+    const names = new Set<string>();
+    for (const db of this.state.databases) {
+      if (names.has(db.name)) {
+        throw new Error(`Duplicate database name: ${db.name}`);
+      }
+      names.add(db.name);
+
+      for (const branch of db.branches) {
+        const branchFullName = `${db.name}/${branch.name}`;
+        if (names.has(branchFullName)) {
+          throw new Error(`Duplicate branch name: ${branchFullName}`);
+        }
+        names.add(branchFullName);
+      }
+    }
+  }
+
+  private async acquireLock(): Promise<void> {
+    let attempts = 0;
+    const maxAttempts = 50;
+
+    while (attempts < maxAttempts) {
+      try {
+        await fs.writeFile(this.lockFile, process.pid.toString(), { flag: 'wx' });
+        return;
+      } catch (error: any) {
+        if (error.code === 'EEXIST') {
+          await Bun.sleep(100);
+          attempts++;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Failed to acquire state lock after 5 seconds');
+  }
+
+  private async releaseLock(): Promise<void> {
+    try {
+      await fs.unlink(this.lockFile);
+    } catch (error) {
+      // Ignore errors
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "betterpg",
+  "version": "0.1.0",
+  "description": "PostgreSQL database branching using ZFS snapshots",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "bpg": "./dist/bpg"
+  },
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/bpg",
+    "dev": "bun run src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/dockerode": "^3.3.44",
+    "@types/node": "^24.6.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.9",
+    "yaml": "^2.8.1"
+  }
+}
