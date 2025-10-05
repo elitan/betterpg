@@ -46,7 +46,7 @@ export async function initCommand(options: { pool?: string; datasetBase?: string
       await $`zfs list ${pool}/${datasetBase}`.quiet();
       console.log('✓ Base dataset already exists');
     } catch {
-      await $`zfs create -o compression=${DEFAULT_CONFIG.zfs.compression} -o recordsize=${DEFAULT_CONFIG.zfs.recordsize} ${pool}/${datasetBase}`;
+      await $`zfs create -p -o compression=${DEFAULT_CONFIG.zfs.compression} -o recordsize=${DEFAULT_CONFIG.zfs.recordsize} ${pool}/${datasetBase}`;
       console.log('✓ Base dataset created');
     }
 
