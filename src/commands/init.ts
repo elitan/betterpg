@@ -1,3 +1,4 @@
+import { $ } from 'bun';
 import { ZFSManager } from '../managers/zfs';
 import { StateManager } from '../managers/state';
 import { ConfigManager, DEFAULT_CONFIG } from '../managers/config';
