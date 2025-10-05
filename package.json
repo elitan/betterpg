@@ -9,7 +9,7 @@
     "bpg": "./dist/bpg"
   },
   "scripts": {
-    "test": "bun test",
+    "test": "bun scripts/test.ts",
     "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/bpg",
     "dev": "bun run src/index.ts"
   },

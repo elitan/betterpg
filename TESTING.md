@@ -53,17 +53,28 @@ bun run build
 ### 4. Run Integration Tests
 
 ```bash
+# Run extended test suite (recommended)
+./scripts/run-extended-tests.sh
+
+# Or run the basic test suite
 ./scripts/integration-test.sh
 ```
 
-This will test:
+**Extended Test Suite (22 tests):**
 - ✅ Initialization
-- ✅ Database creation
-- ✅ Database connectivity
+- ✅ Database creation and connectivity
+- ✅ Stop/Start/Restart operations
 - ✅ Branch creation from snapshots
 - ✅ Data isolation between branches
+- ✅ Reset branch to parent snapshot
+- ✅ Status command with mixed states
+- ✅ List command
+- ✅ Idempotent operations
+- ✅ Edge case handling
 - ✅ ZFS copy-on-write efficiency
 - ✅ Resource cleanup
+
+All tests pass in ~2-3 minutes.
 
 ### 5. Manual Testing
 

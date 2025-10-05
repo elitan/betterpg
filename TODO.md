@@ -19,6 +19,12 @@
 ### Testing & Infrastructure
 - [x] VPS setup script (`scripts/vps-setup.sh`)
 - [x] Integration test suite (`scripts/integration-test.sh`)
+- [x] Extended integration tests (`scripts/extended-integration-test.sh`)
+  - 22 comprehensive tests covering all lifecycle commands
+  - Tests for start, stop, restart, reset, and status
+  - Edge case testing
+  - Data persistence verification
+  - ZFS copy-on-write efficiency validation
 - [x] All tests passing on Ubuntu 24.04 with ZFS
 - [x] VPS environment configured at `ssh betterpg`
 
@@ -48,11 +54,11 @@
   - When to use --fast vs default
 
 ### Database Lifecycle Management
-- [ ] `bpg start <name>` - Start stopped database/branch
-- [ ] `bpg stop <name>` - Stop running database/branch
-- [ ] `bpg restart <name>` - Restart database/branch
-- [ ] `bpg reset <name>` - Reset branch to parent snapshot
-- [ ] `bpg status` - Show detailed status of all instances
+- [x] `bpg start <name>` - Start stopped database/branch
+- [x] `bpg stop <name>` - Stop running database/branch
+- [x] `bpg restart <name>` - Restart database/branch
+- [x] `bpg reset <name>` - Reset branch to parent snapshot
+- [x] `bpg status` - Show detailed status of all instances
 
 ### Snapshot Management
 - [ ] `bpg snapshot <name>` - Create manual snapshot
@@ -162,15 +168,31 @@ Since ZFS is Linux-only, development requires VPS:
 - Access: `ssh betterpg`
 
 ### Current Test Results
-All 10 integration tests passing:
+All 22 extended integration tests passing:
 - ✅ Init system
 - ✅ Create database (9.32 MB)
-- ✅ Database connectivity
-- ✅ Create branch (348 KB - 27x smaller!)
-- ✅ Data isolation
-- ✅ ZFS copy-on-write efficiency
+- ✅ Database connectivity and test data
+- ✅ Status command
+- ✅ Stop database
+- ✅ Start database with data persistence
+- ✅ Restart database
+- ✅ Create branch (150 KB - 63x smaller!)
+- ✅ Branch data verification
+- ✅ Branch data isolation
+- ✅ Stop branch
+- ✅ Start branch
+- ✅ Reset branch to parent snapshot
+- ✅ Idempotent start/stop operations
+- ✅ Mixed running/stopped states in status
+- ✅ Create second branch
 - ✅ List command
+- ✅ ZFS copy-on-write efficiency verification
 - ✅ Destroy operations
+- ✅ Edge case: Reset rejects primary databases
+- ✅ Edge case: Start rejects non-existent databases
+- ✅ Final status check
+
+Run tests with: `./scripts/run-extended-tests.sh`
 
 ### Production Use Cases
 **Primary workflows:**
