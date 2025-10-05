@@ -24,6 +24,29 @@
 
 ## 🎯 Next Priority Features
 
+### Production-Safe Branching (HIGH PRIORITY)
+**Goal:** Enable safe production branching for migration testing and dev databases with real data
+
+- [ ] PostgreSQL connection utilities in DockerManager
+  - Add `execSQL()` method to run queries in containers
+  - Handle connection errors gracefully
+- [ ] Application-consistent snapshots using pg_start_backup/pg_stop_backup
+  - Implement coordinated backup workflow
+  - Create ZFS snapshot while Postgres is in backup mode
+  - Ensures zero data loss and consistency
+- [ ] Make consistent snapshots the default for `bpg branch`
+  - `bpg branch prod dev` uses pg_start_backup by default
+  - 5-10 second operation (acceptable for production)
+- [ ] Add `--fast` flag for crash-consistent snapshots (dev/test only)
+  - `bpg branch prod dev --fast` skips pg_start_backup
+  - Faster but requires WAL replay on startup
+  - Document when to use vs avoid
+- [ ] Update integration tests to verify consistent snapshots
+- [ ] Document production branching best practices
+  - Migration testing workflow
+  - Performance impact (2-5s)
+  - When to use --fast vs default
+
 ### Database Lifecycle Management
 - [ ] `bpg start <name>` - Start stopped database/branch
 - [ ] `bpg stop <name>` - Stop running database/branch
@@ -43,18 +66,17 @@
 - [ ] `bpg logs <name>` - Show PostgreSQL logs
 - [ ] Store credentials securely (not in state.json)
 
-### Backup & Recovery
+### Backup & Recovery (MEDIUM PRIORITY - For PITR)
 - [ ] WAL archiving to local/S3/B2
 - [ ] `bpg backup <name>` - Create base backup
 - [ ] `bpg restore <name> <backup>` - Restore from backup
 - [ ] Point-in-time recovery (PITR)
 - [ ] Automated backup retention policies
+- [ ] Branch from specific timestamp using PITR
 
 ### Branch Operations
-- [ ] `bpg merge <branch> <target>` - Merge branch changes back
 - [ ] `bpg diff <source> <target>` - Show schema differences
 - [ ] `bpg promote <branch>` - Promote branch to primary
-- [ ] Branch from specific snapshot/timestamp
 
 ## 🔧 Improvements & Refactoring
 
@@ -150,6 +172,17 @@ All 10 integration tests passing:
 - ✅ List command
 - ✅ Destroy operations
 
+### Production Use Cases
+**Primary workflows:**
+1. **Migration Testing** - Branch prod → test migration → if success apply to prod, if fail destroy and retry
+2. **Dev Databases with Real Data** - Give developers prod branches, manually anonymize sensitive data after branching
+3. **Multiple branches per day** - 2-5 second impact acceptable
+
+**Key Requirements:**
+- Application-consistent snapshots (pg_start_backup/pg_stop_backup)
+- Full read-write branches
+- Manual branch cleanup only (no auto-deletion)
+
 ### Architecture Overview
 ```
 User → CLI (src/index.ts)
@@ -178,3 +211,5 @@ User → CLI (src/index.ts)
 **Last Updated:** 2025-10-05
 **Version:** 0.1.0
 **Status:** All core features working, integration tests passing
+
+**Next Milestone (v0.2.0):** Production-safe branching with pg_start_backup/pg_stop_backup
