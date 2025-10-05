@@ -14,7 +14,7 @@ echo -e "${YELLOW}🧪 Running betterpg integration tests${NC}\n"
 
 # Build the binary
 echo -e "${YELLOW}📦 Building betterpg...${NC}"
-bun run build
+~/.bun/bin/bun run build
 
 BPG="sudo ./dist/bpg"
 
