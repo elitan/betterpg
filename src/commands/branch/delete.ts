@@ -47,7 +47,7 @@ export async function branchDeleteCommand(name: string) {
 
   // Destroy ZFS dataset
   const datasetSpinner = ora('Destroying ZFS dataset').start();
-  const datasetName = namespace.branch; // Just the branch part, not full namespace
+  const datasetName = `${namespace.database}-${namespace.branch}`; // Consistent <db>-<branch> naming
   await zfs.destroyDataset(datasetName, true);
   datasetSpinner.succeed('ZFS dataset destroyed');
 

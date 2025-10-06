@@ -54,10 +54,13 @@ export async function dbDeleteCommand(name: string, options: { force?: boolean }
     spinner.succeed(`Removed container: ${branch.containerName}`);
   }
 
-  // Destroy ZFS dataset (this removes all branches at once since they're all in the same dataset)
-  const spinner = ora('Destroying ZFS dataset').start();
-  await zfs.destroyDataset(database.name, true);
-  spinner.succeed('ZFS dataset destroyed');
+  // Destroy ZFS datasets for all branches
+  const spinner = ora('Destroying ZFS datasets').start();
+  for (const branch of branchesToDelete) {
+    const datasetName = branch.zfsDataset.split('/').pop()!;
+    await zfs.destroyDataset(datasetName, true);
+  }
+  spinner.succeed('ZFS datasets destroyed');
 
   // Remove from state
   await state.deleteDatabase(database.name);

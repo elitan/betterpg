@@ -57,7 +57,7 @@ export async function branchSyncCommand(name: string) {
 
   // Destroy existing ZFS dataset
   spinner = ora('Destroying old dataset').start();
-  const datasetName = namespace.branch;
+  const datasetName = `${namespace.database}-${namespace.branch}`;
   await zfs.destroyDataset(datasetName, true);
   spinner.succeed('Old dataset destroyed');
 

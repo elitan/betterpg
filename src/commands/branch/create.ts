@@ -93,7 +93,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
       // Create ZFS snapshot while in backup mode
       const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
-      await zfs.createSnapshot(source.database, snapshotName);
+      // Extract dataset name from full path (e.g., "tank/betterpg/databases/dev" -> "dev")
+      const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
+      await zfs.createSnapshot(datasetName, snapshotName);
       snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
 
       // Stop backup mode
@@ -118,12 +120,14 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       console.log(chalk.dim(`⚠️  Note: Branch will require WAL replay on startup`));
     }
     const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
-    await zfs.createSnapshot(source.database, snapshotName);
+    // Extract dataset name from full path
+    const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
+    await zfs.createSnapshot(datasetName, snapshotName);
     spinner.succeed(`Created snapshot: ${snapshotName}`);
   }
 
-  // Clone snapshot - use just the branch name part for the dataset
-  const targetDatasetName = target.branch;
+  // Clone snapshot - use consistent <db>-<branch> naming
+  const targetDatasetName = `${target.database}-${target.branch}`;
   const cloneSpinner = ora(`Cloning snapshot to: ${target.branch}`).start();
   await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
   cloneSpinner.succeed(`Cloned snapshot to: ${target.branch}`);

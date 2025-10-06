@@ -44,15 +44,16 @@ export async function dbCreateCommand(name: string) {
 
   // Create ZFS dataset for main branch
   const mainBranchName = buildNamespace(sanitizedName, 'main');
+  const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <db>-<branch>
   const spinner = ora(`Creating ZFS dataset: ${mainBranchName}`).start();
-  await zfs.createDataset(sanitizedName, {
+  await zfs.createDataset(mainDatasetName, {
     compression: cfg.zfs.compression,
     recordsize: cfg.zfs.recordsize,
   });
   spinner.succeed(`Created ZFS dataset: ${mainBranchName}`);
 
   // Get dataset mountpoint
-  const mountpoint = await zfs.getMountpoint(sanitizedName);
+  const mountpoint = await zfs.getMountpoint(mainDatasetName);
 
   // Generate credentials
   const password = generatePassword();
@@ -67,7 +68,7 @@ export async function dbCreateCommand(name: string) {
   }
 
   // Create WAL archive directory
-  const walArchivePath = `${PATHS.WAL_ARCHIVE}/${sanitizedName}`;
+  const walArchivePath = `${PATHS.WAL_ARCHIVE}/${mainDatasetName}`;
   await Bun.write(walArchivePath + '/.keep', '');
 
   // Create Docker container for main branch
@@ -95,7 +96,7 @@ export async function dbCreateCommand(name: string) {
   startSpinner.succeed('PostgreSQL is ready');
 
   // Get dataset size
-  const sizeBytes = await zfs.getUsedSpace(sanitizedName);
+  const sizeBytes = await zfs.getUsedSpace(mainDatasetName);
 
   // Create main branch
   const mainBranch: Branch = {
@@ -105,7 +106,7 @@ export async function dbCreateCommand(name: string) {
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
-    zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${sanitizedName}`,
+    zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${mainDatasetName}`,
     containerName,
     port,
     createdAt: new Date().toISOString(),
