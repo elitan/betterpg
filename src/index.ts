@@ -4,6 +4,16 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { initCommand } from './commands/init';
 import { dbCreateCommand } from './commands/db/create';
+import { dbListCommand } from './commands/db/list';
+import { dbGetCommand } from './commands/db/get';
+import { dbDeleteCommand } from './commands/db/delete';
+import { dbRenameCommand } from './commands/db/rename';
+import { branchCreateCommand } from './commands/branch/create';
+import { branchListCommand } from './commands/branch/list';
+import { branchGetCommand } from './commands/branch/get';
+import { branchDeleteCommand } from './commands/branch/delete';
+import { branchSyncCommand } from './commands/branch/sync';
+import { branchRenameCommand } from './commands/branch/rename';
 
 const program = new Command();
 
@@ -40,8 +50,7 @@ dbCommand
   .description('List all databases')
   .action(async () => {
     try {
-      console.log(chalk.yellow('⚠️  db list command not yet implemented'));
-      process.exit(1);
+      await dbListCommand();
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -54,9 +63,7 @@ dbCommand
   .argument('<name>', 'database name')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  db get command not yet implemented'));
-      console.log(chalk.dim(`Would get database: ${name}`));
-      process.exit(1);
+      await dbGetCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -71,9 +78,7 @@ dbCommand
   .option('-f, --force', 'force delete even if branches exist')
   .action(async (name: string, options: { force?: boolean }) => {
     try {
-      console.log(chalk.yellow('⚠️  db delete command not yet implemented'));
-      console.log(chalk.dim(`Would delete database: ${name} (force: ${options.force})`));
-      process.exit(1);
+      await dbDeleteCommand(name, options);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -87,9 +92,7 @@ dbCommand
   .argument('<new>', 'new database name')
   .action(async (oldName: string, newName: string) => {
     try {
-      console.log(chalk.yellow('⚠️  db rename command not yet implemented'));
-      console.log(chalk.dim(`Would rename: ${oldName} → ${newName}`));
-      process.exit(1);
+      await dbRenameCommand(oldName, newName);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -113,11 +116,7 @@ branchCommand
   .option('--fast', 'use crash-consistent snapshot (faster, dev/test only)')
   .action(async (name: string, options: { from?: string; fast?: boolean }) => {
     try {
-      console.log(chalk.yellow('⚠️  branch create command not yet implemented'));
-      console.log(chalk.dim(`Would create branch: ${name}`));
-      console.log(chalk.dim(`From: ${options.from || 'main'}`));
-      console.log(chalk.dim(`Fast mode: ${options.fast}`));
-      process.exit(1);
+      await branchCreateCommand(name, options);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -131,9 +130,7 @@ branchCommand
   .argument('[database]', 'database name (optional, lists all if not specified)')
   .action(async (database?: string) => {
     try {
-      console.log(chalk.yellow('⚠️  branch list command not yet implemented'));
-      console.log(chalk.dim(`Would list branches for: ${database || 'all databases'}`));
-      process.exit(1);
+      await branchListCommand(database);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -146,9 +143,7 @@ branchCommand
   .argument('<name>', 'branch name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  branch get command not yet implemented'));
-      console.log(chalk.dim(`Would get branch: ${name}`));
-      process.exit(1);
+      await branchGetCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -162,9 +157,7 @@ branchCommand
   .argument('<name>', 'branch name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  branch delete command not yet implemented'));
-      console.log(chalk.dim(`Would delete branch: ${name}`));
-      process.exit(1);
+      await branchDeleteCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -178,9 +171,7 @@ branchCommand
   .argument('<new>', 'new branch name: <database>/<branch>')
   .action(async (oldName: string, newName: string) => {
     try {
-      console.log(chalk.yellow('⚠️  branch rename command not yet implemented'));
-      console.log(chalk.dim(`Would rename: ${oldName} → ${newName}`));
-      process.exit(1);
+      await branchRenameCommand(oldName, newName);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -193,9 +184,7 @@ branchCommand
   .argument('<name>', 'branch name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  branch sync command not yet implemented'));
-      console.log(chalk.dim(`Would sync branch: ${name}`));
-      process.exit(1);
+      await branchSyncCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
