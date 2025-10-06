@@ -1,86 +1,90 @@
+import ora from 'ora';
+import chalk from 'chalk';
 import { ZFSManager } from '../managers/zfs';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { ConfigManager } from '../managers/config';
-
-const CONFIG_PATH = '/etc/betterpg/config.yaml';
-const STATE_PATH = '/var/lib/betterpg/state.json';
+import { PATHS } from '../utils/paths';
 
 export async function destroyCommand(name: string, options: { force?: boolean } = {}) {
-  try {
-    const config = new ConfigManager(CONFIG_PATH);
-    await config.load();
-    const cfg = config.getConfig();
+  const config = new ConfigManager(PATHS.CONFIG);
+  await config.load();
+  const cfg = config.getConfig();
 
-    const state = new StateManager(STATE_PATH);
-    await state.load();
+  const state = new StateManager(PATHS.STATE);
+  await state.load();
 
-    const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
-    const docker = new DockerManager();
+  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const docker = new DockerManager();
 
-    // Check if it's a database
-    const database = await state.getDatabase(name);
-    if (database) {
-      // Check if it has branches
-      if (database.branches.length > 0 && !options.force) {
-        console.log(`❌ Database '${name}' has ${database.branches.length} branch(es)`);
-        console.log('   Delete branches first, or use --force to destroy everything');
-        console.log('\n   Branches:');
-        database.branches.forEach(b => console.log(`     - ${b.name}`));
-        process.exit(1);
-      }
-
-      console.log(`🗑️  Destroying database: ${name}\n`);
-
-      // Destroy all branches first if force is used
-      if (database.branches.length > 0 && options.force) {
-        console.log(`⚠️  Force destroying ${database.branches.length} branch(es)...`);
-        for (const branch of database.branches) {
-          await destroyBranch(branch.containerName, branch.name, zfs, docker);
-          await state.deleteBranch(database.id, branch.id);
-        }
-      }
-
-      // Stop and remove container
-      console.log('🐳 Removing container...');
-      const containerID = await docker.getContainerByName(database.containerName);
-      if (containerID) {
-        await docker.stopContainer(containerID);
-        await docker.removeContainer(containerID);
-        console.log('✓ Container removed');
-      }
-
-      // Destroy ZFS dataset
-      console.log('📦 Destroying ZFS dataset...');
-      await zfs.destroyDataset(database.name, true);
-      console.log('✓ Dataset destroyed');
-
-      // Remove from state
-      await state.deleteDatabase(database.id);
-
-      console.log(`\n✅ Database '${name}' destroyed successfully`);
-      return;
+  // Check if it's a database
+  const database = await state.getDatabase(name);
+  if (database) {
+    // Check if it has branches
+    if (database.branches.length > 0 && !options.force) {
+      console.log();
+      console.log(chalk.red.bold(`✗ Database '${name}' has ${database.branches.length} branch(es)`));
+      console.log(chalk.dim('  Delete branches first, or use'), chalk.yellow('--force'), chalk.dim('to destroy everything'));
+      console.log();
+      console.log(chalk.bold('  Branches:'));
+      database.branches.forEach(b => console.log(chalk.dim(`    • ${b.name}`)));
+      console.log();
+      throw new Error('Cannot destroy database with branches');
     }
 
-    // Check if it's a branch
-    const branchResult = await state.getBranch(name);
-    if (branchResult) {
-      console.log(`🗑️  Destroying branch: ${name}\n`);
+    console.log();
+    console.log(chalk.bold(`🗑️  Destroying database: ${chalk.cyan(name)}`));
+    console.log();
 
-      await destroyBranch(branchResult.branch.containerName, branchResult.branch.name, zfs, docker);
-      await state.deleteBranch(branchResult.database.id, branchResult.branch.id);
-
-      console.log(`\n✅ Branch '${name}' destroyed successfully`);
-      return;
+    // Destroy all branches first if force is used
+    if (database.branches.length > 0 && options.force) {
+      console.log(chalk.yellow(`⚠️  Force destroying ${database.branches.length} branch(es)...`));
+      for (const branch of database.branches) {
+        await destroyBranch(branch.containerName, branch.name, zfs, docker);
+        await state.deleteBranch(database.id, branch.id);
+      }
     }
 
-    console.log(`❌ Database or branch '${name}' not found`);
-    process.exit(1);
+    // Stop and remove container
+    const spinner = ora('Removing container').start();
+    const containerID = await docker.getContainerByName(database.containerName);
+    if (containerID) {
+      await docker.stopContainer(containerID);
+      await docker.removeContainer(containerID);
+    }
+    spinner.succeed('Container removed');
 
-  } catch (error: any) {
-    console.error('❌ Failed to destroy:', error.message);
-    process.exit(1);
+    // Destroy ZFS dataset
+    const destroySpinner = ora('Destroying ZFS dataset').start();
+    await zfs.destroyDataset(database.name, true);
+    destroySpinner.succeed('Dataset destroyed');
+
+    // Remove from state
+    await state.deleteDatabase(database.id);
+
+    console.log();
+    console.log(chalk.green.bold(`✓ Database '${name}' destroyed successfully`));
+    console.log();
+    return;
   }
+
+  // Check if it's a branch
+  const branchResult = await state.getBranch(name);
+  if (branchResult) {
+    console.log();
+    console.log(chalk.bold(`🗑️  Destroying branch: ${chalk.cyan(name)}`));
+    console.log();
+
+    await destroyBranch(branchResult.branch.containerName, branchResult.branch.name, zfs, docker);
+    await state.deleteBranch(branchResult.database.id, branchResult.branch.id);
+
+    console.log();
+    console.log(chalk.green.bold(`✓ Branch '${name}' destroyed successfully`));
+    console.log();
+    return;
+  }
+
+  throw new Error(`Database or branch '${name}' not found`);
 }
 
 async function destroyBranch(
@@ -90,12 +94,16 @@ async function destroyBranch(
   docker: DockerManager
 ) {
   // Stop and remove container
+  const spinner = ora('Removing container').start();
   const containerID = await docker.getContainerByName(containerName);
   if (containerID) {
     await docker.stopContainer(containerID);
     await docker.removeContainer(containerID);
   }
+  spinner.succeed('Container removed');
 
   // Destroy ZFS clone
+  const destroySpinner = ora('Destroying ZFS dataset').start();
   await zfs.destroyDataset(datasetName, true);
+  destroySpinner.succeed('Dataset destroyed');
 }

@@ -42,7 +42,7 @@ export class ZFSManager {
   }
 
   async createPool(devices: string[]): Promise<void> {
-    await $`zpool create ${this.pool} ${devices}`;
+    await $`sudo zpool create ${this.pool} ${devices}`;
   }
 
   async getPoolStatus(): Promise<PoolStatus> {
@@ -64,18 +64,18 @@ export class ZFSManager {
 
     if (options) {
       const opts = Object.entries(options).flatMap(([key, value]) => ['-o', `${key}=${value}`]);
-      await $`zfs create ${opts} ${fullName}`;
+      await $`sudo zfs create ${opts} ${fullName}`;
     } else {
-      await $`zfs create ${fullName}`;
+      await $`sudo zfs create ${fullName}`;
     }
   }
 
   async destroyDataset(name: string, recursive = false): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${name}`;
     if (recursive) {
-      await $`zfs destroy -r ${fullName}`;
+      await $`sudo zfs destroy -r ${fullName}`;
     } else {
-      await $`zfs destroy ${fullName}`;
+      await $`sudo zfs destroy ${fullName}`;
     }
   }
 
@@ -137,7 +137,7 @@ export class ZFSManager {
 
   async setProperty(dataset: string, key: string, value: string): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`zfs set ${key}=${value} ${fullName}`;
+    await $`sudo zfs set ${key}=${value} ${fullName}`;
   }
 
   async getProperty(dataset: string, key: string): Promise<string> {
@@ -149,11 +149,11 @@ export class ZFSManager {
   // Snapshot operations
   async createSnapshot(dataset: string, snapName: string): Promise<void> {
     const fullDataset = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`zfs snapshot ${fullDataset}@${snapName}`;
+    await $`sudo zfs snapshot ${fullDataset}@${snapName}`;
   }
 
   async destroySnapshot(snapshot: string): Promise<void> {
-    await $`zfs destroy ${snapshot}`;
+    await $`sudo zfs destroy ${snapshot}`;
   }
 
   async listSnapshots(dataset?: string): Promise<Snapshot[]> {
@@ -196,12 +196,12 @@ export class ZFSManager {
   // Clone operations
   async cloneSnapshot(snapshot: string, target: string): Promise<void> {
     const fullTarget = `${this.pool}/${this.datasetBase}/${target}`;
-    await $`zfs clone ${snapshot} ${fullTarget}`;
+    await $`sudo zfs clone ${snapshot} ${fullTarget}`;
   }
 
   async promoteClone(clone: string): Promise<void> {
     const fullClone = `${this.pool}/${this.datasetBase}/${clone}`;
-    await $`zfs promote ${fullClone}`;
+    await $`sudo zfs promote ${fullClone}`;
   }
 
   // Utility functions

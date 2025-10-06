@@ -1,23 +1,11 @@
+import Table from 'cli-table3';
+import chalk from 'chalk';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { ZFSManager } from '../managers/zfs';
 import { ConfigManager } from '../managers/config';
-
-const CONFIG_PATH = '/etc/betterpg/config.yaml';
-const STATE_PATH = '/var/lib/betterpg/state.json';
-
-function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let size = bytes;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-
-  return `${size.toFixed(2)} ${units[unitIndex]}`;
-}
+import { formatBytes } from '../utils/helpers';
+import { PATHS } from '../utils/paths';
 
 function formatUptime(startedAt: Date | null): string {
   if (!startedAt) return 'N/A';
@@ -37,101 +25,131 @@ function formatUptime(startedAt: Date | null): string {
 }
 
 export async function statusCommand() {
-  try {
-    console.log('📊 BetterPG Status\n');
+  console.log();
+  console.log(chalk.bold('📊 BetterPG Status'));
+  console.log();
 
-    const config = new ConfigManager(CONFIG_PATH);
-    await config.load();
-    const cfg = config.getConfig();
+  const config = new ConfigManager(PATHS.CONFIG);
+  await config.load();
+  const cfg = config.getConfig();
 
-    const state = new StateManager(STATE_PATH);
-    await state.load();
+  const state = new StateManager(PATHS.STATE);
+  await state.load();
 
-    const docker = new DockerManager();
-    const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const docker = new DockerManager();
+  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
 
-    // Get pool status
-    const poolStatus = await zfs.getPoolStatus();
-    console.log('🗄️  ZFS Pool:');
-    console.log(`   Pool:      ${poolStatus.name}`);
-    console.log(`   Health:    ${poolStatus.health}`);
-    console.log(`   Size:      ${formatBytes(poolStatus.size)}`);
-    console.log(`   Used:      ${formatBytes(poolStatus.allocated)} (${((poolStatus.allocated / poolStatus.size) * 100).toFixed(1)}%)`);
-    console.log(`   Free:      ${formatBytes(poolStatus.free)}`);
-    console.log();
+  // Get pool status
+  const poolStatus = await zfs.getPoolStatus();
 
-    // Get all databases
-    const databases = await state.listDatabases();
+  const poolTable = new Table({
+    head: ['Pool', 'Health', 'Size', 'Used', 'Free'],
+    style: {
+      head: ['cyan'],
+      border: ['gray']
+    }
+  });
 
-    if (databases.length === 0) {
-      console.log('No databases found.');
-      return;
+  const usagePercent = ((poolStatus.allocated / poolStatus.size) * 100).toFixed(1);
+  const healthColor = poolStatus.health === 'ONLINE' ? chalk.green : chalk.red;
+
+  poolTable.push([
+    chalk.bold(poolStatus.name),
+    healthColor(poolStatus.health),
+    formatBytes(poolStatus.size),
+    `${formatBytes(poolStatus.allocated)} ${chalk.dim(`(${usagePercent}%)`)}`,
+    formatBytes(poolStatus.free)
+  ]);
+
+  console.log(chalk.bold('🗄️  ZFS Pool'));
+  console.log(poolTable.toString());
+  console.log();
+
+  // Get all databases
+  const databases = await state.listDatabases();
+
+  if (databases.length === 0) {
+    console.log(chalk.dim('No databases found.'));
+    return;
+  }
+
+  console.log(chalk.bold(`📊 Databases (${databases.length})`));
+  console.log();
+
+  // Create table for all instances (primaries + branches)
+  const instanceTable = new Table({
+    head: ['', 'Name', 'Type', 'Status', 'Uptime', 'Port', 'Version', 'Size', 'Created'],
+    style: {
+      head: ['cyan'],
+      border: ['gray']
+    }
+  });
+
+  for (const db of databases) {
+    // Get container status
+    let containerStatus = null;
+    const containerID = await docker.getContainerByName(db.containerName);
+    if (containerID) {
+      try {
+        containerStatus = await docker.getContainerStatus(containerID);
+      } catch {
+        // Container doesn't exist
+      }
     }
 
-    console.log(`📊 Databases (${databases.length}):\n`);
+    const actualStatus = containerStatus ? containerStatus.state : db.status;
+    const statusIcon = actualStatus === 'running' ? chalk.green('●') : chalk.red('●');
+    const statusText = actualStatus === 'running' ? chalk.green('running') : chalk.red(actualStatus);
+    const uptime = containerStatus?.state === 'running' && containerStatus.startedAt
+      ? formatUptime(containerStatus.startedAt)
+      : chalk.dim('—');
 
-    for (const db of databases) {
-      // Get container status
-      let containerStatus = null;
-      const containerID = await docker.getContainerByName(db.containerName);
-      if (containerID) {
+    instanceTable.push([
+      statusIcon,
+      chalk.bold(db.name),
+      chalk.blue('primary'),
+      statusText,
+      uptime,
+      db.port,
+      `PG ${db.postgresVersion}`,
+      formatBytes(db.sizeBytes),
+      new Date(db.createdAt).toLocaleString()
+    ]);
+
+    // Add branches
+    for (const branch of db.branches) {
+      // Get branch container status
+      let branchContainerStatus = null;
+      const branchContainerID = await docker.getContainerByName(branch.containerName);
+      if (branchContainerID) {
         try {
-          containerStatus = await docker.getContainerStatus(containerID);
+          branchContainerStatus = await docker.getContainerStatus(branchContainerID);
         } catch {
           // Container doesn't exist
         }
       }
 
-      const statusIcon = db.status === 'running' ? '🟢' : db.status === 'stopped' ? '🔴' : '⚪';
-      const actualStatus = containerStatus ? containerStatus.state : db.status;
+      const actualBranchStatus = branchContainerStatus ? branchContainerStatus.state : branch.status;
+      const branchStatusIcon = actualBranchStatus === 'running' ? chalk.green('●') : chalk.red('●');
+      const branchStatusText = actualBranchStatus === 'running' ? chalk.green('running') : chalk.red(actualBranchStatus);
+      const branchUptime = branchContainerStatus?.state === 'running' && branchContainerStatus.startedAt
+        ? formatUptime(branchContainerStatus.startedAt)
+        : chalk.dim('—');
 
-      console.log(`${statusIcon} ${db.name}`);
-      console.log(`   Type:      Primary database`);
-      console.log(`   Status:    ${actualStatus}`);
-      console.log(`   Port:      ${db.port}`);
-      console.log(`   Version:   PostgreSQL ${db.postgresVersion}`);
-      console.log(`   Size:      ${formatBytes(db.sizeBytes)}`);
-      console.log(`   Created:   ${new Date(db.createdAt).toLocaleString()}`);
-
-      if (containerStatus && containerStatus.state === 'running' && containerStatus.startedAt) {
-        console.log(`   Uptime:    ${formatUptime(containerStatus.startedAt)}`);
-      }
-
-      if (db.branches.length > 0) {
-        console.log(`   Branches:  ${db.branches.length}`);
-
-        for (const branch of db.branches) {
-          // Get branch container status
-          let branchContainerStatus = null;
-          const branchContainerID = await docker.getContainerByName(branch.containerName);
-          if (branchContainerID) {
-            try {
-              branchContainerStatus = await docker.getContainerStatus(branchContainerID);
-            } catch {
-              // Container doesn't exist
-            }
-          }
-
-          const branchStatusIcon = branch.status === 'running' ? '🟢' : branch.status === 'stopped' ? '🔴' : '⚪';
-          const actualBranchStatus = branchContainerStatus ? branchContainerStatus.state : branch.status;
-
-          console.log(`   ${branchStatusIcon} └─ ${branch.name}`);
-          console.log(`      Status:    ${actualBranchStatus}`);
-          console.log(`      Port:      ${branch.port}`);
-          console.log(`      Size:      ${formatBytes(branch.sizeBytes)}`);
-          console.log(`      Created:   ${new Date(branch.createdAt).toLocaleString()}`);
-
-          if (branchContainerStatus && branchContainerStatus.state === 'running' && branchContainerStatus.startedAt) {
-            console.log(`      Uptime:    ${formatUptime(branchContainerStatus.startedAt)}`);
-          }
-        }
-      }
-
-      console.log();
+      instanceTable.push([
+        branchStatusIcon,
+        chalk.dim('  ↳ ') + branch.name,
+        chalk.yellow('branch'),
+        branchStatusText,
+        branchUptime,
+        branch.port,
+        chalk.dim('—'),
+        formatBytes(branch.sizeBytes),
+        new Date(branch.createdAt).toLocaleString()
+      ]);
     }
-
-  } catch (error: any) {
-    console.error('❌ Failed to get status:', error.message);
-    process.exit(1);
   }
+
+  console.log(instanceTable.toString());
+  console.log();
 }

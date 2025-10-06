@@ -19,7 +19,7 @@ if [ ! -f "./dist/bpg" ]; then
     exit 1
 fi
 
-BPG="sudo ./dist/bpg"
+BPG="./dist/bpg"
 
 # Cleanup function
 cleanup() {
@@ -29,11 +29,11 @@ cleanup() {
     docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
-    zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    zfs create tank/betterpg/databases 2>/dev/null || true
+    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
+    sudo zfs create tank/betterpg/databases 2>/dev/null || true
 
-    # Remove state and config
-    rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
+    # Remove state and config (user directories)
+    rm -rf ~/.config/betterpg ~/.local/share/betterpg 2>/dev/null || true
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -66,7 +66,7 @@ check_container_state() {
 # Test 1: Initialize
 echo -e "\n${BLUE}=== Test 1: Initialize betterpg ===${NC}"
 $BPG init
-if [ -f /var/lib/betterpg/state.json ] && [ -f /etc/betterpg/config.yaml ]; then
+if [ -f ~/.local/share/betterpg/state.json ] && [ -f ~/.config/betterpg/config.yaml ]; then
     echo -e "${GREEN}✓ Init successful${NC}"
 else
     echo -e "${RED}✗ Init failed${NC}"
@@ -94,8 +94,8 @@ fi
 # Test 3: Create test data
 echo -e "\n${BLUE}=== Test 3: Create test data ===${NC}"
 sleep 3  # Give PostgreSQL a moment
-PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
-PGPORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
+PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].credentials.password')
+PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres <<EOF
 CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -127,7 +127,7 @@ else
 fi
 
 # Verify state was updated
-STATE_STATUS=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].status')
+STATE_STATUS=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].status')
 if [ "$STATE_STATUS" = "stopped" ]; then
     echo -e "${GREEN}✓ State updated correctly${NC}"
 else
@@ -211,7 +211,7 @@ fi
 # Test 9: Verify branch has same data
 echo -e "\n${BLUE}=== Test 9: Verify branch data ===${NC}"
 sleep 3
-DEV_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
     echo -e "${GREEN}✓ Branch has same data as primary${NC}"

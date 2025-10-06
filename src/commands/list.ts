@@ -1,46 +1,66 @@
+import Table from 'cli-table3';
+import chalk from 'chalk';
 import { StateManager } from '../managers/state';
 import { formatBytes } from '../utils/helpers';
-
-const STATE_PATH = '/var/lib/betterpg/state.json';
+import { PATHS } from '../utils/paths';
 
 export async function listCommand() {
-  try {
-    const state = new StateManager(STATE_PATH);
-    await state.load();
+  const state = new StateManager(PATHS.STATE);
+  await state.load();
 
-    const databases = await state.listDatabases();
+  const databases = await state.listDatabases();
 
-    if (databases.length === 0) {
-      console.log('No databases found. Create one with: bpg create <name>');
-      return;
-    }
+  if (databases.length === 0) {
+    console.log(chalk.dim('No databases found. Create one with:'), chalk.cyan('bpg create <name>'));
+    return;
+  }
 
-    console.log('\n📊 Databases and Branches\n');
+  console.log();
+  console.log(chalk.bold('📊 Databases and Branches'));
+  console.log();
 
-    for (const db of databases) {
-      const statusIcon = db.status === 'running' ? '🟢' : '🔴';
-
-      console.log(`${statusIcon} ${db.name} (primary)`);
-      console.log(`   Port:    ${db.port}`);
-      console.log(`   Size:    ${formatBytes(db.sizeBytes)}`);
-      console.log(`   Status:  ${db.status}`);
-      console.log(`   Created: ${new Date(db.createdAt).toLocaleString()}`);
-
-      if (db.branches.length > 0) {
-        console.log(`   Branches:`);
-        for (const branch of db.branches) {
-          const branchIcon = branch.status === 'running' ? '  🟢' : '  🔴';
-          console.log(`${branchIcon} ${branch.name}`);
-          console.log(`      Port:    ${branch.port}`);
-          console.log(`      Size:    ${formatBytes(branch.sizeBytes)}`);
-          console.log(`      Created: ${new Date(branch.createdAt).toLocaleString()}`);
-        }
+  for (const db of databases) {
+    // Primary database table
+    const table = new Table({
+      head: ['', 'Name', 'Type', 'Port', 'Size', 'Status', 'Created'],
+      style: {
+        head: ['cyan'],
+        border: ['gray']
       }
+    });
 
-      console.log('');
+    const statusIcon = db.status === 'running' ? chalk.green('●') : chalk.red('●');
+    const statusText = db.status === 'running' ? chalk.green('running') : chalk.red('stopped');
+
+    table.push([
+      statusIcon,
+      chalk.bold(db.name),
+      chalk.blue('primary'),
+      db.port,
+      formatBytes(db.sizeBytes),
+      statusText,
+      new Date(db.createdAt).toLocaleString()
+    ]);
+
+    // Add branches
+    if (db.branches.length > 0) {
+      for (const branch of db.branches) {
+        const branchIcon = branch.status === 'running' ? chalk.green('●') : chalk.red('●');
+        const branchStatus = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
+
+        table.push([
+          branchIcon,
+          chalk.dim('  ↳ ') + branch.name,
+          chalk.yellow('branch'),
+          branch.port,
+          formatBytes(branch.sizeBytes),
+          branchStatus,
+          new Date(branch.createdAt).toLocaleString()
+        ]);
+      }
     }
-  } catch (error: any) {
-    console.error('❌ Failed to list databases:', error.message);
-    process.exit(1);
+
+    console.log(table.toString());
+    console.log();
   }
 }

@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { Command } from 'commander';
+import chalk from 'chalk';
 import { initCommand } from './commands/init';
 import { createCommand } from './commands/create';
 import { branchCommand } from './commands/branch';
@@ -11,146 +13,143 @@ import { restartCommand } from './commands/restart';
 import { resetCommand } from './commands/reset';
 import { statusCommand } from './commands/status';
 
-const args = process.argv.slice(2);
-const command = args[0];
+const program = new Command();
 
-async function main() {
-  if (!command || command === 'help' || command === '--help' || command === '-h') {
-    showHelp();
-    return;
-  }
+program
+  .name('bpg')
+  .description('PostgreSQL database branching using ZFS snapshots')
+  .version('0.1.0');
 
-  try {
-    switch (command) {
-      case 'init':
-        await initCommand();
-        break;
-
-      case 'create':
-        if (!args[1]) {
-          console.error('❌ Missing database name');
-          console.error('Usage: bpg create <name>');
-          process.exit(1);
-        }
-        await createCommand(args[1]);
-        break;
-
-      case 'branch':
-        if (!args[1] || !args[2]) {
-          console.error('❌ Missing arguments');
-          console.error('Usage: bpg branch <source> <target> [--fast]');
-          process.exit(1);
-        }
-        const fast = args.includes('--fast');
-        await branchCommand(args[1], args[2], { fast });
-        break;
-
-      case 'list':
-      case 'ls':
-        await listCommand();
-        break;
-
-      case 'destroy':
-      case 'rm':
-        if (!args[1]) {
-          console.error('❌ Missing database/branch name');
-          console.error('Usage: bpg destroy <name>');
-          process.exit(1);
-        }
-        const force = args.includes('--force') || args.includes('-f');
-        await destroyCommand(args[1], { force });
-        break;
-
-      case 'start':
-        if (!args[1]) {
-          console.error('❌ Missing database/branch name');
-          console.error('Usage: bpg start <name>');
-          process.exit(1);
-        }
-        await startCommand(args[1]);
-        break;
-
-      case 'stop':
-        if (!args[1]) {
-          console.error('❌ Missing database/branch name');
-          console.error('Usage: bpg stop <name>');
-          process.exit(1);
-        }
-        await stopCommand(args[1]);
-        break;
-
-      case 'restart':
-        if (!args[1]) {
-          console.error('❌ Missing database/branch name');
-          console.error('Usage: bpg restart <name>');
-          process.exit(1);
-        }
-        await restartCommand(args[1]);
-        break;
-
-      case 'reset':
-        if (!args[1]) {
-          console.error('❌ Missing branch name');
-          console.error('Usage: bpg reset <name>');
-          process.exit(1);
-        }
-        await resetCommand(args[1]);
-        break;
-
-      case 'status':
-        await statusCommand();
-        break;
-
-      default:
-        console.error(`❌ Unknown command: ${command}`);
-        showHelp();
-        process.exit(1);
+program
+  .command('init')
+  .description('Initialize betterpg system with ZFS pool')
+  .action(async () => {
+    try {
+      await initCommand();
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
     }
-  } catch (error: any) {
-    console.error('❌ Error:', error.message);
-    process.exit(1);
-  }
-}
+  });
 
-function showHelp() {
-  console.log(`
-betterpg - PostgreSQL database branching using ZFS
+program
+  .command('create')
+  .description('Create a new PostgreSQL database')
+  .argument('<name>', 'database name')
+  .action(async (name: string) => {
+    try {
+      await createCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-Usage: bpg <command> [options]
+program
+  .command('branch')
+  .description('Create a branch from existing database (application-consistent by default)')
+  .argument('<source>', 'source database name')
+  .argument('<target>', 'target branch name')
+  .option('--fast', 'use crash-consistent snapshot (faster, dev/test only)')
+  .action(async (source: string, target: string, options: { fast?: boolean }) => {
+    try {
+      await branchCommand(source, target, { fast: options.fast || false });
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-Commands:
-  init                    Initialize betterpg system
-  create <name>           Create a new PostgreSQL database
-  branch <source> <target> Create a branch from existing database (application-consistent)
-  list, ls                List all databases and branches
-  status                  Show detailed status of all instances
-  start <name>            Start a stopped database or branch
-  stop <name>             Stop a running database or branch
-  restart <name>          Restart a database or branch
-  reset <name>            Reset a branch to its parent snapshot
-  destroy <name>          Destroy a database or branch
+program
+  .command('list')
+  .alias('ls')
+  .description('List all databases and branches')
+  .action(async () => {
+    try {
+      await listCommand();
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-Options:
-  --fast                 Use crash-consistent snapshot (faster, dev/test only)
-  --force, -f            Force destroy database with branches
-  --help, -h             Show this help message
+program
+  .command('status')
+  .description('Show detailed status of all instances')
+  .action(async () => {
+    try {
+      await statusCommand();
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-Examples:
-  bpg init
-  bpg create myapp-prod
-  bpg branch myapp-prod myapp-dev              # Production-safe (uses pg_start_backup)
-  bpg branch myapp-prod myapp-test --fast      # Faster but crash-consistent
-  bpg list
-  bpg status
-  bpg stop myapp-dev
-  bpg start myapp-dev
-  bpg restart myapp-dev
-  bpg reset myapp-dev
-  bpg destroy myapp-dev
-  bpg destroy myapp-prod --force
+program
+  .command('start')
+  .description('Start a stopped database or branch')
+  .argument('<name>', 'database/branch name')
+  .action(async (name: string) => {
+    try {
+      await startCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-For more information, visit: https://github.com/elitan/betterpg
-`);
-}
+program
+  .command('stop')
+  .description('Stop a running database or branch')
+  .argument('<name>', 'database/branch name')
+  .action(async (name: string) => {
+    try {
+      await stopCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
 
-main();
+program
+  .command('restart')
+  .description('Restart a database or branch')
+  .argument('<name>', 'database/branch name')
+  .action(async (name: string) => {
+    try {
+      await restartCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('reset')
+  .description('Reset a branch to its parent snapshot')
+  .argument('<name>', 'branch name')
+  .action(async (name: string) => {
+    try {
+      await resetCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('destroy')
+  .alias('rm')
+  .description('Destroy a database or branch')
+  .argument('<name>', 'database/branch name')
+  .option('-f, --force', 'force destroy database with branches')
+  .action(async (name: string, options: { force?: boolean }) => {
+    try {
+      await destroyCommand(name, { force: options.force || false });
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+program.parse();
