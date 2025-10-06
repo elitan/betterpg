@@ -145,6 +145,28 @@ export class StateManager {
     return null;
   }
 
+  async getBranchByNamespace(namespacedName: string): Promise<{ branch: Branch; database: Database } | null> {
+    if (!this.state) throw new Error('State not loaded');
+
+    for (const db of this.state.databases) {
+      const branch = db.branches.find(b => b.name === namespacedName);
+      if (branch) {
+        return { branch, database: db };
+      }
+    }
+
+    return null;
+  }
+
+  async getMainBranch(databaseName: string): Promise<Branch | null> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const db = this.state.databases.find(d => d.name === databaseName);
+    if (!db) return null;
+
+    return db.branches.find(b => b.isPrimary) || null;
+  }
+
   async updateBranch(databaseID: string, branch: Branch): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
@@ -249,19 +271,36 @@ export class StateManager {
       throw new Error('Invalid state structure');
     }
 
-    const names = new Set<string>();
+    const dbNames = new Set<string>();
+    const branchNames = new Set<string>();
+
     for (const db of this.state.databases) {
-      if (names.has(db.name)) {
+      if (dbNames.has(db.name)) {
         throw new Error(`Duplicate database name: ${db.name}`);
       }
-      names.add(db.name);
+      dbNames.add(db.name);
+
+      // Check that database has a main branch
+      const mainBranch = db.branches.find(b => b.isPrimary);
+      if (!mainBranch) {
+        throw new Error(`Database '${db.name}' must have a main branch`);
+      }
 
       for (const branch of db.branches) {
-        const branchFullName = `${db.name}/${branch.name}`;
-        if (names.has(branchFullName)) {
-          throw new Error(`Duplicate branch name: ${branchFullName}`);
+        // Branch name should be namespaced
+        if (!branch.name.includes('/')) {
+          throw new Error(`Branch name must be namespaced: ${branch.name}`);
         }
-        names.add(branchFullName);
+
+        if (branchNames.has(branch.name)) {
+          throw new Error(`Duplicate branch name: ${branch.name}`);
+        }
+        branchNames.add(branch.name);
+
+        // Validate branch belongs to correct database
+        if (branch.databaseName !== db.name) {
+          throw new Error(`Branch '${branch.name}' has incorrect databaseName`);
+        }
       }
     }
   }

@@ -11,23 +11,19 @@ export interface State {
 export interface Database {
   id: string;
   name: string;
-  type: 'primary';
-  zfsDataset: string;
-  containerName: string;
-  port: number;
   postgresVersion: string;
   createdAt: string;
-  sizeBytes: number;
-  status: 'running' | 'stopped' | 'created';
   credentials: Credentials;
   branches: Branch[];
 }
 
 export interface Branch {
   id: string;
-  name: string;
-  parentId: string;
-  snapshotName: string;
+  name: string;                              // Namespaced name: <database>/<branch>
+  databaseName: string;                      // Parent database name
+  parentBranchId: string | null;             // null for main branch
+  isPrimary: boolean;                        // true for main branch, false for others
+  snapshotName: string | null;               // null for main branch
   zfsDataset: string;
   containerName: string;
   port: number;
