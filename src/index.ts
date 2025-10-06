@@ -38,10 +38,11 @@ async function main() {
       case 'branch':
         if (!args[1] || !args[2]) {
           console.error('❌ Missing arguments');
-          console.error('Usage: bpg branch <source> <target>');
+          console.error('Usage: bpg branch <source> <target> [--fast]');
           process.exit(1);
         }
-        await branchCommand(args[1], args[2]);
+        const fast = args.includes('--fast');
+        await branchCommand(args[1], args[2], { fast });
         break;
 
       case 'list':
@@ -120,7 +121,7 @@ Usage: bpg <command> [options]
 Commands:
   init                    Initialize betterpg system
   create <name>           Create a new PostgreSQL database
-  branch <source> <target> Create a branch from existing database
+  branch <source> <target> Create a branch from existing database (application-consistent)
   list, ls                List all databases and branches
   status                  Show detailed status of all instances
   start <name>            Start a stopped database or branch
@@ -130,13 +131,15 @@ Commands:
   destroy <name>          Destroy a database or branch
 
 Options:
+  --fast                 Use crash-consistent snapshot (faster, dev/test only)
   --force, -f            Force destroy database with branches
   --help, -h             Show this help message
 
 Examples:
   bpg init
   bpg create myapp-prod
-  bpg branch myapp-prod myapp-dev
+  bpg branch myapp-prod myapp-dev              # Production-safe (uses pg_start_backup)
+  bpg branch myapp-prod myapp-test --fast      # Faster but crash-consistent
   bpg list
   bpg status
   bpg stop myapp-dev

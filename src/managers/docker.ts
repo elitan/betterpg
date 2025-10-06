@@ -189,15 +189,127 @@ export class DockerManager {
       AttachStderr: true,
     });
 
-    const stream = await exec.start({ hijack: true, stdin: false });
+    return new Promise(async (resolve, reject) => {
+      try {
+        const stream = await exec.start({ hijack: true, stdin: false }).catch((err: any) => {
+          // Docker returns HTTP 101 Switching Protocols for exec, which some versions throw as error
+          // If we get the stream despite the error, continue. Otherwise rethrow.
+          if (err.statusCode === 101 || err.message?.includes('101')) {
+            return err; // The error object might contain the stream
+          }
+          throw err;
+        });
 
-    return new Promise((resolve, reject) => {
-      let output = '';
-      stream.on('data', (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      stream.on('end', () => resolve(output));
-      stream.on('error', reject);
+        const stdout: Buffer[] = [];
+        const stderr: Buffer[] = [];
+
+        const stdoutStream = new (require('stream').PassThrough)();
+        const stderrStream = new (require('stream').PassThrough)();
+
+        stdoutStream.on('data', (chunk: Buffer) => stdout.push(chunk));
+        stderrStream.on('data', (chunk: Buffer) => stderr.push(chunk));
+
+        // Use Docker's modem to demultiplex the stream
+        this.docker.modem.demuxStream(stream, stdoutStream, stderrStream);
+
+        stream.on('end', async () => {
+          stdoutStream.end();
+          stderrStream.end();
+
+          // Check exit code
+          const inspect = await exec.inspect();
+          const exitCode = inspect.ExitCode;
+
+          const stderrStr = Buffer.concat(stderr).toString().trim();
+          const stdoutStr = Buffer.concat(stdout).toString().trim();
+
+          if (exitCode !== 0) {
+            reject(new Error(stderrStr || `Command failed with exit code ${exitCode}`));
+          } else if (stderrStr && !stdoutStr) {
+            reject(new Error(stderrStr));
+          } else {
+            resolve(stdoutStr);
+          }
+        });
+
+        stream.on('error', reject);
+      } catch (error) {
+        reject(error);
+      }
     });
+  }
+
+  // PostgreSQL utilities
+  async execSQL(containerID: string, sql: string, username = 'postgres', database = 'postgres'): Promise<string> {
+    // Use Bun's shell instead of Dockerode exec to avoid stream issues
+    const container = this.docker.getContainer(containerID);
+    const info = await container.inspect();
+    const containerName = info.Name.replace('/', '');
+
+    try {
+      const proc = Bun.spawn([
+        'docker',
+        'exec',
+        containerName,
+        'psql',
+        '-U', username,
+        '-d', database,
+        '-t',  // Tuples only
+        '-A',  // Unaligned
+        '-c', sql
+      ], {
+        stdout: 'pipe',
+        stderr: 'pipe'
+      });
+
+      const output = await new Response(proc.stdout).text();
+      const error = await new Response(proc.stderr).text();
+      await proc.exited;
+
+      if (proc.exitCode !== 0) {
+        throw new Error(error.trim() || `Command failed with exit code ${proc.exitCode}`);
+      }
+
+      return output.trim();
+    } catch (error: any) {
+      throw new Error(`SQL execution failed: ${error.message}`);
+    }
+  }
+
+  async startBackupMode(containerID: string, username = 'postgres'): Promise<string> {
+    // PostgreSQL 15+ renamed to pg_backup_start, older versions use pg_start_backup
+    // Try modern naming first, fall back to legacy
+    try {
+      const sql = "SELECT pg_backup_start('betterpg-snapshot', false);";
+      const lsn = await this.execSQL(containerID, sql, username);
+      return lsn.trim();
+    } catch (error: any) {
+      if (error.message.includes('does not exist')) {
+        // Try legacy pg_start_backup for PostgreSQL < 15
+        const sql = "SELECT pg_start_backup('betterpg-snapshot', false, false);";
+        const lsn = await this.execSQL(containerID, sql, username);
+        return lsn.trim();
+      }
+      throw error;
+    }
+  }
+
+  async stopBackupMode(containerID: string, username = 'postgres'): Promise<string> {
+    // PostgreSQL 15+ renamed to pg_backup_stop, older versions use pg_stop_backup
+    // Try modern naming first, fall back to legacy
+    try {
+      // pg_backup_stop() returns a record, so we need to extract the lsn field
+      const sql = "SELECT lsn FROM pg_backup_stop();";
+      const lsn = await this.execSQL(containerID, sql, username);
+      return lsn.trim();
+    } catch (error: any) {
+      if (error.message.includes('does not exist')) {
+        // Try legacy pg_stop_backup for PostgreSQL < 15
+        const sql = "SELECT pg_stop_backup(false);";
+        const lsn = await this.execSQL(containerID, sql, username);
+        return lsn.trim();
+      }
+      throw error;
+    }
   }
 }

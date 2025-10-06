@@ -20,8 +20,9 @@
 - [x] VPS setup script (`scripts/vps-setup.sh`)
 - [x] Integration test suite (`scripts/integration-test.sh`)
 - [x] Extended integration tests (`scripts/extended-integration-test.sh`)
-  - 22 comprehensive tests covering all lifecycle commands
+  - 25 comprehensive tests covering all lifecycle commands
   - Tests for start, stop, restart, reset, and status
+  - Application-consistent and crash-consistent snapshot testing
   - Edge case testing
   - Data persistence verification
   - ZFS copy-on-write efficiency validation
@@ -30,24 +31,27 @@
 
 ## 🎯 Next Priority Features
 
-### Production-Safe Branching (HIGH PRIORITY)
+### Production-Safe Branching ✅ COMPLETE
 **Goal:** Enable safe production branching for migration testing and dev databases with real data
 
-- [ ] PostgreSQL connection utilities in DockerManager
-  - Add `execSQL()` method to run queries in containers
-  - Handle connection errors gracefully
-- [ ] Application-consistent snapshots using pg_start_backup/pg_stop_backup
-  - Implement coordinated backup workflow
-  - Create ZFS snapshot while Postgres is in backup mode
+- [x] PostgreSQL connection utilities in DockerManager
+  - Added `execSQL()` method to run queries in containers
+  - Handles connection errors gracefully using Bun.spawn
+- [x] Application-consistent snapshots using pg_backup_start/pg_backup_stop
+  - Implemented coordinated backup workflow
+  - Creates ZFS snapshot while Postgres is in backup mode
   - Ensures zero data loss and consistency
-- [ ] Make consistent snapshots the default for `bpg branch`
-  - `bpg branch prod dev` uses pg_start_backup by default
-  - 5-10 second operation (acceptable for production)
-- [ ] Add `--fast` flag for crash-consistent snapshots (dev/test only)
-  - `bpg branch prod dev --fast` skips pg_start_backup
+  - Compatible with PostgreSQL 15+ (pg_backup_*) and < 15 (pg_start_backup)
+- [x] Make consistent snapshots the default for `bpg branch`
+  - `bpg branch prod dev` uses pg_backup_start by default
+  - ~2-5 second operation (acceptable for production)
+- [x] Add `--fast` flag for crash-consistent snapshots (dev/test only)
+  - `bpg branch prod dev --fast` skips pg_backup_start
   - Faster but requires WAL replay on startup
-  - Document when to use vs avoid
-- [ ] Update integration tests to verify consistent snapshots
+  - Documented when to use vs avoid
+- [x] Update integration tests to verify consistent snapshots
+  - Added tests 8, 8a, 8b to verify both snapshot types
+  - All 25 tests passing
 - [ ] Document production branching best practices
   - Migration testing workflow
   - Performance impact (2-5s)
