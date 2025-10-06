@@ -293,6 +293,36 @@ sudo zpool create tank /tmp/zfs-pool.img
 sudo zpool create tank /dev/sdb
 ```
 
+## Why BetterPG?
+
+### vs Neon / Supabase
+
+| Feature | BetterPG | Neon | Supabase |
+|---------|----------|------|----------|
+| **Branch creation** | 2-5 seconds | <1 second | Minutes-hours |
+| **Query latency** | 1-5ms (local) | 3-15ms (network) | 1-5ms |
+| **Storage** | ZFS copy-on-write | Page-level CoW | Full duplication |
+| **Cost (100GB + 3 branches)** | $200-500/month (hardware) | $170-190/month | $100-400/month |
+| **Data in branches** | ✅ Full copy | ✅ Full copy | ⚠️ Schema only* |
+| **Geographic distribution** | ❌ Single server | ✅ Multi-region | ✅ Multi-region |
+| **Vendor lock-in** | ✅ None | ❌ Proprietary storage | ⚠️ Supabase ecosystem |
+
+\* Supabase requires manual seed scripts for data
+
+**BetterPG is optimal for:**
+- Single-region deployments (majority of apps)
+- Performance-critical workloads (zero network latency)
+- Cost-sensitive projects (no cloud fees)
+- Full control over infrastructure
+- Production data testing workflows
+
+**Choose cloud alternatives if you need:**
+- Multi-region failover
+- Scale-to-zero compute
+- Managed infrastructure
+
+See [detailed comparison](docs/COMPARISON.md) for architecture analysis and trade-offs.
+
 ## Roadmap
 
 See [TODO.md](TODO.md) for planned features:
