@@ -14,6 +14,10 @@ import { branchGetCommand } from './commands/branch/get';
 import { branchDeleteCommand } from './commands/branch/delete';
 import { branchSyncCommand } from './commands/branch/sync';
 import { branchRenameCommand } from './commands/branch/rename';
+import { startCommand } from './commands/start';
+import { stopCommand } from './commands/stop';
+import { restartCommand } from './commands/restart';
+import { statusCommand } from './commands/status';
 
 const program = new Command();
 
@@ -201,9 +205,7 @@ program
   .argument('<name>', 'name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  start command not yet implemented'));
-      console.log(chalk.dim(`Would start: ${name}`));
-      process.exit(1);
+      await startCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -216,9 +218,7 @@ program
   .argument('<name>', 'name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  stop command not yet implemented'));
-      console.log(chalk.dim(`Would stop: ${name}`));
-      process.exit(1);
+      await stopCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -231,9 +231,7 @@ program
   .argument('<name>', 'name in format: <database>/<branch>')
   .action(async (name: string) => {
     try {
-      console.log(chalk.yellow('⚠️  restart command not yet implemented'));
-      console.log(chalk.dim(`Would restart: ${name}`));
-      process.exit(1);
+      await restartCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -262,8 +260,7 @@ program
   .description('Show status of all databases and branches')
   .action(async () => {
     try {
-      console.log(chalk.yellow('⚠️  status command not yet implemented'));
-      process.exit(1);
+      await statusCommand();
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
