@@ -101,7 +101,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     if (validSnapshots.length === 0) {
       throw new Error(
         `No snapshots found before recovery target ${formatDate(recoveryTarget)}.\n` +
-        `Create a snapshot with: bpg snapshot create ${source.full} --label <name>`
+        `Create a snapshot with: pgd snapshot create ${source.full} --label <name>`
       );
     }
 

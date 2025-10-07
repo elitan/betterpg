@@ -1,9 +1,9 @@
 #!/bin/bash
-# Setup script for Ubuntu 22.04/24.04 VPS for betterpg testing
+# Setup script for Ubuntu 22.04/24.04 VPS for pgd testing
 
 set -e
 
-echo "🚀 Setting up betterpg test environment on Ubuntu..."
+echo "🚀 Setting up pgd test environment on Ubuntu..."
 
 # Update system
 echo "📦 Updating system..."
@@ -56,17 +56,17 @@ sudo zfs list
 
 # Create directories
 echo "📁 Creating directories..."
-sudo mkdir -p /etc/betterpg
-sudo mkdir -p /var/lib/betterpg
-sudo chown -R $USER:$USER /etc/betterpg
-sudo chown -R $USER:$USER /var/lib/betterpg
+sudo mkdir -p /etc/pgd
+sudo mkdir -p /var/lib/pgd
+sudo chown -R $USER:$USER /etc/pgd
+sudo chown -R $USER:$USER /var/lib/pgd
 
 echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"
-echo "  1. Clone the repo: git clone https://github.com/elitan/betterpg.git"
-echo "  2. cd betterpg"
+echo "  1. Clone the repo: git clone https://github.com/elitan/pgd.git"
+echo "  2. cd pgd"
 echo "  3. bun install"
 echo "  4. sudo bun run src/index.ts init"
 echo "  5. Run tests: ./scripts/integration-test.sh"

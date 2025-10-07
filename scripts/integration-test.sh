@@ -1,5 +1,5 @@
 #!/bin/bash
-# Integration test script for betterpg
+# Integration test script for pgd
 # Run this on a Linux system with ZFS installed
 
 set -e
@@ -10,27 +10,27 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🧪 Running betterpg integration tests${NC}\n"
+echo -e "${YELLOW}🧪 Running pgd integration tests${NC}\n"
 
 # Build the binary
-echo -e "${YELLOW}📦 Building betterpg...${NC}"
+echo -e "${YELLOW}📦 Building pgd...${NC}"
 ~/.bun/bin/bun run build
 
-BPG="sudo ./dist/bpg"
+BPG="sudo ./dist/pgd"
 
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
 
     # Stop and remove containers
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
-    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    sudo zfs create tank/betterpg/databases 2>/dev/null || true
+    sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    sudo zfs create tank/pgd/databases 2>/dev/null || true
 
     # Remove state and config
-    sudo rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
+    sudo rm -rf /var/lib/pgd/* /etc/pgd/* 2>/dev/null || true
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -39,9 +39,9 @@ cleanup() {
 trap cleanup EXIT
 
 # Test 1: Initialize
-echo -e "\n${YELLOW}Test 1: Initialize betterpg${NC}"
+echo -e "\n${YELLOW}Test 1: Initialize pgd${NC}"
 $BPG init
-if [ -f /var/lib/betterpg/state.json ] && [ -f /etc/betterpg/config.yaml ]; then
+if [ -f /var/lib/pgd/state.json ] && [ -f /etc/pgd/config.yaml ]; then
     echo -e "${GREEN}✓ Init successful${NC}"
 else
     echo -e "${RED}✗ Init failed${NC}"
@@ -51,7 +51,7 @@ fi
 # Test 2: Create project
 echo -e "\n${YELLOW}Test 2: Create primary project${NC}"
 $BPG create test-prod
-if sudo zfs list tank/betterpg/databases/test-prod >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Project created${NC}"
 else
     echo -e "${RED}✗ Project creation failed${NC}"
@@ -59,7 +59,7 @@ else
 fi
 
 # Verify container is running
-if docker ps | grep -q betterpg-test-prod; then
+if docker ps | grep -q pgd-test-prod; then
     echo -e "${GREEN}✓ Container is running${NC}"
 else
     echo -e "${RED}✗ Container not running${NC}"
@@ -69,8 +69,8 @@ fi
 # Test 3: Connect to PostgreSQL database
 echo -e "\n${YELLOW}Test 3: Verify PostgreSQL database connection${NC}"
 sleep 3  # Give PostgreSQL a moment
-PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
-PGPORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
+PGPASSWORD=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].credentials.password')
+PGPORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
     echo -e "${GREEN}✓ PostgreSQL database connection successful${NC}"
@@ -97,7 +97,7 @@ fi
 echo -e "\n${YELLOW}Test 5: Create branch from primary${NC}"
 $BPG branch test-prod test-dev
 
-if sudo zfs list tank/betterpg/databases/test-dev >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-dev >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Branch created${NC}"
 else
     echo -e "${RED}✗ Branch creation failed${NC}"
@@ -105,7 +105,7 @@ else
 fi
 
 # Verify snapshot was created
-if sudo zfs list -t snapshot | grep -q "tank/betterpg/databases/test-prod@"; then
+if sudo zfs list -t snapshot | grep -q "tank/pgd/databases/test-prod@"; then
     echo -e "${GREEN}✓ Snapshot created${NC}"
 else
     echo -e "${RED}✗ Snapshot not found${NC}"
@@ -115,7 +115,7 @@ fi
 # Test 6: Verify branch has same data
 echo -e "\n${YELLOW}Test 6: Verify branch has copied data${NC}"
 sleep 3
-DEV_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+DEV_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[0].port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
     echo -e "${GREEN}✓ Branch has same data as primary${NC}"
@@ -144,8 +144,8 @@ $BPG list
 
 # Test 9: Check ZFS space efficiency
 echo -e "\n${YELLOW}Test 9: Verify ZFS space efficiency${NC}"
-PROD_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod)
-DEV_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-dev)
+PROD_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod)
+DEV_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-dev)
 
 echo "Primary size: $PROD_SIZE bytes"
 echo "Branch size: $DEV_SIZE bytes"
@@ -161,14 +161,14 @@ fi
 echo -e "\n${YELLOW}Test 10: Destroy branch${NC}"
 $BPG destroy test-dev
 
-if ! sudo zfs list tank/betterpg/databases/test-dev >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-dev >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Branch destroyed${NC}"
 else
     echo -e "${RED}✗ Branch destroy failed${NC}"
     exit 1
 fi
 
-if ! docker ps -a | grep -q betterpg-test-dev; then
+if ! docker ps -a | grep -q pgd-test-dev; then
     echo -e "${GREEN}✓ Branch container removed${NC}"
 else
     echo -e "${RED}✗ Branch container still exists${NC}"

@@ -3,7 +3,7 @@
 
 set -e
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 TEST_DB="fixes-test-$(date +%s)"
 
 echo "🧪 Testing v0.3.1 Production Hardening Fixes"
@@ -12,16 +12,16 @@ echo ""
 # Test 1: Dynamic port allocation
 echo "Test 1: Dynamic Port Allocation"
 echo "  Creating project..."
-$BPG project create "$TEST_DB" > /tmp/betterpg-create.log 2>&1
+$BPG project create "$TEST_DB" > /tmp/pgd-create.log 2>&1
 
-PORT1=$(grep "Port:" /tmp/betterpg-create.log | awk '{print $2}')
+PORT1=$(grep "Port:" /tmp/pgd-create.log | awk '{print $2}')
 echo "  ✓ Project created with dynamic port: $PORT1"
 
 # Create a branch
 echo "  Creating branch..."
-$BPG branch create "$TEST_DB/dev" > /tmp/betterpg-branch.log 2>&1
+$BPG branch create "$TEST_DB/dev" > /tmp/pgd-branch.log 2>&1
 
-PORT2=$(grep "Port:" /tmp/betterpg-branch.log | awk '{print $2}')
+PORT2=$(grep "Port:" /tmp/pgd-branch.log | awk '{print $2}')
 echo "  ✓ Branch created with dynamic port: $PORT2"
 
 if [ "$PORT1" != "$PORT2" ]; then
@@ -34,7 +34,7 @@ fi
 # Test 2: State migration (zfsDatasetName field)
 echo ""
 echo "Test 2: ZFS Dataset Name in State"
-STATE_FILE="/var/lib/betterpg/state.json"
+STATE_FILE="/var/lib/pgd/state.json"
 
 # Check if zfsDatasetName exists in state
 if grep -q "zfsDatasetName" "$STATE_FILE"; then

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Extended integration test script for betterpg including lifecycle commands
+# Extended integration test script for pgd including lifecycle commands
 # Run this on a Linux system with ZFS installed
 
 set -e
@@ -11,29 +11,29 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🧪 Running betterpg extended integration tests${NC}\n"
+echo -e "${YELLOW}🧪 Running pgd extended integration tests${NC}\n"
 
 # Check if binary exists
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Please run: bun run build${NC}"
     exit 1
 fi
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
 
     # Stop and remove containers
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
-    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    sudo zfs create tank/betterpg/databases 2>/dev/null || true
+    sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    sudo zfs create tank/pgd/databases 2>/dev/null || true
 
     # Remove state and config (user directories)
-    rm -rf ~/.config/betterpg ~/.local/share/betterpg 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -66,7 +66,7 @@ check_container_state() {
 # Test 1: Create project (auto-initialization happens here)
 echo -e "\n${BLUE}=== Test 1: Create project (auto-initializes) ===${NC}"
 $BPG project create test-prod
-if sudo zfs list tank/betterpg/databases/test-prod-main >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-main >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Project created${NC}"
 else
     echo -e "${RED}✗ Project creation failed${NC}"
@@ -74,7 +74,7 @@ else
 fi
 
 # Verify container is running
-if check_container_state "betterpg-test-prod-main" "running"; then
+if check_container_state "pgd-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Container is running${NC}"
 else
     echo -e "${RED}✗ Container not running${NC}"
@@ -84,8 +84,8 @@ fi
 # Test 3: Create test data
 echo -e "\n${BLUE}=== Test 3: Create test data ===${NC}"
 sleep 3  # Give PostgreSQL a moment
-PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].credentials.password')
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
+PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].credentials.password')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres <<EOF
 CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -109,7 +109,7 @@ echo -e "\n${BLUE}=== Test 5: Stop branch ===${NC}"
 $BPG stop test-prod/main
 sleep 2
 
-if check_container_state "betterpg-test-prod-main" "stopped"; then
+if check_container_state "pgd-test-prod-main" "stopped"; then
     echo -e "${GREEN}✓ Branch stopped successfully${NC}"
 else
     echo -e "${RED}✗ Branch stop failed${NC}"
@@ -117,7 +117,7 @@ else
 fi
 
 # Verify state was updated
-STATE_STATUS=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].status')
+STATE_STATUS=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].status')
 if [ "$STATE_STATUS" = "stopped" ]; then
     echo -e "${GREEN}✓ State updated correctly${NC}"
 else
@@ -129,7 +129,7 @@ fi
 echo -e "\n${BLUE}=== Test 6: Start branch ===${NC}"
 $BPG start test-prod/main
 
-if check_container_state "betterpg-test-prod-main" "running"; then
+if check_container_state "pgd-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Branch started successfully${NC}"
 else
     echo -e "${RED}✗ Branch start failed${NC}"
@@ -137,7 +137,7 @@ else
 fi
 
 # Re-read port from state (Docker may have reassigned it)
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
 
 # Wait for PostgreSQL to be ready to accept connections
 echo -n "  Waiting for PostgreSQL to accept connections (port: $PGPORT)"
@@ -162,7 +162,7 @@ fi
 echo -e "\n${BLUE}=== Test 7: Restart branch ===${NC}"
 $BPG restart test-prod/main
 
-if check_container_state "betterpg-test-prod-main" "running"; then
+if check_container_state "pgd-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Branch restarted successfully${NC}"
 else
     echo -e "${RED}✗ Branch restart failed${NC}"
@@ -181,7 +181,7 @@ else
     exit 1
 fi
 
-if sudo zfs list tank/betterpg/databases/test-prod-dev >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-dev >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Branch created with application-consistent snapshot${NC}"
 else
     echo -e "${RED}✗ Branch creation failed${NC}"
@@ -200,7 +200,7 @@ fi
 # Test 9: Verify branch has same data
 echo -e "\n${BLUE}=== Test 9: Verify branch data ===${NC}"
 sleep 3
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[] | select(.name == "test-prod/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[] | select(.name == "test-prod/dev") | .port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
     echo -e "${GREEN}✓ Branch has same data as primary${NC}"
@@ -227,7 +227,7 @@ echo -e "\n${BLUE}=== Test 11: Stop branch ===${NC}"
 $BPG stop test-prod/dev
 sleep 2
 
-if check_container_state "betterpg-test-prod-dev" "stopped"; then
+if check_container_state "pgd-test-prod-dev" "stopped"; then
     echo -e "${GREEN}✓ Branch stopped successfully${NC}"
 else
     echo -e "${RED}✗ Branch stop failed${NC}"
@@ -239,7 +239,7 @@ echo -e "\n${BLUE}=== Test 12: Start branch ===${NC}"
 $BPG start test-prod/dev
 sleep 3
 
-if check_container_state "betterpg-test-prod-dev" "running"; then
+if check_container_state "pgd-test-prod-dev" "running"; then
     echo -e "${GREEN}✓ Branch started successfully${NC}"
 else
     echo -e "${RED}✗ Branch start failed${NC}"
@@ -281,7 +281,7 @@ sleep 3
 echo -e "\n${BLUE}=== Test 16: Create second branch ===${NC}"
 $BPG branch create test-prod/staging
 
-if sudo zfs list tank/betterpg/databases/test-prod-staging >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-staging >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Second branch created${NC}"
 else
     echo -e "${RED}✗ Second branch creation failed${NC}"
@@ -295,9 +295,9 @@ echo -e "${GREEN}✓ List command shows all branches${NC}"
 
 # Test 18: Verify ZFS space efficiency
 echo -e "\n${BLUE}=== Test 18: Verify ZFS space efficiency ===${NC}"
-PROD_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-main)
-DEV_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-dev)
-STAGING_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-staging)
+PROD_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-main)
+DEV_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-dev)
+STAGING_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-staging)
 
 echo "Primary size: $PROD_SIZE bytes"
 echo "Dev branch size: $DEV_SIZE bytes"
@@ -313,7 +313,7 @@ fi
 echo -e "\n${BLUE}=== Test 19: Destroy branches ===${NC}"
 $BPG branch delete test-prod/staging
 
-if ! sudo zfs list tank/betterpg/databases/test-prod-staging >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-prod-staging >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Staging branch destroyed${NC}"
 else
     echo -e "${RED}✗ Staging branch destroy failed${NC}"
@@ -322,7 +322,7 @@ fi
 
 $BPG branch delete test-prod/dev
 
-if ! sudo zfs list tank/betterpg/databases/test-prod-dev >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-prod-dev >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Dev branch destroyed${NC}"
 else
     echo -e "${RED}✗ Dev branch destroy failed${NC}"

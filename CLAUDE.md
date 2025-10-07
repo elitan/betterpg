@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BetterPG provides instant PostgreSQL database branching using ZFS snapshots. It combines ZFS copy-on-write, PostgreSQL backup mode, and Docker isolation to create production-safe database copies in seconds for testing migrations, debugging, and development.
+pgd provides instant PostgreSQL database branching using ZFS snapshots. It combines ZFS copy-on-write, PostgreSQL backup mode, and Docker isolation to create production-safe database copies in seconds for testing migrations, debugging, and development.
 
-**Mental Model:** Think of BetterPG like Git for databases:
+**Mental Model:** Think of pgd like Git for databases:
 - **Project** = Git repository (logical grouping of branches)
 - **Branch** = Git branch (complete, isolated PostgreSQL database instance)
 
@@ -31,7 +31,7 @@ bun run src/index.ts
 bun run dev
 
 # Install globally
-sudo cp dist/bpg /usr/local/bin/
+sudo cp dist/pgd /usr/local/bin/
 
 # Run tests
 ./scripts/run-extended-tests.sh     # Extended integration tests (21 tests)
@@ -45,7 +45,7 @@ sudo cp dist/bpg /usr/local/bin/
 
 - **ZFS requirement**: Tests MUST be run on Linux with ZFS (Ubuntu 20.04+, Debian 11+)
 - Development on macOS requires SSH to a VPS with ZFS installed
-- VPS access: `ssh betterpg` (configured with ZFS pool `tank`)
+- VPS access: `ssh pgd` (configured with ZFS pool `tank`)
 - All tests assume a ZFS pool named `tank` exists
 - Tests create temporary projects and clean up afterwards
 
@@ -57,7 +57,7 @@ Commands follow a hierarchical namespace pattern: `<project>/<branch>`
 
 A **project** is a logical grouping of branches (like a Git repo), and each **branch** is a complete, isolated PostgreSQL database instance.
 
-**Project commands** (`bpg project <command>`):
+**Project commands** (`pgd project <command>`):
 - `project create <name>` - Creates project + main branch (`<name>/main`) with PostgreSQL database
   - `--pg-version <version>` - PostgreSQL version (e.g., 17, 16) - uses `postgres:{version}-alpine`
   - `--image <image>` - Custom Docker image (e.g., `ankane/pgvector:17`, `timescale/timescaledb:latest-pg17`)
@@ -66,7 +66,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `project get <name>` - Shows project details
 - `project delete <name>` - Deletes project and all branches (removes all PostgreSQL databases)
 
-**Branch commands** (`bpg branch <command>`):
+**Branch commands** (`pgd branch <command>`):
 - `branch create <project>/<branch>` - Creates branch (e.g., `api/dev`) with new PostgreSQL database
   - `--from <project>/<branch>` - Create from specific branch (default: main)
   - `--pitr <timestamp>` - Create branch from point-in-time
@@ -75,7 +75,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `branch delete <project>/<branch>` - Deletes branch (removes PostgreSQL database)
 - `branch sync <project>/<branch>` - Syncs branch with parent's current state
 
-**Snapshot commands** (`bpg snapshot <command>`):
+**Snapshot commands** (`pgd snapshot <command>`):
 - `snapshot create <project>/<branch>` - Create manual snapshot
   - `--label <name>` - Optional label for snapshot
 - `snapshot list [project/branch]` - List snapshots (all or for specific branch)
@@ -85,7 +85,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
   - `--dry-run` - Preview without deleting
   - `--all` - Cleanup across all branches
 
-**WAL commands** (`bpg wal <command>`):
+**WAL commands** (`pgd wal <command>`):
 - `wal info [project/branch]` - Show WAL archive status (all or specific branch)
 - `wal cleanup <project>/<branch>` - Clean up old WAL files
   - `--days <n>` - Remove WAL files older than n days
@@ -99,7 +99,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 ### Manager Classes
 
 **StateManager** (`src/managers/state.ts`):
-- Manages JSON state file at `~/.local/share/betterpg/state.json`
+- Manages JSON state file at `~/.local/share/pgd/state.json`
 - Implements file locking to prevent concurrent modifications
 - Validates state integrity (unique names, namespaced branches, main branch exists)
 - State structure: projects[] with nested branches[]
@@ -114,7 +114,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **DockerManager** (`src/managers/docker.ts`):
 - Uses dockerode library for Docker API
-- Container naming: `betterpg-<project>-<branch>` (e.g., `betterpg-api-dev`)
+- Container naming: `pgd-<project>-<branch>` (e.g., `pgd-api-dev`)
 - Each container is a complete PostgreSQL database instance
 - Implements PostgreSQL backup mode: `startBackupMode()`, `stopBackupMode()`
 - Compatible with PostgreSQL 15+ (`pg_backup_*`) and <15 (`pg_start_backup`)
@@ -122,7 +122,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
-- WAL archive location: `~/.local/share/betterpg/wal-archive/<dataset>/`
+- WAL archive location: `~/.local/share/pgd/wal-archive/<dataset>/`
 - Key methods:
   - `ensureArchiveDir()` - Creates WAL archive directory with correct permissions
   - `getArchiveInfo()` - Returns file count, total size, oldest/newest timestamps
@@ -134,19 +134,19 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WAL Archiving Configuration:**
 - Enabled on all PostgreSQL containers via archive_command
-- WAL files archived to `~/.local/share/betterpg/wal-archive/<dataset>/`
+- WAL files archived to `~/.local/share/pgd/wal-archive/<dataset>/`
 - Each branch has its own isolated WAL archive directory
-- Commands: `bpg wal info [branch]`, `bpg wal cleanup <branch> --days <n>`
+- Commands: `pgd wal info [branch]`, `pgd wal cleanup <branch> --days <n>`
 
 **Snapshot Management:**
-- Manual snapshots: `bpg snapshot create <project>/<branch> --label <name>`
-- List snapshots: `bpg snapshot list [branch]`
-- Delete snapshots: `bpg snapshot delete <snapshot-id>`
+- Manual snapshots: `pgd snapshot create <project>/<branch> --label <name>`
+- List snapshots: `pgd snapshot list [branch]`
+- Delete snapshots: `pgd snapshot delete <snapshot-id>`
 - Snapshots stored in state.json with metadata (id, timestamp, label, size)
 - Snapshots are application-consistent (use pg_backup_start/stop)
 
 **Point-in-Time Recovery (PITR):**
-- Create branch from specific time: `bpg branch create <project>/<name> --pitr <timestamp>`
+- Create branch from specific time: `pgd branch create <project>/<name> --pitr <timestamp>`
 - Auto-finds best snapshot BEFORE recovery target time
 - Replays WAL logs from snapshot to target
 - Timestamp formats: ISO 8601 ("2025-10-07T14:30:00Z") or relative ("2 hours ago")
@@ -168,13 +168,13 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - 2-5 second operation
 - Safe for production, migration testing, compliance
 - Uses PostgreSQL CHECKPOINT to flush all data to disk before snapshot
-- Used by: `bpg snapshot create`, `bpg branch create`
+- Used by: `pgd snapshot create`, `pgd branch create`
 
 **PITR recovery**: Uses existing snapshots + WAL replay
 - Recovers PostgreSQL database to specific point in time
 - Uses crash-consistent snapshots (WAL replay provides consistency)
 - Replays WAL logs from snapshot to target time
-- Used by: `bpg branch create --pitr <timestamp>`
+- Used by: `pgd branch create --pitr <timestamp>`
 
 Implementation in `src/commands/branch/create.ts`:
 1. If `--pitr`: find existing snapshot before recovery target, skip creating new one
@@ -205,11 +205,11 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 ## Configuration & Initialization
 
-**No configuration file needed!** BetterPG uses sensible hardcoded defaults:
+**No configuration file needed!** pgd uses sensible hardcoded defaults:
 - Default PostgreSQL image: `postgres:17-alpine`
 - ZFS compression: `lz4` (fast, good for databases)
 - ZFS recordsize: `8k` (PostgreSQL page size)
-- ZFS base dataset: `betterpg/databases`
+- ZFS base dataset: `pgd/databases`
 
 **No init command needed!** Auto-initialization happens on first `project create`:
 1. Auto-detects ZFS pool (or use `--pool` if multiple pools exist)
@@ -220,11 +220,11 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 ## File Locations
 
-- State: `~/.local/share/betterpg/state.json` (stores pool, dataset base, projects, branches, snapshots)
-- State lock: `~/.local/share/betterpg/state.json.lock`
-- WAL archive: `~/.local/share/betterpg/wal-archive/<dataset>/`
-- ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>` (pool auto-detected)
-- Docker containers: `betterpg-<project>-<branch>` (PostgreSQL databases)
+- State: `~/.local/share/pgd/state.json` (stores pool, dataset base, projects, branches, snapshots)
+- State lock: `~/.local/share/pgd/state.json.lock`
+- WAL archive: `~/.local/share/pgd/wal-archive/<dataset>/`
+- ZFS datasets: `<pool>/pgd/databases/<project>-<branch>` (pool auto-detected)
+- Docker containers: `pgd-<project>-<branch>` (PostgreSQL databases)
 
 ## Common Development Patterns
 
@@ -252,7 +252,7 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 - Always extract dataset name from branch.zfsDataset when needed
 
 **Working with Docker:**
-- Container names use `-` separator: `betterpg-<project>-<branch>`
+- Container names use `-` separator: `pgd-<project>-<branch>`
 - Each container is a complete PostgreSQL database instance
 - Use `project.dockerImage` when creating containers (branches inherit from parent project)
 - Always use `docker.getContainerByName()` to get container ID
@@ -273,7 +273,7 @@ When modifying branching logic:
 - Linux + ZFS required (no macOS support)
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
-- ZFS pool must exist before first `bpg project create` (auto-detected)
+- ZFS pool must exist before first `pgd project create` (auto-detected)
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
 

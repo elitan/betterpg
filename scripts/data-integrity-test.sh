@@ -1,5 +1,5 @@
 #!/bin/bash
-# Data Integrity & Correctness Tests for BetterPG
+# Data Integrity & Correctness Tests for pgd
 # Tests critical guarantees: no data loss, consistency, isolation, recoverability
 
 set -e
@@ -13,14 +13,14 @@ NC='\033[0m'
 FAILED_TESTS=0
 PASSED_TESTS=0
 
-echo -e "${YELLOW}🔒 BetterPG Data Integrity Tests${NC}\n"
+echo -e "${YELLOW}🔒 pgd Data Integrity Tests${NC}\n"
 
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Run: bun run build${NC}"
     exit 1
 fi
 
-BPG="sudo ./dist/bpg"
+BPG="sudo ./dist/pgd"
 
 # Test result tracking
 test_result() {
@@ -39,10 +39,10 @@ test_result() {
 # Cleanup
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
-    zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    zfs create tank/betterpg/databases 2>/dev/null || true
-    rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    zfs create tank/pgd/databases 2>/dev/null || true
+    rm -rf /var/lib/pgd/* /etc/pgd/* 2>/dev/null || true
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -54,8 +54,8 @@ $BPG init > /dev/null
 
 # Create test project
 $BPG create test-db > /dev/null
-PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
-PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
+PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].port')
+PGPASSWORD=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].credentials.password')
 
 echo -e "${BLUE}=== Data Integrity Tests ===${NC}\n"
 
@@ -80,7 +80,7 @@ ORIGINAL_CHECKSUM=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PORT -U postgre
 
 # Create branch
 $BPG branch test-db test-branch > /dev/null
-BRANCH_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+BRANCH_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[0].port')
 
 # Verify branch has exact same data
 BRANCH_CHECKSUM=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $BRANCH_PORT -U postgres -d postgres -t -A -c \
@@ -121,7 +121,7 @@ INSERT INTO order_items (order_id, amount) VALUES
 EOF
 
 $BPG branch test-db test-fk > /dev/null
-FK_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-fk") | .port')
+FK_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-fk") | .port')
 
 # Verify foreign keys are intact
 FK_VIOLATIONS=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $FK_PORT -U postgres -d postgres -t -A -c \
@@ -154,7 +154,7 @@ EOF
 
 # Branch should see committed transaction
 $BPG branch test-db test-txn > /dev/null
-TXN_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-txn") | .port')
+TXN_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-txn") | .port')
 
 ACCOUNT_1=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $TXN_PORT -U postgres -d postgres -t -A -c \
     "SELECT balance FROM accounts WHERE id = 1;")
@@ -176,7 +176,7 @@ sleep 1
 
 # Create branch while transaction is open
 $BPG branch test-db test-uncommitted > /dev/null
-UNCOMMIT_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-uncommitted") | .port')
+UNCOMMIT_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-uncommitted") | .port')
 
 UNCOMMIT_BALANCE=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $UNCOMMIT_PORT -U postgres -d postgres -t -A -c \
     "SELECT balance FROM accounts WHERE id = 1;")
@@ -184,7 +184,7 @@ UNCOMMIT_BALANCE=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $UNCOMMIT_PORT -U
 test_result "Uncommitted transactions NOT in snapshot (balance still 900)" $([ "$UNCOMMIT_BALANCE" = "900.00" ] && echo 0 || echo 1)
 
 # Rollback the open transaction
-sudo docker exec betterpg-test-db psql -U postgres -c "ROLLBACK;" 2>/dev/null || true
+sudo docker exec pgd-test-db psql -U postgres -c "ROLLBACK;" 2>/dev/null || true
 
 echo ""
 
@@ -199,8 +199,8 @@ EOF
 $BPG branch test-db test-iso-1 > /dev/null
 $BPG branch test-db test-iso-2 > /dev/null
 
-ISO1_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-1") | .port')
-ISO2_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-2") | .port')
+ISO1_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-1") | .port')
+ISO2_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-2") | .port')
 
 # Modify branch 1
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $ISO1_PORT -U postgres -d postgres > /dev/null <<EOF
@@ -238,7 +238,7 @@ INSERT INTO indexed_data (email, name) VALUES
 EOF
 
 $BPG branch test-db test-idx > /dev/null
-IDX_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-idx") | .port')
+IDX_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-idx") | .port')
 
 # Verify unique constraint works
 UNIQUE_VIOLATION=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $IDX_PORT -U postgres -d postgres 2>&1 <<EOF | grep -c "duplicate key" || echo "0"
@@ -268,7 +268,7 @@ PARENT_SEQ=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PORT -U postgres -d po
     "SELECT last_value FROM seq_test_id_seq;")
 
 $BPG branch test-db test-seq > /dev/null
-SEQ_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-seq") | .port')
+SEQ_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-seq") | .port')
 
 # Verify sequence starts at same value in branch
 BRANCH_SEQ=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $SEQ_PORT -U postgres -d postgres -t -A -c \
@@ -304,7 +304,7 @@ INSERT INTO reset_test (data) VALUES ('original');
 EOF
 
 $BPG branch test-db test-reset > /dev/null
-RESET_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-reset") | .port')
+RESET_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-reset") | .port')
 
 # Modify branch
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $RESET_PORT -U postgres -d postgres > /dev/null <<EOF
@@ -321,7 +321,7 @@ test_result "Branch modified before reset (3 rows)" $([ "$MODIFIED_COUNT" = "3" 
 $BPG reset test-reset > /dev/null
 
 # Get new port (container recreated)
-RESET_PORT_NEW=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-reset") | .port')
+RESET_PORT_NEW=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-reset") | .port')
 
 # Verify reset worked
 RESET_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $RESET_PORT_NEW -U postgres -d postgres -t -A -c \
@@ -351,7 +351,7 @@ FROM generate_series(1, 1000);
 EOF
 
 $BPG branch test-db test-corrupt > /dev/null
-CORRUPT_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-corrupt") | .port')
+CORRUPT_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-corrupt") | .port')
 
 # Verify all checksums match
 CHECKSUM_FAILURES=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $CORRUPT_PORT -U postgres -d postgres -t -A -c \
@@ -381,7 +381,7 @@ wait
 # Verify all branches have same checksum
 CONCURRENT_FAILURES=0
 for i in {1..5}; do
-    CONC_PORT=$(cat /var/lib/betterpg/state.json | jq -r ".databases[0].branches[] | select(.name==\"test-concurrent-$i\") | .port")
+    CONC_PORT=$(cat /var/lib/pgd/state.json | jq -r ".databases[0].branches[] | select(.name==\"test-concurrent-$i\") | .port")
     CONC_CHECKSUM=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $CONC_PORT -U postgres -d postgres -t -A -c \
         "SELECT md5(string_agg(value::text, '' ORDER BY id)) FROM concurrent_test;")
 
@@ -412,7 +412,7 @@ FROM generate_series(1, 100);
 EOF
 
 $BPG branch test-db test-blob > /dev/null
-BLOB_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-blob") | .port')
+BLOB_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].branches[] | select(.name=="test-blob") | .port')
 
 # Verify large objects are intact
 BLOB_FAILURES=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $BLOB_PORT -U postgres -d postgres -t -A -c \

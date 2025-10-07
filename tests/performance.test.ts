@@ -54,7 +54,7 @@ afterAll(async () => {
   console.log('✓ Cleanup complete');
 });
 
-describe('BetterPG Performance Tests', () => {
+describe('pgd Performance Tests', () => {
 
   test('Performance: Create database', async () => {
     const start = performance.now();
@@ -195,7 +195,7 @@ describe('BetterPG Performance Tests', () => {
   });
 });
 
-describe('BetterPG Stress Tests', () => {
+describe('pgd Stress Tests', () => {
 
   test('Stress: Create and destroy 10 branches', async () => {
     // Create a test database

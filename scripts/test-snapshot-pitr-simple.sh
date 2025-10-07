@@ -20,7 +20,7 @@ echo ""
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up...${NC}"
-    bpg db delete $TESTDB -f 2>/dev/null || true
+    pgd db delete $TESTDB -f 2>/dev/null || true
     sleep 2
 }
 
@@ -30,15 +30,15 @@ trap cleanup EXIT
 cleanup
 
 echo -e "${BLUE}Step 1: Create database${NC}"
-bpg db create $TESTDB
+pgd db create $TESTDB
 echo ""
 
 # Wait for PostgreSQL to be ready
 sleep 3
 
 # Get connection info
-PGPASSWORD=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .credentials.password' ~/.local/share/betterpg/state.json)
-PORT=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .branches[] | select(.isPrimary==true) | .port' ~/.local/share/betterpg/state.json)
+PGPASSWORD=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .credentials.password' ~/.local/share/pgd/state.json)
+PORT=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .branches[] | select(.isPrimary==true) | .port' ~/.local/share/pgd/state.json)
 export PGPASSWORD
 
 echo -e "${BLUE}Step 2: Create table and insert initial data${NC}"
@@ -57,7 +57,7 @@ echo "Waiting for WAL archiving..."
 sleep 3
 
 echo -e "${BLUE}Step 3: Create snapshot${NC}"
-bpg snapshot create $TESTBRANCH --label test-snapshot
+pgd snapshot create $TESTBRANCH --label test-snapshot
 echo ""
 
 echo -e "${BLUE}Step 4: Insert more data AFTER snapshot${NC}"
@@ -78,12 +78,12 @@ psql -h localhost -p $PORT -U postgres -d postgres -c "
 echo ""
 
 echo -e "${BLUE}Step 6: Create branch from snapshot (WITHOUT PITR - should have 3 rows)${NC}"
-bpg branch create $TESTDB/test-snapshot-only --from $TESTBRANCH
+pgd branch create $TESTDB/test-snapshot-only --from $TESTBRANCH
 echo ""
 
 sleep 3
 
-SNAP_PORT=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .branches[] | select(.name=="'$TESTDB'/test-snapshot-only") | .port' ~/.local/share/betterpg/state.json)
+SNAP_PORT=$(jq -r '.databases[] | select(.name=="'$TESTDB'") | .branches[] | select(.name=="'$TESTDB'/test-snapshot-only") | .port' ~/.local/share/pgd/state.json)
 echo -e "${YELLOW}Snapshot-only branch (expected: 3 rows)${NC}"
 psql -h localhost -p $SNAP_PORT -U postgres -d postgres -c "
   SELECT COUNT(*) as row_count FROM test_data;

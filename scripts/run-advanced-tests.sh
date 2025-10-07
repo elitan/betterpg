@@ -3,7 +3,7 @@
 
 set -e
 
-echo "🔨 Building betterpg..."
+echo "🔨 Building pgd..."
 ~/.bun/bin/bun run build
 
 echo "🧪 Running advanced integration tests..."

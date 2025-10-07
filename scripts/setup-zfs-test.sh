@@ -11,8 +11,8 @@ dd if=/dev/zero of=/tmp/zfs-pool.img bs=1M count=2048
 zpool create -f tank /tmp/zfs-pool.img
 
 echo "Setting up ZFS dataset base..."
-zfs create tank/betterpg
-zfs create tank/betterpg/databases
+zfs create tank/pgd
+zfs create tank/pgd/databases
 
 echo "Installing Bun..."
 curl -fsSL https://bun.sh/install | bash

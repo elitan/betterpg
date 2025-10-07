@@ -25,7 +25,7 @@ export async function branchDeleteCommand(name: string) {
 
   // Prevent deleting main branch
   if (branch.isPrimary) {
-    throw new Error(`Cannot delete main branch. Use 'bpg project delete ${project.name}' to delete the entire project.`);
+    throw new Error(`Cannot delete main branch. Use 'pgd project delete ${project.name}' to delete the entire project.`);
   }
 
   // Get ZFS config from state

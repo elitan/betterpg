@@ -3,7 +3,7 @@
 
 set -e
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 TEST_DB="rollback-test-$(date +%s)"
 
 echo "🧪 Testing rollback on branch creation failure"
@@ -19,8 +19,8 @@ echo "Test 1: Branch creation with simulated failure..."
 echo "  (This should fail and clean up resources)"
 
 # Capture state before
-DATASETS_BEFORE=$(sudo zfs list -H -o name | grep betterpg || true)
-CONTAINERS_BEFORE=$(docker ps -a --filter "name=betterpg-" --format "{{.Names}}" | sort)
+DATASETS_BEFORE=$(sudo zfs list -H -o name | grep pgd || true)
+CONTAINERS_BEFORE=$(docker ps -a --filter "name=pgd-" --format "{{.Names}}" | sort)
 
 # Try to create branch with a name that will cause issues
 # We'll force a failure by creating a ZFS dataset with same name first
@@ -28,7 +28,7 @@ FAIL_BRANCH="$TEST_DB/fail-test"
 FAIL_DATASET="$TEST_DB-fail-test"
 
 echo "  Creating conflicting ZFS dataset to force failure..."
-sudo zfs create tank/betterpg/databases/$FAIL_DATASET 2>/dev/null || true
+sudo zfs create tank/pgd/databases/$FAIL_DATASET 2>/dev/null || true
 
 # This should fail and trigger rollback
 set +e
@@ -44,7 +44,7 @@ else
 fi
 
 # Check that no container was left behind
-CONTAINERS_AFTER=$(docker ps -a --filter "name=betterpg-$TEST_DB-fail-test" --format "{{.Names}}")
+CONTAINERS_AFTER=$(docker ps -a --filter "name=pgd-$TEST_DB-fail-test" --format "{{.Names}}")
 if [ -z "$CONTAINERS_AFTER" ]; then
     echo "  ✓ No orphaned containers (rollback succeeded)"
 else
@@ -54,7 +54,7 @@ else
 fi
 
 # Cleanup the manually created dataset
-sudo zfs destroy tank/betterpg/databases/$FAIL_DATASET 2>/dev/null || true
+sudo zfs destroy tank/pgd/databases/$FAIL_DATASET 2>/dev/null || true
 
 # Test 2: Create a successful branch to verify normal operation still works
 echo ""
@@ -67,7 +67,7 @@ echo ""
 echo "Test 3: Verify successful branch has all resources..."
 
 # Check ZFS dataset exists
-if sudo zfs list tank/betterpg/databases/$TEST_DB-dev >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/$TEST_DB-dev >/dev/null 2>&1; then
     echo "  ✓ ZFS dataset exists"
 else
     echo "  ✗ ZFS dataset missing"
@@ -75,7 +75,7 @@ else
 fi
 
 # Check container exists
-if docker ps -a --filter "name=betterpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "betterpg-$TEST_DB-dev"; then
+if docker ps -a --filter "name=pgd-$TEST_DB-dev" --format "{{.Names}}" | grep -q "pgd-$TEST_DB-dev"; then
     echo "  ✓ Container exists"
 else
     echo "  ✗ Container missing"
@@ -83,7 +83,7 @@ else
 fi
 
 # Check container is running
-if docker ps --filter "name=betterpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "betterpg-$TEST_DB-dev"; then
+if docker ps --filter "name=pgd-$TEST_DB-dev" --format "{{.Names}}" | grep -q "pgd-$TEST_DB-dev"; then
     echo "  ✓ Container is running"
 else
     echo "  ✗ Container not running"

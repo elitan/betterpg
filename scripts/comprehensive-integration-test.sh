@@ -1,5 +1,5 @@
 #!/bin/bash
-# Comprehensive integration test script for betterpg
+# Comprehensive integration test script for pgd
 # Tests all commands and edge cases
 # Run this on a Linux system with ZFS installed
 
@@ -15,29 +15,29 @@ NC='\033[0m' # No Color
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-echo -e "${YELLOW}🧪 Running betterpg comprehensive integration tests${NC}\n"
+echo -e "${YELLOW}🧪 Running pgd comprehensive integration tests${NC}\n"
 
 # Check if binary exists
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Please run: bun run build${NC}"
     exit 1
 fi
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
 
     # Stop and remove containers
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
-    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    sudo zfs create tank/betterpg/databases 2>/dev/null || true
+    sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    sudo zfs create tank/pgd/databases 2>/dev/null || true
 
     # Remove state and config (user directories)
-    rm -rf ~/.config/betterpg ~/.local/share/betterpg 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -64,9 +64,9 @@ check_test() {
 echo -e "\n${BLUE}=== Section 1: Basic Setup & Project Commands ===${NC}"
 
 # Test 1: Initialize
-echo -e "\n${BLUE}Test 1: Initialize betterpg${NC}"
+echo -e "\n${BLUE}Test 1: Initialize pgd${NC}"
 $BPG init >/dev/null 2>&1
-check_test "Initialize betterpg"
+check_test "Initialize pgd"
 
 # Test 2: Create first project
 echo -e "\n${BLUE}Test 2: Create first project${NC}"
@@ -101,7 +101,7 @@ fi
 # Test 6: Project rename
 echo -e "\n${BLUE}Test 6: Rename project${NC}"
 $BPG project rename test-staging test-dev >/dev/null 2>&1
-if sudo zfs list tank/betterpg/databases/test-dev-main >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-dev-main >/dev/null 2>&1; then
     check_test "Rename project (ZFS dataset renamed)"
 else
     false
@@ -110,8 +110,8 @@ fi
 
 # Test 7: Create test data in test-prod
 echo -e "\n${BLUE}Test 7: Create test data${NC}"
-PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | select(.name == "test-prod") | .credentials.password')
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | select(.name == "test-prod") | .branches[0].port')
+PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | select(.name == "test-prod") | .credentials.password')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | select(.name == "test-prod") | .branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres >/dev/null 2>&1 <<EOF
 CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -135,7 +135,7 @@ check_test "Create branch 'test-prod/dev'"
 echo -e "\n${BLUE}Test 9: Create branch from non-main parent${NC}"
 $BPG branch create test-prod/feature --from test-prod/dev >/dev/null 2>&1
 sleep 3
-if sudo zfs list tank/betterpg/databases/test-prod-feature >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-feature >/dev/null 2>&1; then
     check_test "Create branch with --from flag"
 else
     false
@@ -175,7 +175,7 @@ fi
 # Test 13: Branch rename
 echo -e "\n${BLUE}Test 13: Rename branch${NC}"
 $BPG branch rename test-prod/feature test-prod/hotfix >/dev/null 2>&1
-if sudo zfs list tank/betterpg/databases/test-prod-hotfix >/dev/null 2>&1 && ! sudo zfs list tank/betterpg/databases/test-prod-feature >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-hotfix >/dev/null 2>&1 && ! sudo zfs list tank/pgd/databases/test-prod-feature >/dev/null 2>&1; then
     check_test "Rename branch"
 else
     false
@@ -191,7 +191,7 @@ echo -e "\n${BLUE}=== Section 3: Snapshot & PITR Commands ===${NC}"
 # Test 14: Create manual snapshot without label
 echo -e "\n${BLUE}Test 14: Create manual snapshot${NC}"
 $BPG snapshot create test-prod/main >/dev/null 2>&1
-if [ $(cat ~/.local/share/betterpg/state.json | jq '[.databases[] | .snapshots[]] | length') -gt 0 ]; then
+if [ $(cat ~/.local/share/pgd/state.json | jq '[.databases[] | .snapshots[]] | length') -gt 0 ]; then
     check_test "Create manual snapshot"
 else
     false
@@ -201,7 +201,7 @@ fi
 # Test 15: Create snapshot with label
 echo -e "\n${BLUE}Test 15: Create snapshot with label${NC}"
 $BPG snapshot create test-prod/main --label "before-migration" >/dev/null 2>&1
-OUTPUT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | .snapshots[] | select(.label == "before-migration") | .label')
+OUTPUT=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | .snapshots[] | select(.label == "before-migration") | .label')
 if [ "$OUTPUT" = "before-migration" ]; then
     check_test "Create snapshot with label"
 else
@@ -243,11 +243,11 @@ fi
 
 # Test 19: PITR - Recover to snapshot time
 echo -e "\n${BLUE}Test 19: Point-in-time recovery${NC}"
-SNAPSHOT_TIME=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | .snapshots[] | select(.label == "before-migration") | .createdAt')
+SNAPSHOT_TIME=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | .snapshots[] | select(.label == "before-migration") | .createdAt')
 $BPG branch create test-prod/pitr-recovery --pitr "$SNAPSHOT_TIME" >/dev/null 2>&1
 sleep 5
 
-PITR_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | .branches[] | select(.name == "test-prod/pitr-recovery") | .port')
+PITR_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | .branches[] | select(.name == "test-prod/pitr-recovery") | .port')
 PITR_ROW_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PITR_PORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs)
 
 if [ "$PITR_ROW_COUNT" -eq 3 ]; then
@@ -330,7 +330,7 @@ fi
 # Test 26: Delete database with --force
 echo -e "\n${BLUE}Test 26: Delete database with --force${NC}"
 $BPG db delete test-dev --force >/dev/null 2>&1
-if ! sudo zfs list tank/betterpg/databases/test-dev-main >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-dev-main >/dev/null 2>&1; then
     check_test "Delete database with --force"
 else
     false
@@ -360,10 +360,10 @@ check_test "Start already running branch (idempotent)"
 
 # Test 30: Delete snapshot
 echo -e "\n${BLUE}Test 30: Delete snapshot${NC}"
-SNAPSHOT_ID=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[] | .snapshots[0].id')
-SNAPSHOT_COUNT_BEFORE=$(cat ~/.local/share/betterpg/state.json | jq '[.databases[] | .snapshots[]] | length')
+SNAPSHOT_ID=$(cat ~/.local/share/pgd/state.json | jq -r '.databases[] | .snapshots[0].id')
+SNAPSHOT_COUNT_BEFORE=$(cat ~/.local/share/pgd/state.json | jq '[.databases[] | .snapshots[]] | length')
 $BPG snapshot delete "$SNAPSHOT_ID" >/dev/null 2>&1
-SNAPSHOT_COUNT_AFTER=$(cat ~/.local/share/betterpg/state.json | jq '[.databases[] | .snapshots[]] | length')
+SNAPSHOT_COUNT_AFTER=$(cat ~/.local/share/pgd/state.json | jq '[.databases[] | .snapshots[]] | length')
 
 if [ "$SNAPSHOT_COUNT_AFTER" -lt "$SNAPSHOT_COUNT_BEFORE" ]; then
     check_test "Delete snapshot"
@@ -386,7 +386,7 @@ done
 wait
 sleep 5
 
-BRANCH_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '.databases[] | select(.name == "test-prod") | .branches | length')
+BRANCH_COUNT=$(cat ~/.local/share/pgd/state.json | jq '.databases[] | select(.name == "test-prod") | .branches | length')
 if [ "$BRANCH_COUNT" -ge 7 ]; then  # main + dev + hotfix + pitr-recovery + 5 new = 9 total
     check_test "Create multiple branches concurrently"
 else
@@ -397,8 +397,8 @@ fi
 
 # Test 32: Verify ZFS space efficiency with many branches
 echo -e "\n${BLUE}Test 32: ZFS space efficiency${NC}"
-MAIN_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-main)
-BRANCH1_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-test-branch-1)
+MAIN_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-main)
+BRANCH1_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-test-branch-1)
 
 if [ "$BRANCH1_SIZE" -lt "$MAIN_SIZE" ]; then
     echo "  Main: $MAIN_SIZE bytes, Branch: $BRANCH1_SIZE bytes"

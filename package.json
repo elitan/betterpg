@@ -1,17 +1,17 @@
 {
-  "name": "betterpg",
-  "displayName": "BetterPG",
+  "name": "pgd",
+  "displayName": "pgd",
   "version": "0.3.4",
   "description": "PostgreSQL database branching using ZFS snapshots",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
   "bin": {
-    "bpg": "./dist/bpg"
+    "pgd": "./dist/pgd"
   },
   "scripts": {
     "test": "bun scripts/test.ts",
-    "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/bpg",
+    "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/pgd",
     "dev": "bun run src/index.ts"
   },
   "devDependencies": {

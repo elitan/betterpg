@@ -1,5 +1,5 @@
 #!/bin/bash
-# Advanced integration tests for BetterPG
+# Advanced integration tests for pgd
 # Tests edge cases, stress scenarios, and advanced features
 
 # Colors for output
@@ -12,21 +12,21 @@ NC='\033[0m'
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-echo -e "${YELLOW}🧪 Running BetterPG advanced integration tests${NC}\n"
+echo -e "${YELLOW}🧪 Running pgd advanced integration tests${NC}\n"
 
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Please run: bun run build${NC}"
     exit 1
 fi
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
-    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    sudo zfs create tank/betterpg/databases 2>/dev/null || true
-    rm -rf ~/.config/betterpg ~/.local/share/betterpg 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    sudo zfs create tank/pgd/databases 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -49,8 +49,8 @@ check_test() {
 
 echo -e "\n${BLUE}=== Setup ===${NC}"
 $BPG project create test-db >/dev/null 2>&1 && sleep 3
-PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].credentials.password')
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
+PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].credentials.password')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
 
 # Create test data
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres >/dev/null 2>&1 <<EOF
@@ -77,7 +77,7 @@ PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "
 $BPG branch sync test-db/dev >/dev/null 2>&1 && sleep 3
 
 # Check if branch has new data
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
 DEV_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM test_data WHERE value='parent-change';" 2>/dev/null | xargs)
 
 if [ "$DEV_COUNT" -eq 1 ]; then
@@ -94,7 +94,7 @@ PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c
 
 $BPG branch sync test-db/dev >/dev/null 2>&1 && sleep 3
 
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
 DEV_ONLY_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM test_data WHERE value='dev-only';" 2>/dev/null | xargs)
 
 if [ "$DEV_ONLY_COUNT" -eq 0 ]; then
@@ -113,9 +113,9 @@ echo -e "\n${BLUE}=== Section 2: Connection String Verification ===${NC}"
 
 # Test 3: Verify connection string works
 echo -e "\n${BLUE}Test 3: Connection string from status is valid${NC}"
-CONN_STRING=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].credentials | "postgresql://\(.username):\(.password)@localhost:\(.port // 5432)/\(.database)"')
-MAIN_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
-CONN_STRING_WITH_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].credentials | "postgresql://\(.username):\(.password)@localhost:'$MAIN_PORT'/\(.database)"')
+CONN_STRING=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].credentials | "postgresql://\(.username):\(.password)@localhost:\(.port // 5432)/\(.database)"')
+MAIN_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
+CONN_STRING_WITH_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].credentials | "postgresql://\(.username):\(.password)@localhost:'$MAIN_PORT'/\(.database)"')
 
 if PGPASSWORD= psql "$CONN_STRING_WITH_PORT" -c "SELECT 1;" >/dev/null 2>&1; then
     check_test "Connection string is valid"
@@ -138,7 +138,7 @@ for i in {1..3}; do
 done
 
 # Verify all branches are in state
-BRANCH_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '.projects[0].branches | length')
+BRANCH_COUNT=$(cat ~/.local/share/pgd/state.json | jq '.projects[0].branches | length')
 if [ "$BRANCH_COUNT" -ge 5 ]; then  # main + dev + 3 new branches
     check_test "State tracks all branches in project"
 else
@@ -149,7 +149,7 @@ fi
 
 # Test 5: Verify no duplicate branch names
 echo -e "\n${BLUE}Test 5: State prevents duplicate branch names${NC}"
-DUPLICATE_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '[.projects[0].branches[].name] | group_by(.) | map(length) | max')
+DUPLICATE_COUNT=$(cat ~/.local/share/pgd/state.json | jq '[.projects[0].branches[].name] | group_by(.) | map(length) | max')
 if [ "$DUPLICATE_COUNT" -eq 1 ]; then
     check_test "No duplicate branch names"
 else
@@ -193,7 +193,7 @@ fi
 # Test 8: Restart restores functionality
 echo -e "\n${BLUE}Test 8: Start restores branch functionality${NC}"
 $BPG start test-db/dev >/dev/null 2>&1 && sleep 3
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-db/dev") | .port')
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
     check_test "Started branch is connectable"
 else
@@ -209,8 +209,8 @@ echo -e "\n${BLUE}=== Section 6: ZFS Integration ===${NC}"
 
 # Test 9: Verify ZFS datasets exist for all branches
 echo -e "\n${BLUE}Test 9: ZFS datasets match state${NC}"
-STATE_DATASETS=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[].zfsDatasetName' | sort)
-ZFS_DATASETS=$(sudo zfs list -H -o name -r tank/betterpg/databases | grep "^tank/betterpg/databases/" | sed 's|tank/betterpg/databases/||' | sort)
+STATE_DATASETS=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[].zfsDatasetName' | sort)
+ZFS_DATASETS=$(sudo zfs list -H -o name -r tank/pgd/databases | grep "^tank/pgd/databases/" | sed 's|tank/pgd/databases/||' | sort)
 
 if [ "$(echo "$STATE_DATASETS" | wc -l)" -eq "$(echo "$ZFS_DATASETS" | wc -l)" ]; then
     check_test "ZFS datasets match state count"
@@ -224,8 +224,8 @@ fi
 # Test 10: Verify snapshots exist in ZFS
 echo -e "\n${BLUE}Test 10: ZFS snapshots match state${NC}"
 $BPG snapshot create test-db/main --label "test-snap" >/dev/null 2>&1
-SNAPSHOT_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '[.snapshots[] | select(.projectName == "test-db")] | length')
-ZFS_SNAPSHOT_COUNT=$(sudo zfs list -t snapshot -H | grep "tank/betterpg/databases/test-db" | wc -l)
+SNAPSHOT_COUNT=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[] | select(.projectName == "test-db")] | length')
+ZFS_SNAPSHOT_COUNT=$(sudo zfs list -t snapshot -H | grep "tank/pgd/databases/test-db" | wc -l)
 
 if [ "$ZFS_SNAPSHOT_COUNT" -gt 0 ]; then
     check_test "ZFS snapshots exist"
@@ -243,7 +243,7 @@ echo -e "\n${BLUE}=== Section 7: Docker Integration ===${NC}"
 
 # Test 11: Verify all running branches have containers
 echo -e "\n${BLUE}Test 11: Running branches have Docker containers${NC}"
-RUNNING_BRANCHES=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[] | select(.status == "running") | .containerName')
+RUNNING_BRANCHES=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[] | select(.status == "running") | .containerName')
 MISSING_CONTAINERS=0
 for container in $RUNNING_BRANCHES; do
     if ! docker ps | grep -q "$container"; then
@@ -261,9 +261,9 @@ fi
 
 # Test 12: Container naming convention
 echo -e "\n${BLUE}Test 12: Container names follow convention${NC}"
-CONTAINER_NAME=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].containerName')
-if echo "$CONTAINER_NAME" | grep -q "^betterpg-test-db-main$"; then
-    check_test "Container naming convention (betterpg-<db>-<branch>)"
+CONTAINER_NAME=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].containerName')
+if echo "$CONTAINER_NAME" | grep -q "^pgd-test-db-main$"; then
+    check_test "Container naming convention (pgd-<db>-<branch>)"
 else
     echo "  Container name: $CONTAINER_NAME"
     false
@@ -282,21 +282,21 @@ $BPG branch delete test-db/branch-1 >/dev/null 2>&1
 sleep 2
 
 # Check ZFS dataset is gone
-if ! sudo zfs list tank/betterpg/databases/test-db-branch-1 >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-db-branch-1 >/dev/null 2>&1; then
     ZFS_GONE=true
 else
     ZFS_GONE=false
 fi
 
 # Check container is gone
-if ! docker ps -a | grep -q "betterpg-test-db-branch-1"; then
+if ! docker ps -a | grep -q "pgd-test-db-branch-1"; then
     CONTAINER_GONE=true
 else
     CONTAINER_GONE=false
 fi
 
 # Check state is updated
-if ! cat ~/.local/share/betterpg/state.json | jq -e '.projects[0].branches[] | select(.name == "test-db/branch-1")' >/dev/null 2>&1; then
+if ! cat ~/.local/share/pgd/state.json | jq -e '.projects[0].branches[] | select(.name == "test-db/branch-1")' >/dev/null 2>&1; then
     STATE_GONE=true
 else
     STATE_GONE=false

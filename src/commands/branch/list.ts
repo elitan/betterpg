@@ -19,7 +19,7 @@ export async function branchListCommand(projectName?: string) {
     if (projectName) {
       throw new Error(`Project '${projectName}' not found`);
     } else {
-      console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('bpg project create <name>'));
+      console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('pgd project create <name>'));
       return;
     }
   }

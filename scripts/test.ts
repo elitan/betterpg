@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Comprehensive integration test suite for betterpg
+ * Comprehensive integration test suite for pgd
  * Uses Bun's $ shell for all operations
  */
 

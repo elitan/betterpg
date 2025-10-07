@@ -1,4 +1,4 @@
-# betterpg Development TODO
+# pgd Development TODO
 
 ## ✅ Completed (v0.1.0)
 
@@ -10,20 +10,20 @@
 - [x] ConfigManager - YAML configuration
 
 ### CLI Commands (Namespace-based v0.2.0)
-- [x] `bpg init` - Initialize system with ZFS pool
-- [x] `bpg db create <name>` - Create database with main branch
-- [x] `bpg db list` - List all databases
-- [x] `bpg db get <name>` - Get database details
-- [x] `bpg db delete <name>` - Delete database and branches
-- [x] `bpg db rename <old> <new>` - Rename database
-- [x] `bpg branch create <db>/<name>` - Create branch with namespace
-- [x] `bpg branch list [db]` - List branches
-- [x] `bpg branch get <db>/<branch>` - Get branch details
-- [x] `bpg branch delete <db>/<branch>` - Delete branch
-- [x] `bpg branch rename <old> <new>` - Rename branch
-- [x] `bpg start/stop/restart <db>/<branch>` - Lifecycle management
-- [x] `bpg status` - Show all databases and branches
-- [x] `bpg branch sync <db>/<branch>` - Sync branch with parent's current state
+- [x] `pgd init` - Initialize system with ZFS pool
+- [x] `pgd db create <name>` - Create database with main branch
+- [x] `pgd db list` - List all databases
+- [x] `pgd db get <name>` - Get database details
+- [x] `pgd db delete <name>` - Delete database and branches
+- [x] `pgd db rename <old> <new>` - Rename database
+- [x] `pgd branch create <db>/<name>` - Create branch with namespace
+- [x] `pgd branch list [db]` - List branches
+- [x] `pgd branch get <db>/<branch>` - Get branch details
+- [x] `pgd branch delete <db>/<branch>` - Delete branch
+- [x] `pgd branch rename <old> <new>` - Rename branch
+- [x] `pgd start/stop/restart <db>/<branch>` - Lifecycle management
+- [x] `pgd status` - Show all databases and branches
+- [x] `pgd branch sync <db>/<branch>` - Sync branch with parent's current state
 
 ### Testing & Infrastructure ✅ COMPLETE (v0.3.4)
 - [x] VPS setup script (`scripts/vps-setup.sh`)
@@ -51,7 +51,7 @@
   - File-based ZFS pool (10GB) for testing
   - All 70 tests running successfully in CI
 - [x] All tests passing on Ubuntu 24.04 with ZFS
-- [x] VPS environment configured at `ssh betterpg`
+- [x] VPS environment configured at `ssh pgd`
 
 ## 🎯 Next Priority Features
 
@@ -66,11 +66,11 @@
   - Creates ZFS snapshot while Postgres is in backup mode
   - Ensures zero data loss and consistency
   - Compatible with PostgreSQL 15+ (pg_backup_*) and < 15 (pg_start_backup)
-- [x] Make consistent snapshots the default for `bpg branch`
-  - `bpg branch prod dev` uses pg_backup_start by default
+- [x] Make consistent snapshots the default for `pgd branch`
+  - `pgd branch prod dev` uses pg_backup_start by default
   - ~2-5 second operation (acceptable for production)
 - [x] Add `--fast` flag for crash-consistent snapshots (dev/test only)
-  - `bpg branch prod dev --fast` skips pg_backup_start
+  - `pgd branch prod dev --fast` skips pg_backup_start
   - Faster but requires WAL replay on startup
   - Documented when to use vs avoid
 - [x] Update integration tests to verify consistent snapshots
@@ -85,8 +85,8 @@
 **Goal:** Restructure CLI to use `<database>/<branch>` namespace pattern for clarity
 
 - [x] Update data model to use namespace structure
-- [x] Implement `bpg db` command group (create, list, get, delete, rename)
-- [x] Implement `bpg branch` command group (create, list, get, delete, rename, sync)
+- [x] Implement `pgd db` command group (create, list, get, delete, rename)
+- [x] Implement `pgd branch` command group (create, list, get, delete, rename, sync)
 - [x] Update lifecycle commands to use namespaces (start, stop, restart)
 - [x] Update integration tests for namespace syntax
 - [x] Create CLAUDE.md documentation
@@ -130,20 +130,20 @@
 
 - [x] WAL archiving setup and configuration
   - Configured PostgreSQL archive_mode and archive_command in DockerManager
-  - Local WAL archive directory structure at `/var/lib/betterpg/wal-archive/<dataset>/`
+  - Local WAL archive directory structure at `/var/lib/pgd/wal-archive/<dataset>/`
   - Per-branch WAL archive isolation
 - [x] WAL archive monitoring and management
   - WALManager tracks archive size, file count, and age
-  - `bpg wal info [branch]` - Show WAL archive status
-  - `bpg wal cleanup <branch> --days <n>` - Clean up old WAL files
+  - `pgd wal info [branch]` - Show WAL archive status
+  - `pgd wal cleanup <branch> --days <n>` - Clean up old WAL files
   - Verify WAL archive integrity with gap detection
 - [x] Snapshot management for PITR
-  - `bpg snapshot create <db>/<branch> --label <name>` - Create manual snapshot
-  - `bpg snapshot list [branch]` - List all snapshots
-  - `bpg snapshot delete <snapshot-id>` - Delete snapshot
+  - `pgd snapshot create <db>/<branch> --label <name>` - Create manual snapshot
+  - `pgd snapshot list [branch]` - List all snapshots
+  - `pgd snapshot delete <snapshot-id>` - Delete snapshot
   - Snapshots stored in state with metadata (timestamp, label, size)
 - [x] Point-in-time recovery (PITR) implementation
-  - `bpg branch create <db>/<name> --pitr <timestamp>` - Branch from specific point in time
+  - `pgd branch create <db>/<name> --pitr <timestamp>` - Branch from specific point in time
   - Automatically finds best snapshot before recovery target
   - Replays WAL logs from snapshot to target time
   - Support timestamp formats (ISO 8601, relative like "2 hours ago")
@@ -171,7 +171,7 @@
 ### Future Features (v0.4.0+)
 
 #### Connection & Access
-- [ ] `bpg info <name>` - Show connection details
+- [ ] `pgd info <name>` - Show connection details
 - [ ] Store credentials securely (not in state.json)
 
 
@@ -245,8 +245,8 @@
 
 ### Testing on macOS
 Since ZFS is Linux-only, development requires VPS:
-1. SSH to VPS: `ssh betterpg`
-2. Pull changes: `cd ~/betterpg && git pull`
+1. SSH to VPS: `ssh pgd`
+2. Pull changes: `cd ~/pgd && git pull`
 3. Build: `~/.bun/bin/bun run build`
 4. Test: `./scripts/integration-test.sh`
 
@@ -254,7 +254,7 @@ Since ZFS is Linux-only, development requires VPS:
 - Provider: Hetzner/DigitalOcean
 - OS: Ubuntu 24.04
 - ZFS pool: `tank` (10GB file-backed)
-- Access: `ssh betterpg`
+- Access: `ssh pgd`
 
 ### Current Test Results (v0.3.4)
 **All 70 tests passing!** ✅
@@ -274,7 +274,7 @@ Since ZFS is Linux-only, development requires VPS:
 **GitHub Actions CI:**
 - Runs all 70 tests automatically on push/PR
 - Ubuntu 22.04 with ZFS, Docker, PostgreSQL
-- View results: https://github.com/elitan/betterpg/actions
+- View results: https://github.com/elitan/pgd/actions
 
 ### Production Use Cases
 **Primary workflows:**
@@ -305,10 +305,10 @@ User → CLI (src/index.ts)
 ```
 
 ### File Locations
-- Config: `/etc/betterpg/config.yaml`
-- State: `/var/lib/betterpg/state.json`
-- WAL Archive: `/var/lib/betterpg/wal-archive/`
-- ZFS Base: `tank/betterpg/databases/`
+- Config: `/etc/pgd/config.yaml`
+- State: `/var/lib/pgd/state.json`
+- WAL Archive: `/var/lib/pgd/wal-archive/`
+- ZFS Base: `tank/pgd/databases/`
 
 ---
 

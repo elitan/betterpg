@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pragmatic v1 integration test suite for betterpg
+# Pragmatic v1 integration test suite for pgd
 # Only tests implemented features, removes tests for unimplemented features
 # All tests in this suite MUST pass for v1 release
 
@@ -15,23 +15,23 @@ NC='\033[0m' # No Color
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-echo -e "${YELLOW}🧪 Running betterpg v1 integration tests${NC}\n"
+echo -e "${YELLOW}🧪 Running pgd v1 integration tests${NC}\n"
 
 # Check if binary exists
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Please run: bun run build${NC}"
     exit 1
 fi
 
-BPG="./dist/bpg"
+BPG="./dist/pgd"
 
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
-    sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    sudo zfs create tank/betterpg/databases 2>/dev/null || true
-    rm -rf ~/.config/betterpg ~/.local/share/betterpg 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    sudo zfs create tank/pgd/databases 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -88,8 +88,8 @@ fi
 
 # Test 5: Create test data
 echo -e "\n${BLUE}Test 5: Create test data${NC}"
-PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | select(.name == "test-prod") | .credentials.password')
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
+PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .credentials.password')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres >/dev/null 2>&1 <<EOF
 CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -116,7 +116,7 @@ check_test "Create staging branch 'test-prod/staging'"
 # Test 8: Create branch with --from flag
 echo -e "\n${BLUE}Test 8: Create branch from non-main parent${NC}"
 $BPG branch create test-prod/feature --from test-prod/dev >/dev/null 2>&1 && sleep 3
-if sudo zfs list tank/betterpg/databases/test-prod-feature >/dev/null 2>&1; then
+if sudo zfs list tank/pgd/databases/test-prod-feature >/dev/null 2>&1; then
     check_test "Create branch from non-main parent"
 else
     false
@@ -155,7 +155,7 @@ fi
 
 # Test 12: Verify branch has same data as parent
 echo -e "\n${BLUE}Test 12: Verify branch data${NC}"
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-prod/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-prod/dev") | .port')
 ROW_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs)
 if [ "$ROW_COUNT" -eq 3 ]; then
     check_test "Branch has same data as parent"
@@ -189,7 +189,7 @@ echo -e "\n${BLUE}=== Section 3: Lifecycle Operations ===${NC}"
 # Test 14: Stop branch
 echo -e "\n${BLUE}Test 14: Stop branch${NC}"
 $BPG stop test-prod/dev >/dev/null 2>&1 && sleep 2
-if docker ps -a | grep "betterpg-test-prod-dev" | grep -q "Exited"; then
+if docker ps -a | grep "pgd-test-prod-dev" | grep -q "Exited"; then
     check_test "Stop branch"
 else
     false
@@ -199,7 +199,7 @@ fi
 # Test 15: Start branch
 echo -e "\n${BLUE}Test 15: Start branch${NC}"
 $BPG start test-prod/dev >/dev/null 2>&1 && sleep 3
-if docker ps | grep -q "betterpg-test-prod-dev"; then
+if docker ps | grep -q "pgd-test-prod-dev"; then
     check_test "Start branch"
 else
     false
@@ -209,7 +209,7 @@ fi
 # Test 16: Restart branch
 echo -e "\n${BLUE}Test 16: Restart branch${NC}"
 $BPG restart test-prod/main >/dev/null 2>&1 && sleep 3
-if docker ps | grep -q "betterpg-test-prod-main"; then
+if docker ps | grep -q "pgd-test-prod-main"; then
     check_test "Restart branch"
 else
     false
@@ -240,7 +240,7 @@ $BPG start test-prod/dev >/dev/null 2>&1 && sleep 3
 # Test 19: Create manual snapshot
 echo -e "\n${BLUE}Test 19: Create manual snapshot${NC}"
 $BPG snapshot create test-prod/main >/dev/null 2>&1
-SNAPSHOT_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_COUNT=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
 if [ "$SNAPSHOT_COUNT" -gt 0 ]; then
     check_test "Create manual snapshot"
 else
@@ -251,7 +251,7 @@ fi
 # Test 20: Create snapshot with label
 echo -e "\n${BLUE}Test 20: Create snapshot with label${NC}"
 $BPG snapshot create test-prod/main --label "before-migration" >/dev/null 2>&1
-OUTPUT=$(cat ~/.local/share/betterpg/state.json | jq -r '.snapshots[] | select(.label == "before-migration") | .label')
+OUTPUT=$(cat ~/.local/share/pgd/state.json | jq -r '.snapshots[] | select(.label == "before-migration") | .label')
 if [ "$OUTPUT" = "before-migration" ]; then
     check_test "Create snapshot with label"
 else
@@ -282,7 +282,7 @@ fi
 # Test 23: Modify data after snapshot
 echo -e "\n${BLUE}Test 23: Modify data after snapshot${NC}"
 # Get fresh port in case it changed
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
+PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "INSERT INTO users (name) VALUES ('Frank'), ('Grace');" >/dev/null 2>&1
 sleep 2
 ROW_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM users;" | xargs)
@@ -313,10 +313,10 @@ $BPG branch delete test-prod/pitr-test 2>/dev/null || true
 
 # Test 25: Delete snapshot
 echo -e "\n${BLUE}Test 25: Delete snapshot${NC}"
-SNAPSHOT_ID=$(cat ~/.local/share/betterpg/state.json | jq -r '.snapshots[0].id')
-SNAPSHOT_COUNT_BEFORE=$(cat ~/.local/share/betterpg/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_ID=$(cat ~/.local/share/pgd/state.json | jq -r '.snapshots[0].id')
+SNAPSHOT_COUNT_BEFORE=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
 $BPG snapshot delete "$SNAPSHOT_ID" >/dev/null 2>&1
-SNAPSHOT_COUNT_AFTER=$(cat ~/.local/share/betterpg/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_COUNT_AFTER=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
 
 if [ "$SNAPSHOT_COUNT_AFTER" -lt "$SNAPSHOT_COUNT_BEFORE" ]; then
     check_test "Delete snapshot"
@@ -394,7 +394,7 @@ fi
 # Test 32: Delete branch
 echo -e "\n${BLUE}Test 32: Delete branch${NC}"
 $BPG branch delete test-prod/staging >/dev/null 2>&1
-if ! sudo zfs list tank/betterpg/databases/test-prod-staging >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-prod-staging >/dev/null 2>&1; then
     check_test "Delete branch"
 else
     false
@@ -404,7 +404,7 @@ fi
 # Test 33: Delete project with --force
 echo -e "\n${BLUE}Test 33: Delete project with --force${NC}"
 $BPG project delete test-dev --force >/dev/null 2>&1
-if ! sudo zfs list tank/betterpg/databases/test-dev-main >/dev/null 2>&1; then
+if ! sudo zfs list tank/pgd/databases/test-dev-main >/dev/null 2>&1; then
     check_test "Delete project with --force"
 else
     false
@@ -429,8 +429,8 @@ fi
 
 # Test 35: ZFS space efficiency
 echo -e "\n${BLUE}Test 35: ZFS copy-on-write efficiency${NC}"
-MAIN_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-main)
-DEV_SIZE=$(sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod-dev)
+MAIN_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-main)
+DEV_SIZE=$(sudo zfs get -H -p -o value used tank/pgd/databases/test-prod-dev)
 
 if [ "$DEV_SIZE" -lt "$MAIN_SIZE" ]; then
     echo "  Main: $MAIN_SIZE bytes, Dev: $DEV_SIZE bytes"

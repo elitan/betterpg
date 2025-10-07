@@ -3,8 +3,8 @@
 
 set -e
 
-BPG="./dist/bpg"
-LOCK_FILE="/var/lib/betterpg/state.json.lock"
+BPG="./dist/pgd"
+LOCK_FILE="/var/lib/pgd/state.json.lock"
 
 echo "🧪 Testing stale lock detection and recovery"
 echo ""

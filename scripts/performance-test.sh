@@ -1,5 +1,5 @@
 #!/bin/bash
-# Performance test for BetterPG with various database sizes
+# Performance test for pgd with various database sizes
 # Tests branching performance with 5GB, 20GB, and synthetic large datasets
 
 set -e
@@ -10,22 +10,22 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🎯 BetterPG Performance Tests${NC}\n"
+echo -e "${YELLOW}🎯 pgd Performance Tests${NC}\n"
 
-if [ ! -f "./dist/bpg" ]; then
+if [ ! -f "./dist/pgd" ]; then
     echo -e "${RED}✗ Binary not found. Run: bun run build${NC}"
     exit 1
 fi
 
-BPG="sudo ./dist/bpg"
+BPG="sudo ./dist/pgd"
 
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
-    zfs destroy -r tank/betterpg/databases 2>/dev/null || true
-    zfs create tank/betterpg/databases 2>/dev/null || true
-    rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
+    docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    zfs destroy -r tank/pgd/databases 2>/dev/null || true
+    zfs create tank/pgd/databases 2>/dev/null || true
+    rm -rf /var/lib/pgd/* /etc/pgd/* 2>/dev/null || true
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -33,15 +33,15 @@ cleanup
 trap cleanup EXIT
 
 # Initialize
-echo -e "${BLUE}=== Initializing BetterPG ===${NC}"
+echo -e "${BLUE}=== Initializing pgd ===${NC}"
 $BPG init
 echo ""
 
 # Test 1: Small project (baseline)
 echo -e "${BLUE}=== Test 1: Small Project (100MB PostgreSQL database) ===${NC}"
 $BPG create test-small
-SMALL_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
-PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
+SMALL_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].port')
+PGPASSWORD=$(cat /var/lib/pgd/state.json | jq -r '.databases[0].credentials.password')
 
 # Create 100MB of data in PostgreSQL
 echo "Creating 100MB test data..."
@@ -61,7 +61,7 @@ FROM generate_series(1, 500000);
 CHECKPOINT;
 EOF
 
-SMALL_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-small | numfmt --from=iec)
+SMALL_SIZE=$(sudo zfs list -H -o used tank/pgd/databases/test-small | numfmt --from=iec)
 echo -e "PostgreSQL database size: $(numfmt --to=iec $SMALL_SIZE)"
 
 # Benchmark branching
@@ -84,8 +84,8 @@ echo ""
 # Test 2: Medium project (5GB)
 echo -e "${BLUE}=== Test 2: Medium Project (5GB PostgreSQL database) ===${NC}"
 $BPG create test-medium
-MEDIUM_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].port')
-PGPASSWORD_MED=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].credentials.password')
+MEDIUM_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[1].port')
+PGPASSWORD_MED=$(cat /var/lib/pgd/state.json | jq -r '.databases[1].credentials.password')
 
 echo "Creating 5GB test data in PostgreSQL (this may take 2-3 minutes)..."
 PGPASSWORD=$PGPASSWORD_MED psql -h localhost -p $MEDIUM_PORT -U postgres -d postgres <<EOF
@@ -112,7 +112,7 @@ FROM generate_series(1, 5000000) i;
 CHECKPOINT;
 EOF
 
-MEDIUM_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-medium | numfmt --from=iec)
+MEDIUM_SIZE=$(sudo zfs list -H -o used tank/pgd/databases/test-medium | numfmt --from=iec)
 echo -e "PostgreSQL database size: $(numfmt --to=iec $MEDIUM_SIZE)"
 
 echo "Benchmarking application-consistent branch..."
@@ -158,7 +158,7 @@ DURATION=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
 echo -e "${GREEN}✓ Branch created during write load in ${DURATION}s${NC}"
 
 # Stop background writes
-sudo docker exec betterpg-test-medium pkill -9 postgres 2>/dev/null || true
+sudo docker exec pgd-test-medium pkill -9 postgres 2>/dev/null || true
 $BPG restart test-medium > /dev/null 2>&1
 echo ""
 
@@ -167,10 +167,10 @@ echo -e "${BLUE}=== Test 4: Copy-on-Write Efficiency ===${NC}"
 echo "Testing space efficiency with data modifications..."
 
 # Get initial branch size
-BRANCH_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].branches[] | select(.name=="test-medium-branch") | .port')
-PGPASSWORD_BRANCH=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].credentials.password')
+BRANCH_PORT=$(cat /var/lib/pgd/state.json | jq -r '.databases[1].branches[] | select(.name=="test-medium-branch") | .port')
+PGPASSWORD_BRANCH=$(cat /var/lib/pgd/state.json | jq -r '.databases[1].credentials.password')
 
-INITIAL_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-medium-branch | numfmt --from=iec)
+INITIAL_SIZE=$(sudo zfs list -H -o used tank/pgd/databases/test-medium-branch | numfmt --from=iec)
 echo -e "Initial branch size: $(numfmt --to=iec $INITIAL_SIZE)"
 
 # Modify 1% of data
@@ -180,7 +180,7 @@ UPDATE test_data SET data = repeat('z', 900) WHERE id % 100 = 0;
 CHECKPOINT;
 EOF
 
-AFTER_1PCT_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-medium-branch | numfmt --from=iec)
+AFTER_1PCT_SIZE=$(sudo zfs list -H -o used tank/pgd/databases/test-medium-branch | numfmt --from=iec)
 PCT_1_GROWTH=$(echo "scale=2; ($AFTER_1PCT_SIZE - $INITIAL_SIZE) / 1024 / 1024" | bc)
 echo -e "After 1% modification: $(numfmt --to=iec $AFTER_1PCT_SIZE) (+${PCT_1_GROWTH} MB)"
 
@@ -191,7 +191,7 @@ UPDATE test_data SET data = repeat('w', 900) WHERE id % 10 = 0;
 CHECKPOINT;
 EOF
 
-AFTER_10PCT_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-medium-branch | numfmt --from=iec)
+AFTER_10PCT_SIZE=$(sudo zfs list -H -o used tank/pgd/databases/test-medium-branch | numfmt --from=iec)
 PCT_10_GROWTH=$(echo "scale=2; ($AFTER_10PCT_SIZE - $INITIAL_SIZE) / 1024 / 1024" | bc)
 echo -e "After 10% modification: $(numfmt --to=iec $AFTER_10PCT_SIZE) (+${PCT_10_GROWTH} MB)"
 

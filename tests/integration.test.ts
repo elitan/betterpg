@@ -108,7 +108,7 @@ afterAll(async () => {
   console.log('✓ Cleanup complete');
 });
 
-describe('BetterPG Integration Tests', () => {
+describe('pgd Integration Tests', () => {
 
   test('01: Initialize system', async () => {
     await runBPG('init');

@@ -64,14 +64,14 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Auto-initialize state if needed (first project create)
   if (!state.isInitialized()) {
-    const initSpinner = ora('Initializing BetterPG').start();
+    const initSpinner = ora('Initializing pgd').start();
 
     // Create WAL archive directory
     await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
 
     // Initialize state
     await state.autoInitialize(pool, DEFAULTS.zfs.datasetBase);
-    initSpinner.succeed('BetterPG initialized');
+    initSpinner.succeed('pgd initialized');
   }
 
   // Check if project already exists
@@ -82,7 +82,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Get ZFS config from state
   const stateData = state.getState();
-  const fullDatasetBase = stateData.zfsDatasetBase; // e.g., "betterpg/databases"
+  const fullDatasetBase = stateData.zfsDatasetBase; // e.g., "pgd/databases"
 
   // Initialize managers
   const zfs = new ZFSManager(pool, fullDatasetBase);

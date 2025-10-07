@@ -1,8 +1,8 @@
-# BetterPG
+# pgd
 
 Instant PostgreSQL database branching using ZFS snapshots. Create production-safe database copies in seconds for testing migrations, debugging, and development.
 
-**Mental Model:** Think of BetterPG like Git for databases. A **project** is like a Git repository, and **branches** are like Git branches - each branch is a full, isolated PostgreSQL database instance.
+**Mental Model:** Think of pgd like Git for databases. A **project** is like a Git repository, and **branches** are like Git branches - each branch is a full, isolated PostgreSQL database instance.
 
 ## Features
 
@@ -22,22 +22,22 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 
 ```bash
 # Create project (auto-detects ZFS pool, uses PostgreSQL 17 by default)
-bpg project create prod
+pgd project create prod
 
 # Create application-consistent branch (uses CHECKPOINT)
-bpg branch create prod/dev
+pgd branch create prod/dev
 
 # Create another branch
-bpg branch create prod/test
+pgd branch create prod/test
 
 # View all projects and branches
-bpg status
+pgd status
 
 # Use specific PostgreSQL version
-bpg project create legacy --pg-version 14
+pgd project create legacy --pg-version 14
 
 # Use custom image with extensions
-bpg project create vectordb --image ankane/pgvector:17
+pgd project create vectordb --image ankane/pgvector:17
 ```
 
 ## Requirements
@@ -92,27 +92,27 @@ sudo zpool create tank /tmp/zfs-pool.img
 # sudo zpool create tank /dev/sdb
 ```
 
-### 4. Build and Install BetterPG
+### 4. Build and Install pgd
 
 ```bash
 # Clone repository
-git clone https://github.com/elitan/betterpg.git
-cd betterpg
+git clone https://github.com/elitan/pgd.git
+cd pgd
 
 # Build
 bun install
 bun run build
 
 # Install globally
-sudo cp dist/bpg /usr/local/bin/
+sudo cp dist/pgd /usr/local/bin/
 
 # That's it! No init needed - just start creating projects
-bpg project create myapp
+pgd project create myapp
 ```
 
 ## How It Works
 
-BetterPG combines three technologies:
+pgd combines three technologies:
 
 1. **ZFS snapshots**: Instant, space-efficient filesystem clones (copy-on-write)
 2. **PostgreSQL CHECKPOINT**: Application-consistent snapshots by flushing all data to disk
@@ -142,26 +142,26 @@ A **project** is a logical grouping of branches, similar to how a Git repository
 
 ```bash
 # Create a project (automatically creates <project>/main branch with PostgreSQL 17)
-bpg project create myapp
+pgd project create myapp
 
 # Create project with specific PostgreSQL version
-bpg project create legacy --pg-version 14
+pgd project create legacy --pg-version 14
 
 # Create project with custom image (for extensions)
-bpg project create vectordb --image ankane/pgvector:17
-bpg project create timeseries --image timescale/timescaledb:latest-pg17
+pgd project create vectordb --image ankane/pgvector:17
+pgd project create timeseries --image timescale/timescaledb:latest-pg17
 
 # Specify ZFS pool (only needed if you have multiple pools)
-bpg project create myapp --pool tank2
+pgd project create myapp --pool tank2
 
 # List all projects
-bpg project list
+pgd project list
 
 # Get project details
-bpg project get myapp
+pgd project get myapp
 
 # Delete project and all branches (removes all PostgreSQL databases)
-bpg project delete myapp --force
+pgd project delete myapp --force
 ```
 
 **What happens when you create a project:**
@@ -169,9 +169,9 @@ bpg project delete myapp --force
 - Auto-initializes on first run (creates state.json, base dataset, WAL archive directory)
 - Project record: `myapp` with chosen Docker image
 - Main branch: `myapp/main` (automatically created)
-- PostgreSQL container: `betterpg-myapp-main` on dynamically allocated port
-- ZFS dataset: `<pool>/betterpg/databases/myapp-main`
-- Credentials: auto-generated (view with `bpg status`)
+- PostgreSQL container: `pgd-myapp-main` on dynamically allocated port
+- ZFS dataset: `<pool>/pgd/databases/myapp-main`
+- Credentials: auto-generated (view with `pgd status`)
 
 **Docker Image Inheritance:**
 All branches in a project inherit the parent project's Docker image. If you create a project with `--image ankane/pgvector:17`, all branches will use that image with pgvector extension.
@@ -183,10 +183,10 @@ All branches in a project inherit the parent project's Docker image. If you crea
 **Create branch (application-consistent):**
 ```bash
 # Create branch from main (default)
-bpg branch create prod/dev
+pgd branch create prod/dev
 
 # Create branch from specific parent
-bpg branch create prod/feature --from prod/dev
+pgd branch create prod/feature --from prod/dev
 ```
 
 **How application-consistent snapshots work:**
@@ -198,19 +198,19 @@ bpg branch create prod/feature --from prod/dev
 **Branch operations:**
 ```bash
 # List all branches
-bpg branch list
+pgd branch list
 
 # List branches for specific project
-bpg branch list prod
+pgd branch list prod
 
 # Get branch details (shows port, status, size)
-bpg branch get prod/dev
+pgd branch get prod/dev
 
 # Sync branch with parent's current state
-bpg branch sync prod/dev
+pgd branch sync prod/dev
 
 # Delete branch
-bpg branch delete prod/dev
+pgd branch delete prod/dev
 ```
 
 **Note:** Branch rename is not yet implemented.
@@ -221,23 +221,23 @@ Manual snapshots enable point-in-time recovery (PITR). Create regular snapshots 
 
 ```bash
 # Create snapshot with optional label
-bpg snapshot create prod/main --label "before-migration"
+pgd snapshot create prod/main --label "before-migration"
 
 # List all snapshots
-bpg snapshot list
+pgd snapshot list
 
 # List snapshots for specific branch
-bpg snapshot list prod/main
+pgd snapshot list prod/main
 
 # Delete snapshot by ID
-bpg snapshot delete <snapshot-id>
+pgd snapshot delete <snapshot-id>
 
 # Clean up old snapshots (keeps last 30 days by default)
-bpg snapshot cleanup prod/main --days 30
-bpg snapshot cleanup --all --days 30  # Cleanup across all branches
+pgd snapshot cleanup prod/main --days 30
+pgd snapshot cleanup --all --days 30  # Cleanup across all branches
 
 # Dry run to preview cleanup
-bpg snapshot cleanup prod/main --days 30 --dry-run
+pgd snapshot cleanup prod/main --days 30 --dry-run
 ```
 
 **Best practice:** Create snapshots regularly (e.g., via cron) to enable fine-grained PITR.
@@ -248,13 +248,13 @@ Recover your PostgreSQL database to any specific point in time by replaying WAL 
 
 ```bash
 # Recover to specific timestamp (ISO 8601)
-bpg branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
+pgd branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
 
 # Recover using relative time
-bpg branch create prod/recovered --pitr "2 hours ago"
+pgd branch create prod/recovered --pitr "2 hours ago"
 
 # Optionally specify source branch
-bpg branch create prod/recovered --from prod/dev --pitr "1 hour ago"
+pgd branch create prod/recovered --from prod/dev --pitr "1 hour ago"
 ```
 
 **How PITR works:**
@@ -276,41 +276,41 @@ WAL (Write-Ahead Log) archiving is automatically enabled for all branches. Monit
 
 ```bash
 # View WAL archive info for all branches (shows file count, size, age)
-bpg wal info
+pgd wal info
 
 # View WAL archive info for specific branch
-bpg wal info prod/main
+pgd wal info prod/main
 
 # Clean up old WAL files (default: 7 days)
-bpg wal cleanup prod/main --days 7
+pgd wal cleanup prod/main --days 7
 
 # Dry run to preview cleanup
-bpg wal cleanup prod/main --days 7 --dry-run
+pgd wal cleanup prod/main --days 7 --dry-run
 ```
 
-**Note:** WAL files are stored at `~/.local/share/betterpg/wal-archive/<dataset>/`
+**Note:** WAL files are stored at `~/.local/share/pgd/wal-archive/<dataset>/`
 
 ### Lifecycle Commands
 
 ```bash
 # View status of all projects and branches (shows port, status, size)
-bpg status
+pgd status
 
 # Start a stopped branch
-bpg start prod/dev
+pgd start prod/dev
 
 # Stop a running branch
-bpg stop prod/dev
+pgd stop prod/dev
 
 # Restart a branch
-bpg restart prod/dev
+pgd restart prod/dev
 ```
 
 ### Connection
 
 ```bash
 # Get connection details from status command
-bpg status
+pgd status
 
 # Example output shows:
 # - Host: localhost
@@ -329,17 +329,17 @@ psql postgresql://<username>:<password>@localhost:<port>/<database>
 
 ### 1. Migration Testing (Most Common)
 
-Test migrations on production data before applying to prod. This is BetterPG's primary use case.
+Test migrations on production data before applying to prod. This is pgd's primary use case.
 
 ```bash
 # 1. Create snapshot of production before migration
-bpg snapshot create prod/main --label "before-migration-v2.3"
+pgd snapshot create prod/main --label "before-migration-v2.3"
 
 # 2. Create test branch
-bpg branch create prod/migration-test
+pgd branch create prod/migration-test
 
 # 3. Get connection details
-bpg status
+pgd status
 
 # 4. Run migration on test branch
 psql -h localhost -p <port> -U <username> -d <database> -f migrations/v2.3.sql
@@ -349,13 +349,13 @@ psql -h localhost -p <port> -U <username> -d <database> -c "SELECT * FROM schema
 
 # 6. If successful, apply to production
 # If failed, delete branch and fix migration
-bpg branch delete prod/migration-test
+pgd branch delete prod/migration-test
 
 # 7. Apply successful migration to production
 psql -h localhost -p <prod-port> -U <username> -d <database> -f migrations/v2.3.sql
 
 # 8. If production migration fails, recover using PITR
-bpg branch create prod/recovered --pitr "before-migration-v2.3"
+pgd branch create prod/recovered --pitr "before-migration-v2.3"
 ```
 
 **Benefits:**
@@ -370,14 +370,14 @@ Give developers production data copies for realistic development and debugging.
 
 ```bash
 # Create snapshot once
-bpg snapshot create prod/main --label "weekly-dev-refresh"
+pgd snapshot create prod/main --label "weekly-dev-refresh"
 
 # Create branch for each developer
-bpg branch create prod/dev-alice --from prod/main
-bpg branch create prod/dev-bob --from prod/main
+pgd branch create prod/dev-alice --from prod/main
+pgd branch create prod/dev-bob --from prod/main
 
 # Get connection info
-bpg status
+pgd status
 
 # Anonymize sensitive data (run once per branch)
 psql -h localhost -p <port> -U <username> -d <database> <<EOF
@@ -390,7 +390,7 @@ EOF
 
 # Developers work with realistic data
 # When done, delete branches to reclaim space
-bpg branch delete prod/dev-alice
+pgd branch delete prod/dev-alice
 ```
 
 **Benefits:**
@@ -402,29 +402,29 @@ bpg branch delete prod/dev-alice
 
 ```bash
 # Create exact copy of production
-bpg branch create prod/debug-issue-123
+pgd branch create prod/debug-issue-123
 
 # Get connection info
-bpg status
+pgd status
 
 # Debug with real data, zero risk
 psql -h localhost -p <port> -U postgres
 
 # Clean up when done
-bpg branch delete prod/debug-issue-123
+pgd branch delete prod/debug-issue-123
 ```
 
 ### 4. Point-in-Time Recovery (Incident Response)
 
 ```bash
 # 1. Create regular snapshots (ideally via cron)
-bpg snapshot create prod/main --label "daily-backup-$(date +%Y%m%d)"
+pgd snapshot create prod/main --label "daily-backup-$(date +%Y%m%d)"
 
 # 2. After incident, recover to point before incident
-bpg branch create prod/before-incident --pitr "2025-10-07T14:30:00Z"
+pgd branch create prod/before-incident --pitr "2025-10-07T14:30:00Z"
 
 # 3. Verify recovered data
-bpg status  # Get connection details
+pgd status  # Get connection details
 psql -h localhost -p <port> -U <username> -d <database>
 
 # 4. Query to verify data integrity
@@ -445,10 +445,10 @@ Think of a **project** like a Git repository and **branches** like Git branches.
 ```
 Project: prod (dockerImage: postgres:17-alpine)
 ├── Branch: prod/main (primary)
-│   ├── PostgreSQL Database: betterpg-prod-main (Docker container with postgres:17-alpine)
-│   ├── ZFS Dataset: tank/betterpg/databases/prod-main
-│   ├── Docker Container: betterpg-prod-main (port: dynamic)
-│   ├── WAL Archive: ~/.local/share/betterpg/wal-archive/prod-main/
+│   ├── PostgreSQL Database: pgd-prod-main (Docker container with postgres:17-alpine)
+│   ├── ZFS Dataset: tank/pgd/databases/prod-main
+│   ├── Docker Container: pgd-prod-main (port: dynamic)
+│   ├── WAL Archive: ~/.local/share/pgd/wal-archive/prod-main/
 │   ├── Snapshot 1: 2025-01-15T10:30:00 (label: before-migration)
 │   │   └── Branch: prod/dev (inherits postgres:17-alpine)
 │   └── Snapshot 2: 2025-01-15T14:45:00 (label: daily-backup)
@@ -473,8 +473,8 @@ Each branch is a complete, isolated PostgreSQL database with:
 All resources use `<project>/<branch>` namespace format:
 - Branch names: `prod/main`, `prod/dev`, `api/staging`
 - ZFS datasets: `prod-main`, `prod-dev` (using `-` separator)
-- Docker containers: `betterpg-prod-main`, `betterpg-prod-dev` (PostgreSQL databases)
-- WAL archives: `~/.local/share/betterpg/wal-archive/prod-main/`
+- Docker containers: `pgd-prod-main`, `pgd-prod-dev` (PostgreSQL databases)
+- WAL archives: `~/.local/share/pgd/wal-archive/prod-main/`
 
 ## Performance
 
@@ -505,7 +505,7 @@ ZFS copy-on-write provides extreme space efficiency:
 
 ### Application-Consistent Snapshots (Default)
 
-BetterPG uses **application-consistent snapshots** by default, making it safe for production use.
+pgd uses **application-consistent snapshots** by default, making it safe for production use.
 
 **How it works:**
 1. Executes `CHECKPOINT` command - PostgreSQL flushes all dirty buffers to disk
@@ -553,43 +553,43 @@ crontab -e
 # Add these lines for automated snapshots:
 
 # Hourly snapshots during business hours (9 AM - 5 PM, Mon-Fri)
-0 9-17 * * 1-5 /usr/local/bin/bpg snapshot create prod/main --label "hourly-$(date +\%Y\%m\%d-\%H00)"
+0 9-17 * * 1-5 /usr/local/bin/pgd snapshot create prod/main --label "hourly-$(date +\%Y\%m\%d-\%H00)"
 
 # Daily snapshots at 2 AM
-0 2 * * * /usr/local/bin/bpg snapshot create prod/main --label "daily-$(date +\%Y\%m\%d)"
+0 2 * * * /usr/local/bin/pgd snapshot create prod/main --label "daily-$(date +\%Y\%m\%d)"
 
 # Weekly cleanup: delete snapshots older than 30 days
-0 3 * * 0 /usr/local/bin/bpg snapshot cleanup --all --days 30
+0 3 * * 0 /usr/local/bin/pgd snapshot cleanup --all --days 30
 
 # Weekly WAL cleanup: delete WAL files older than 7 days
-0 4 * * 0 /usr/local/bin/bpg wal cleanup prod/main --days 7
+0 4 * * 0 /usr/local/bin/pgd wal cleanup prod/main --days 7
 ```
 
 **Recommendation:** Adjust snapshot frequency based on your recovery point objective (RPO). More snapshots = finer recovery granularity but more storage.
 
 ## Configuration
 
-**Zero-config design** - No configuration file needed! BetterPG uses sensible hardcoded defaults:
+**Zero-config design** - No configuration file needed! pgd uses sensible hardcoded defaults:
 
 - **PostgreSQL image**: `postgres:17-alpine` (override with `--pg-version` or `--image`)
 - **ZFS compression**: `lz4` (fast, good for databases)
 - **ZFS recordsize**: `8k` (PostgreSQL page size)
 - **ZFS pool**: Auto-detected (or use `--pool` if you have multiple pools)
 - **Ports**: Dynamically allocated by Docker
-- **Credentials**: Auto-generated passwords (view with `bpg branch get`)
+- **Credentials**: Auto-generated passwords (view with `pgd branch get`)
 
-Auto-initialization happens on first `bpg project create`:
+Auto-initialization happens on first `pgd project create`:
 1. Detects ZFS pool (or prompts if multiple exist)
-2. Creates base dataset (`<pool>/betterpg/databases`)
+2. Creates base dataset (`<pool>/pgd/databases`)
 3. Initializes state.json with pool/dataset info
 4. Creates WAL archive directory
 
 **File locations:**
-- State: `~/.local/share/betterpg/state.json` (tracks projects, branches, snapshots)
-- State lock: `~/.local/share/betterpg/state.json.lock` (prevents concurrent modifications)
-- WAL archive: `~/.local/share/betterpg/wal-archive/<dataset>/`
-- ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>`
-- Docker containers: `betterpg-<project>-<branch>` (PostgreSQL databases)
+- State: `~/.local/share/pgd/state.json` (tracks projects, branches, snapshots)
+- State lock: `~/.local/share/pgd/state.json.lock` (prevents concurrent modifications)
+- WAL archive: `~/.local/share/pgd/wal-archive/<dataset>/`
+- ZFS datasets: `<pool>/pgd/databases/<project>-<branch>`
+- Docker containers: `pgd-<project>-<branch>` (PostgreSQL databases)
 
 ## Testing
 
@@ -639,7 +639,7 @@ bun run build
 bun run dev
 
 # Install globally
-sudo cp dist/bpg /usr/local/bin/
+sudo cp dist/pgd /usr/local/bin/
 
 # Run tests
 ./scripts/run-extended-tests.sh
@@ -666,11 +666,11 @@ sudo zpool create tank /tmp/zfs-pool.img
 sudo zpool create tank /dev/sdb
 ```
 
-## Why BetterPG?
+## Why pgd?
 
 ### vs Neon / Supabase
 
-| Feature | BetterPG | Neon | Supabase |
+| Feature | pgd | Neon | Supabase |
 |---------|----------|------|----------|
 | **Branch creation** | 2-5 seconds | <1 second | Minutes-hours |
 | **Query latency** | 1-5ms (local) | 3-15ms (network) | 1-5ms |
@@ -682,7 +682,7 @@ sudo zpool create tank /dev/sdb
 
 \* Supabase requires manual seed scripts for data
 
-**BetterPG is optimal for:**
+**pgd is optimal for:**
 - Single-region deployments (majority of apps)
 - Performance-critical workloads (zero network latency)
 - Cost-sensitive projects (no cloud fees)

@@ -10,7 +10,7 @@ export async function projectListCommand() {
   const projects = await state.listProjects();
 
   if (projects.length === 0) {
-    console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('bpg project create <name>'));
+    console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('pgd project create <name>'));
     return;
   }
 
