@@ -22,11 +22,11 @@ export async function branchDeleteCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = result;
+  const { branch, project } = result;
 
   // Prevent deleting main branch
   if (branch.isPrimary) {
-    throw new Error(`Cannot delete main branch. Use 'bpg db delete ${database.name}' to delete the entire database.`);
+    throw new Error(`Cannot delete main branch. Use 'bpg project delete ${project.name}' to delete the entire project.`);
   }
 
   const config = new ConfigManager(PATHS.CONFIG);
@@ -47,12 +47,12 @@ export async function branchDeleteCommand(name: string) {
 
   // Destroy ZFS dataset
   const datasetSpinner = ora('Destroying ZFS dataset').start();
-  const datasetName = `${namespace.database}-${namespace.branch}`; // Consistent <db>-<branch> naming
+  const datasetName = `${namespace.project}-${namespace.branch}`; // Consistent <project>-<branch> naming
   await zfs.destroyDataset(datasetName, true);
   datasetSpinner.succeed('ZFS dataset destroyed');
 
   // Remove from state
-  await state.deleteBranch(database.id, branch.id);
+  await state.deleteBranch(project.id, branch.id);
 
   console.log();
   console.log(chalk.green.bold(`✓ Branch '${name}' deleted successfully!`));

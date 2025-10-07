@@ -4,20 +4,20 @@ import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
 
-export async function dbGetCommand(name: string) {
+export async function projectGetCommand(name: string) {
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
-  const database = await state.getDatabaseByName(name);
-  if (!database) {
-    throw new Error(`Database '${name}' not found`);
+  const project = await state.getProjectByName(name);
+  if (!project) {
+    throw new Error(`Project '${name}' not found`);
   }
 
   console.log();
-  console.log(chalk.bold(`Database: ${chalk.cyan(name)}`));
+  console.log(chalk.bold(`Project: ${chalk.cyan(name)}`));
   console.log();
 
-  // Database info
+  // Project info
   const infoTable = new Table({
     style: {
       border: ['gray']
@@ -25,11 +25,11 @@ export async function dbGetCommand(name: string) {
   });
 
   infoTable.push(
-    ['ID', database.id],
-    ['Name', database.name],
-    ['Version', `PostgreSQL ${database.postgresVersion}`],
-    ['Created', new Date(database.createdAt).toLocaleString()],
-    ['Branches', database.branches.length.toString()]
+    ['ID', project.id],
+    ['Name', project.name],
+    ['Version', `PostgreSQL ${project.postgresVersion}`],
+    ['Created', new Date(project.createdAt).toLocaleString()],
+    ['Branches', project.branches.length.toString()]
   );
 
   console.log(infoTable.toString());
@@ -47,8 +47,8 @@ export async function dbGetCommand(name: string) {
     }
   });
 
-  for (const branch of database.branches) {
-    const branchName = branch.name.split('/')[1]; // Get branch name without database prefix
+  for (const branch of project.branches) {
+    const branchName = branch.name.split('/')[1]; // Get branch name without project prefix
     const type = branch.isPrimary ? chalk.blue('main') : chalk.yellow('branch');
     const status = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
 
@@ -66,7 +66,7 @@ export async function dbGetCommand(name: string) {
 
   // Connection details
   console.log(chalk.bold('Connection:'));
-  console.log(chalk.dim('  Username:'), database.credentials.username);
-  console.log(chalk.dim('  Database:'), database.credentials.database);
+  console.log(chalk.dim('  Username:'), project.credentials.username);
+  console.log(chalk.dim('  Database:'), project.credentials.database);
   console.log();
 }

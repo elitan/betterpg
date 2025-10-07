@@ -58,54 +58,54 @@ check_test() {
 }
 
 # ============================================================================
-# SECTION 1: Basic Setup & Database Commands
+# SECTION 1: Basic Setup & Project Commands
 # ============================================================================
 
-echo -e "\n${BLUE}=== Section 1: Basic Setup & Database Commands ===${NC}"
+echo -e "\n${BLUE}=== Section 1: Basic Setup & Project Commands ===${NC}"
 
 # Test 1: Initialize
 echo -e "\n${BLUE}Test 1: Initialize betterpg${NC}"
 $BPG init >/dev/null 2>&1
 check_test "Initialize betterpg"
 
-# Test 2: Create first database
-echo -e "\n${BLUE}Test 2: Create first database${NC}"
-$BPG db create test-prod >/dev/null 2>&1 && sleep 3
-check_test "Create database 'test-prod'"
+# Test 2: Create first project
+echo -e "\n${BLUE}Test 2: Create first project${NC}"
+$BPG project create test-prod >/dev/null 2>&1 && sleep 3
+check_test "Create project 'test-prod'"
 
-# Test 3: Create second database
-echo -e "\n${BLUE}Test 3: Create second database${NC}"
-$BPG db create test-staging >/dev/null 2>&1 && sleep 3
-check_test "Create database 'test-staging'"
+# Test 3: Create second project
+echo -e "\n${BLUE}Test 3: Create second project${NC}"
+$BPG project create test-staging >/dev/null 2>&1 && sleep 3
+check_test "Create project 'test-staging'"
 
-# Test 4: List databases
-echo -e "\n${BLUE}Test 4: List databases${NC}"
-OUTPUT=$($BPG db list 2>&1)
+# Test 4: List projects
+echo -e "\n${BLUE}Test 4: List projects${NC}"
+OUTPUT=$($BPG project list 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod" && echo "$OUTPUT" | grep -q "test-staging"; then
-    check_test "List databases shows both databases"
+    check_test "List projects shows both projects"
 else
     false
-    check_test "List databases shows both databases"
+    check_test "List projects shows both projects"
 fi
 
-# Test 5: Get database details
-echo -e "\n${BLUE}Test 5: Get database details${NC}"
-OUTPUT=$($BPG db get test-prod 2>&1)
+# Test 5: Get project details
+echo -e "\n${BLUE}Test 5: Get project details${NC}"
+OUTPUT=$($BPG project get test-prod 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod"; then
-    check_test "Get database details"
+    check_test "Get project details"
 else
     false
-    check_test "Get database details"
+    check_test "Get project details"
 fi
 
-# Test 6: Database rename
-echo -e "\n${BLUE}Test 6: Rename database${NC}"
-$BPG db rename test-staging test-dev >/dev/null 2>&1
+# Test 6: Project rename
+echo -e "\n${BLUE}Test 6: Rename project${NC}"
+$BPG project rename test-staging test-dev >/dev/null 2>&1
 if sudo zfs list tank/betterpg/databases/test-dev-main >/dev/null 2>&1; then
-    check_test "Rename database (ZFS dataset renamed)"
+    check_test "Rename project (ZFS dataset renamed)"
 else
     false
-    check_test "Rename database (ZFS dataset renamed)"
+    check_test "Rename project (ZFS dataset renamed)"
 fi
 
 # Test 7: Create test data in test-prod
@@ -152,14 +152,14 @@ else
     check_test "List all branches"
 fi
 
-# Test 11: List branches for specific database
-echo -e "\n${BLUE}Test 11: List branches for specific database${NC}"
+# Test 11: List branches for specific project
+echo -e "\n${BLUE}Test 11: List branches for specific project${NC}"
 OUTPUT=$($BPG branch list test-prod 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod/main" && ! echo "$OUTPUT" | grep -q "test-dev"; then
-    check_test "List branches for specific database"
+    check_test "List branches for specific project"
 else
     false
-    check_test "List branches for specific database"
+    check_test "List branches for specific project"
 fi
 
 # Test 12: Get branch details

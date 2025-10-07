@@ -3,12 +3,12 @@ export interface State {
   initializedAt: string;
   zfsPool: string;
   zfsDatasetBase: string;
-  databases: Database[];
+  projects: Project[];
   backups: Backup[];
   snapshots: Snapshot[];
 }
 
-export interface Database {
+export interface Project {
   id: string;
   name: string;
   postgresVersion: string;
@@ -19,13 +19,13 @@ export interface Database {
 
 export interface Branch {
   id: string;
-  name: string;                              // Namespaced name: <database>/<branch>
-  databaseName: string;                      // Parent database name
+  name: string;                              // Namespaced name: <project>/<branch>
+  projectName: string;                       // Parent project name
   parentBranchId: string | null;             // null for main branch
   isPrimary: boolean;                        // true for main branch, false for others
   snapshotName: string | null;               // null for main branch
   zfsDataset: string;                        // Full ZFS path: pool/datasetBase/datasetName
-  zfsDatasetName: string;                    // Dataset name only: <database>-<branch>
+  zfsDatasetName: string;                    // Dataset name only: <project>-<branch>
   containerName: string;
   port: number;
   createdAt: string;
@@ -41,7 +41,7 @@ export interface Credentials {
 
 export interface Backup {
   id: string;
-  databaseId: string;
+  projectId: string;
   type: 'base' | 'incremental';
   timestamp: string;
   location: string;
@@ -52,8 +52,8 @@ export interface Backup {
 export interface Snapshot {
   id: string;
   branchId: string;
-  branchName: string;  // Namespaced: <database>/<branch>
-  databaseName: string;
+  branchName: string;  // Namespaced: <project>/<branch>
+  projectName: string;
   zfsSnapshot: string; // Full ZFS snapshot name with @
   createdAt: string;
   label?: string;      // Optional user label

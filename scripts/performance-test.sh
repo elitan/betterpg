@@ -37,13 +37,13 @@ echo -e "${BLUE}=== Initializing BetterPG ===${NC}"
 $BPG init
 echo ""
 
-# Test 1: Small database (baseline)
-echo -e "${BLUE}=== Test 1: Small Database (100MB) ===${NC}"
+# Test 1: Small project (baseline)
+echo -e "${BLUE}=== Test 1: Small Project (100MB PostgreSQL database) ===${NC}"
 $BPG create test-small
 SMALL_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
 PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
 
-# Create 100MB of data
+# Create 100MB of data in PostgreSQL
 echo "Creating 100MB test data..."
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $SMALL_PORT -U postgres -d postgres <<EOF
 CREATE TABLE test_data (
@@ -62,7 +62,7 @@ CHECKPOINT;
 EOF
 
 SMALL_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-small | numfmt --from=iec)
-echo -e "Database size: $(numfmt --to=iec $SMALL_SIZE)"
+echo -e "PostgreSQL database size: $(numfmt --to=iec $SMALL_SIZE)"
 
 # Benchmark branching
 echo "Benchmarking application-consistent branch..."
@@ -81,13 +81,13 @@ DURATION_SECOND=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
 echo -e "${GREEN}✓ Second branch created in ${DURATION_SECOND}s${NC}"
 echo ""
 
-# Test 2: Medium database (5GB)
-echo -e "${BLUE}=== Test 2: Medium Database (5GB) ===${NC}"
+# Test 2: Medium project (5GB)
+echo -e "${BLUE}=== Test 2: Medium Project (5GB PostgreSQL database) ===${NC}"
 $BPG create test-medium
 MEDIUM_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].port')
 PGPASSWORD_MED=$(cat /var/lib/betterpg/state.json | jq -r '.databases[1].credentials.password')
 
-echo "Creating 5GB test data (this may take 2-3 minutes)..."
+echo "Creating 5GB test data in PostgreSQL (this may take 2-3 minutes)..."
 PGPASSWORD=$PGPASSWORD_MED psql -h localhost -p $MEDIUM_PORT -U postgres -d postgres <<EOF
 CREATE TABLE test_data (
     id SERIAL PRIMARY KEY,
@@ -113,7 +113,7 @@ CHECKPOINT;
 EOF
 
 MEDIUM_SIZE=$(sudo zfs list -H -o used tank/betterpg/databases/test-medium | numfmt --from=iec)
-echo -e "Database size: $(numfmt --to=iec $MEDIUM_SIZE)"
+echo -e "PostgreSQL database size: $(numfmt --to=iec $MEDIUM_SIZE)"
 
 echo "Benchmarking application-consistent branch..."
 START=$(date +%s%N)
@@ -217,13 +217,13 @@ echo ""
 # Summary
 echo -e "${YELLOW}=== Performance Summary ===${NC}\n"
 
-echo -e "${BLUE}Database Sizes:${NC}"
+echo -e "${BLUE}PostgreSQL Database Sizes:${NC}"
 echo "  Small:  $(numfmt --to=iec $SMALL_SIZE)"
 echo "  Medium: $(numfmt --to=iec $MEDIUM_SIZE)"
 echo ""
 
 echo -e "${BLUE}Key Findings:${NC}"
-echo "  ✓ Snapshot creation time is independent of database size"
+echo "  ✓ Snapshot creation time is independent of PostgreSQL database size"
 echo "  ✓ Application-consistent branching: ~2-5 seconds regardless of size"
 echo "  ✓ Crash-consistent branching: <1 second"
 echo "  ✓ Copy-on-write efficiency: branches start at ~100KB"

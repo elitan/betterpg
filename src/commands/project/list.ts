@@ -3,14 +3,14 @@ import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 
-export async function dbListCommand() {
+export async function projectListCommand() {
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
-  const databases = await state.listDatabases();
+  const projects = await state.listProjects();
 
-  if (databases.length === 0) {
-    console.log(chalk.dim('No databases found. Create one with:'), chalk.cyan('bpg db create <name>'));
+  if (projects.length === 0) {
+    console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('bpg project create <name>'));
     return;
   }
 
@@ -22,16 +22,16 @@ export async function dbListCommand() {
     }
   });
 
-  for (const db of databases) {
-    const totalBranches = db.branches.length;
-    const runningBranches = db.branches.filter(b => b.status === 'running').length;
+  for (const proj of projects) {
+    const totalBranches = proj.branches.length;
+    const runningBranches = proj.branches.filter(b => b.status === 'running').length;
 
     table.push([
-      chalk.bold(db.name),
+      chalk.bold(proj.name),
       totalBranches.toString(),
       `${runningBranches}/${totalBranches}`,
-      chalk.dim(`PG ${db.postgresVersion}`),
-      new Date(db.createdAt).toLocaleString()
+      chalk.dim(`PG ${proj.postgresVersion}`),
+      new Date(proj.createdAt).toLocaleString()
     ]);
   }
 

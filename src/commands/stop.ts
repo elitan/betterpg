@@ -25,7 +25,7 @@ export async function stopCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = branchResult;
+  const { branch, project } = branchResult;
 
   if (branch.status === 'stopped') {
     console.log(chalk.dim(`✓ Branch '${name}' is already stopped`));
@@ -43,7 +43,7 @@ export async function stopCommand(name: string) {
 
   // Update state
   branch.status = 'stopped';
-  await state.updateBranch(database.id, branch);
+  await state.updateBranch(project.id, branch);
 
   console.log();
   console.log(chalk.green.bold(`✓ Branch '${name}' stopped successfully!`));

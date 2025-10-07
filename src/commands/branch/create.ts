@@ -27,16 +27,16 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   if (options.from) {
     sourceName = options.from;
   } else {
-    // Default to <database>/main
-    sourceName = getMainBranch(target.database);
+    // Default to <project>/main
+    sourceName = getMainBranch(target.project);
   }
 
   const source = parseNamespace(sourceName);
 
-  // Validate source and target are in same database
-  if (source.database !== target.database) {
+  // Validate source and target are in same project
+  if (source.project !== target.project) {
     throw new Error(
-      `Source and target must be in the same database. Source: ${source.database}, Target: ${target.database}`
+      `Source and target must be in the same project. Source: ${source.project}, Target: ${target.project}`
     );
   }
 
@@ -63,19 +63,19 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
-  // Find source database and branch
-  const sourceDb = await state.getDatabaseByName(source.database);
-  if (!sourceDb) {
-    throw new Error(`Database '${source.database}' not found`);
+  // Find source project and branch
+  const sourceProject = await state.getProjectByName(source.project);
+  if (!sourceProject) {
+    throw new Error(`Project '${source.project}' not found`);
   }
 
-  const sourceBranch = sourceDb.branches.find(b => b.name === source.full);
+  const sourceBranch = sourceProject.branches.find(b => b.name === source.full);
   if (!sourceBranch) {
     throw new Error(`Source branch '${source.full}' not found`);
   }
 
   // Check if target already exists
-  const existingBranch = sourceDb.branches.find(b => b.name === target.full);
+  const existingBranch = sourceProject.branches.find(b => b.name === target.full);
   if (existingBranch) {
     throw new Error(`Branch '${target.full}' already exists`);
   }
@@ -143,7 +143,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
       try {
         // Force a checkpoint to ensure all data is written to disk
-        await docker.execSQL(containerID, 'CHECKPOINT;', sourceDb.credentials.username);
+        await docker.execSQL(containerID, 'CHECKPOINT;', sourceProject.credentials.username);
         spinner.succeed('Database checkpointed');
 
         // Create ZFS snapshot immediately after checkpoint
@@ -163,8 +163,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     }
   }
 
-  // Clone snapshot - use consistent <db>-<branch> naming
-  const targetDatasetName = `${target.database}-${target.branch}`;
+  // Clone snapshot - use consistent <project>-<branch> naming
+  const targetDatasetName = `${target.project}-${target.branch}`;
   let cloneSpinner: any;
   let mountpoint: string;
   let port: number;
@@ -218,7 +218,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     }
 
     // Create container
-    const containerName = `${CONTAINER_PREFIX}-${target.database}-${target.branch}`;
+    const containerName = `${CONTAINER_PREFIX}-${target.project}-${target.branch}`;
     const containerSpinner = ora(`Creating container: ${containerName}`).start();
     containerID = await docker.createContainer({
       name: containerName,
@@ -226,9 +226,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       port,
       dataPath: mountpoint,
       walArchivePath: targetWALArchivePath,
-      password: sourceDb.credentials.password,
-      username: sourceDb.credentials.username,
-      database: sourceDb.credentials.database,
+      password: sourceProject.credentials.password,
+      username: sourceProject.credentials.username,
+      database: sourceProject.credentials.database,
       sharedBuffers: cfg.postgres.config.shared_buffers,
       maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
     });
@@ -262,7 +262,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     const branch: Branch = {
       id: generateUUID(),
       name: target.full,
-      databaseName: target.database,
+      projectName: target.project,
       parentBranchId: sourceBranch.id,
       isPrimary: false,
       snapshotName: fullSnapshotName,
@@ -275,7 +275,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       status: 'running',
     };
 
-    await state.addBranch(sourceDb.id, branch);
+    await state.addBranch(sourceProject.id, branch);
 
     // Success! Clear rollback steps
     rollback.clear();
@@ -296,8 +296,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   console.log(chalk.bold('Connection details:'));
   console.log(chalk.dim('  Host:    '), 'localhost');
   console.log(chalk.dim('  Port:    '), chalk.cyan(port.toString()));
-  console.log(chalk.dim('  Database:'), sourceDb.credentials.database);
-  console.log(chalk.dim('  Username:'), sourceDb.credentials.username);
-  console.log(chalk.dim('  Password:'), chalk.yellow(sourceDb.credentials.password));
+  console.log(chalk.dim('  Database:'), sourceProject.credentials.database);
+  console.log(chalk.dim('  Username:'), sourceProject.credentials.username);
+  console.log(chalk.dim('  Password:'), chalk.yellow(sourceProject.credentials.password));
   console.log();
 }

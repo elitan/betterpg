@@ -23,7 +23,7 @@ export async function branchSyncCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = result;
+  const { branch, project } = result;
 
   // Prevent syncing main branch
   if (branch.isPrimary) {
@@ -31,7 +31,7 @@ export async function branchSyncCommand(name: string) {
   }
 
   // Find parent branch
-  const parentBranch = database.branches.find(b => b.id === branch.parentBranchId);
+  const parentBranch = project.branches.find(b => b.id === branch.parentBranchId);
   if (!parentBranch) {
     throw new Error(`Parent branch not found for '${name}'`);
   }
@@ -57,7 +57,7 @@ export async function branchSyncCommand(name: string) {
 
   // Destroy existing ZFS dataset
   spinner = ora('Destroying old dataset').start();
-  const datasetName = `${namespace.database}-${namespace.branch}`;
+  const datasetName = `${namespace.project}-${namespace.branch}`;
   await zfs.destroyDataset(datasetName, true);
   spinner.succeed('Old dataset destroyed');
 
@@ -75,7 +75,7 @@ export async function branchSyncCommand(name: string) {
         await docker.execSQL(
           parentContainerID,
           "CHECKPOINT;",
-          database.credentials.username
+          project.credentials.username
         );
 
         // Create snapshot immediately after checkpoint
@@ -111,9 +111,9 @@ export async function branchSyncCommand(name: string) {
     port: branch.port,
     dataPath: mountpoint,
     walArchivePath,
-    password: database.credentials.password,
-    username: database.credentials.username,
-    database: database.credentials.database,
+    password: project.credentials.password,
+    username: project.credentials.username,
+    database: project.credentials.database,
     sharedBuffers: cfg.postgres.config.shared_buffers,
     maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
   });
@@ -128,7 +128,7 @@ export async function branchSyncCommand(name: string) {
   branch.sizeBytes = sizeBytes;
   branch.status = 'running';
   branch.snapshotName = fullSnapshotName;
-  await state.updateBranch(database.id, branch);
+  await state.updateBranch(project.id, branch);
 
   console.log();
   console.log(chalk.green.bold(`✓ Branch '${name}' synced with parent!`));

@@ -6,28 +6,28 @@ import { ZFSManager } from '../../managers/zfs';
 import { ConfigManager } from '../../managers/config';
 import { PATHS } from '../../utils/paths';
 
-export async function dbDeleteCommand(name: string, options: { force?: boolean }) {
+export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
   console.log();
-  console.log(chalk.bold(`🗑️  Deleting database: ${chalk.cyan(name)}`));
+  console.log(chalk.bold(`🗑️  Deleting project: ${chalk.cyan(name)}`));
   console.log();
 
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
-  const database = await state.getDatabaseByName(name);
-  if (!database) {
-    throw new Error(`Database '${name}' not found`);
+  const project = await state.getProjectByName(name);
+  if (!project) {
+    throw new Error(`Project '${name}' not found`);
   }
 
-  // Check if database has non-main branches
-  const nonMainBranches = database.branches.filter(b => !b.isPrimary);
+  // Check if project has non-main branches
+  const nonMainBranches = project.branches.filter(b => !b.isPrimary);
   if (nonMainBranches.length > 0 && !options.force) {
-    console.log(chalk.yellow(`⚠️  Database '${name}' has ${nonMainBranches.length} branch(es):`));
+    console.log(chalk.yellow(`⚠️  Project '${name}' has ${nonMainBranches.length} branch(es):`));
     for (const branch of nonMainBranches) {
       console.log(chalk.dim(`  - ${branch.name}`));
     }
     console.log();
-    console.log(chalk.yellow('Use --force to delete database and all branches'));
+    console.log(chalk.yellow('Use --force to delete project and all branches'));
     process.exit(1);
   }
 
@@ -39,7 +39,7 @@ export async function dbDeleteCommand(name: string, options: { force?: boolean }
   const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
 
   // Delete all branches (in reverse order, main last)
-  const branchesToDelete = [...database.branches].reverse();
+  const branchesToDelete = [...project.branches].reverse();
 
   for (const branch of branchesToDelete) {
     const spinner = ora(`Removing branch: ${branch.name}`).start();
@@ -63,9 +63,9 @@ export async function dbDeleteCommand(name: string, options: { force?: boolean }
   spinner.succeed('ZFS datasets destroyed');
 
   // Remove from state
-  await state.deleteDatabase(database.name);
+  await state.deleteProject(project.name);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Database '${name}' deleted successfully!`));
+  console.log(chalk.green.bold(`✓ Project '${name}' deleted successfully!`));
   console.log();
 }

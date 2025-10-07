@@ -37,7 +37,7 @@ function fail() {
 
 function cleanup() {
     echo -e "\n${YELLOW}Cleaning up...${NC}"
-    $BPG db delete $TEST_DB --force 2>/dev/null || true
+    $BPG project delete $TEST_DB --force 2>/dev/null || true
     sudo rm -rf ~/.local/share/betterpg/wal-archive/${TEST_DB}-* 2>/dev/null || true
 }
 
@@ -51,13 +51,13 @@ print_test "Initialize BetterPG"
 $BPG init || fail "Failed to initialize betterpg"
 pass "System initialized"
 
-# Test 2: Create database
-print_test "Create test database with WAL archiving enabled"
-$BPG db create $TEST_DB || fail "Failed to create database"
-pass "Database created with WAL archiving"
+# Test 2: Create project
+print_test "Create test project with WAL archiving enabled"
+$BPG project create $TEST_DB || fail "Failed to create project"
+pass "Project created with WAL archiving"
 
 # Test 3: Get connection details
-print_test "Get database connection details"
+print_test "Get PostgreSQL connection details"
 # Get connection details from state file
 STATE_FILE=~/.local/share/betterpg/state.json
 if [ ! -f "$STATE_FILE" ]; then

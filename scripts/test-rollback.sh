@@ -9,9 +9,9 @@ TEST_DB="rollback-test-$(date +%s)"
 echo "🧪 Testing rollback on branch creation failure"
 echo ""
 
-# Setup: Create database
-echo "Setup: Creating test database..."
-$BPG db create "$TEST_DB"
+# Setup: Create project
+echo "Setup: Creating test project..."
+$BPG project create "$TEST_DB"
 
 # Test 1: Simulate failure during branch creation by using invalid dataset name
 echo ""
@@ -92,8 +92,8 @@ fi
 
 # Cleanup
 echo ""
-echo "Cleanup: Removing test database..."
-$BPG db delete "$TEST_DB" --force
+echo "Cleanup: Removing test project..."
+$BPG project delete "$TEST_DB" --force
 
 echo ""
 echo "✅ All rollback tests passed!"

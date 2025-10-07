@@ -48,13 +48,13 @@ else
     exit 1
 fi
 
-# Test 2: Create database
-echo -e "\n${YELLOW}Test 2: Create primary database${NC}"
+# Test 2: Create project
+echo -e "\n${YELLOW}Test 2: Create primary project${NC}"
 $BPG create test-prod
 if sudo zfs list tank/betterpg/databases/test-prod >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Database created${NC}"
+    echo -e "${GREEN}✓ Project created${NC}"
 else
-    echo -e "${RED}✗ Database creation failed${NC}"
+    echo -e "${RED}✗ Project creation failed${NC}"
     exit 1
 fi
 
@@ -66,16 +66,16 @@ else
     exit 1
 fi
 
-# Test 3: Connect to database
-echo -e "\n${YELLOW}Test 3: Verify database connection${NC}"
+# Test 3: Connect to PostgreSQL database
+echo -e "\n${YELLOW}Test 3: Verify PostgreSQL database connection${NC}"
 sleep 3  # Give PostgreSQL a moment
 PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')
 PGPORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Database connection successful${NC}"
+    echo -e "${GREEN}✓ PostgreSQL database connection successful${NC}"
 else
-    echo -e "${RED}✗ Database connection failed${NC}"
+    echo -e "${RED}✗ PostgreSQL database connection failed${NC}"
     exit 1
 fi
 
@@ -138,8 +138,8 @@ else
     exit 1
 fi
 
-# Test 8: List databases and branches
-echo -e "\n${YELLOW}Test 8: List databases and branches${NC}"
+# Test 8: List projects and branches
+echo -e "\n${YELLOW}Test 8: List projects and branches${NC}"
 $BPG list
 
 # Test 9: Check ZFS space efficiency

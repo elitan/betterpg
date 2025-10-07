@@ -4,42 +4,42 @@ import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
 
-export async function branchListCommand(databaseName?: string) {
+export async function branchListCommand(projectName?: string) {
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
-  const databases = await state.listDatabases();
+  const projects = await state.listProjects();
 
-  // Filter by database if specified
-  const filtered = databaseName
-    ? databases.filter(db => db.name === databaseName)
-    : databases;
+  // Filter by project if specified
+  const filtered = projectName
+    ? projects.filter(proj => proj.name === projectName)
+    : projects;
 
   if (filtered.length === 0) {
-    if (databaseName) {
-      throw new Error(`Database '${databaseName}' not found`);
+    if (projectName) {
+      throw new Error(`Project '${projectName}' not found`);
     } else {
-      console.log(chalk.dim('No databases found. Create one with:'), chalk.cyan('bpg db create <name>'));
+      console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('bpg project create <name>'));
       return;
     }
   }
 
   const table = new Table({
-    head: ['Database', 'Branch', 'Type', 'Status', 'Port', 'Size'],
+    head: ['Project', 'Branch', 'Type', 'Status', 'Port', 'Size'],
     style: {
       head: ['cyan'],
       border: ['gray']
     }
   });
 
-  for (const db of filtered) {
-    for (const branch of db.branches) {
-      const branchName = branch.name.split('/')[1]; // Get branch name without database prefix
+  for (const proj of filtered) {
+    for (const branch of proj.branches) {
+      const branchName = branch.name.split('/')[1]; // Get branch name without project prefix
       const type = branch.isPrimary ? chalk.blue('main') : chalk.yellow('branch');
       const status = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
 
       table.push([
-        chalk.dim(db.name),
+        chalk.dim(proj.name),
         branch.isPrimary ? chalk.bold(branchName) : branchName,
         type,
         status,

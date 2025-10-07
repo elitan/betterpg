@@ -16,7 +16,7 @@ export async function branchGetCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = result;
+  const { branch, project } = result;
 
   console.log();
   console.log(chalk.bold(`Branch: ${chalk.cyan(name)}`));
@@ -31,7 +31,7 @@ export async function branchGetCommand(name: string) {
   infoTable.push(
     ['ID', branch.id],
     ['Name', branch.name],
-    ['Database', database.name],
+    ['Project', project.name],
     ['Type', branch.isPrimary ? 'main' : 'branch'],
     ['Status', branch.status === 'running' ? chalk.green('running') : chalk.red('stopped')],
     ['Port', branch.port.toString()],
@@ -47,7 +47,7 @@ export async function branchGetCommand(name: string) {
   console.log(chalk.bold('Connection:'));
   console.log(chalk.dim('  Host:    '), 'localhost');
   console.log(chalk.dim('  Port:    '), branch.port);
-  console.log(chalk.dim('  Database:'), database.credentials.database);
-  console.log(chalk.dim('  Username:'), database.credentials.username);
+  console.log(chalk.dim('  Database:'), project.credentials.database);
+  console.log(chalk.dim('  Username:'), project.credentials.username);
   console.log();
 }

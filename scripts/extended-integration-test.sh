@@ -73,13 +73,13 @@ else
     exit 1
 fi
 
-# Test 2: Create database
-echo -e "\n${BLUE}=== Test 2: Create primary database ===${NC}"
-$BPG db create test-prod
+# Test 2: Create project
+echo -e "\n${BLUE}=== Test 2: Create primary project ===${NC}"
+$BPG project create test-prod
 if sudo zfs list tank/betterpg/databases/test-prod-main >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Database created${NC}"
+    echo -e "${GREEN}✓ Project created${NC}"
 else
-    echo -e "${RED}✗ Database creation failed${NC}"
+    echo -e "${RED}✗ Project creation failed${NC}"
     exit 1
 fi
 
@@ -115,14 +115,14 @@ $BPG status
 echo -e "${GREEN}✓ Status command executed${NC}"
 
 # Test 5: Test stop command
-echo -e "\n${BLUE}=== Test 5: Stop database ===${NC}"
+echo -e "\n${BLUE}=== Test 5: Stop branch ===${NC}"
 $BPG stop test-prod/main
 sleep 2
 
 if check_container_state "bpg-test-prod-main" "stopped"; then
-    echo -e "${GREEN}✓ Database stopped successfully${NC}"
+    echo -e "${GREEN}✓ Branch stopped successfully${NC}"
 else
-    echo -e "${RED}✗ Database stop failed${NC}"
+    echo -e "${RED}✗ Branch stop failed${NC}"
     exit 1
 fi
 
@@ -136,13 +136,13 @@ else
 fi
 
 # Test 6: Test start command
-echo -e "\n${BLUE}=== Test 6: Start database ===${NC}"
+echo -e "\n${BLUE}=== Test 6: Start branch ===${NC}"
 $BPG start test-prod/main
 
 if check_container_state "bpg-test-prod-main" "running"; then
-    echo -e "${GREEN}✓ Database started successfully${NC}"
+    echo -e "${GREEN}✓ Branch started successfully${NC}"
 else
-    echo -e "${RED}✗ Database start failed${NC}"
+    echo -e "${RED}✗ Branch start failed${NC}"
     exit 1
 fi
 
@@ -169,13 +169,13 @@ else
 fi
 
 # Test 7: Test restart command
-echo -e "\n${BLUE}=== Test 7: Restart database ===${NC}"
+echo -e "\n${BLUE}=== Test 7: Restart branch ===${NC}"
 $BPG restart test-prod/main
 
 if check_container_state "bpg-test-prod-main" "running"; then
-    echo -e "${GREEN}✓ Database restarted successfully${NC}"
+    echo -e "${GREEN}✓ Branch restarted successfully${NC}"
 else
-    echo -e "${RED}✗ Database restart failed${NC}"
+    echo -e "${RED}✗ Branch restart failed${NC}"
     exit 1
 fi
 
@@ -280,15 +280,15 @@ echo -e "${YELLOW}⚠️  Reset command not yet implemented in namespace CLI - s
 # Test 14: Test idempotent operations
 echo -e "\n${BLUE}=== Test 14: Test idempotent operations ===${NC}"
 
-# Try to start already running database
+# Try to start already running branch
 $BPG start test-prod/main
-echo -e "${GREEN}✓ Start on running database is idempotent${NC}"
+echo -e "${GREEN}✓ Start on running branch is idempotent${NC}"
 
 # Stop and try to stop again
 $BPG stop test-prod/main
 sleep 2
 $BPG stop test-prod/main
-echo -e "${GREEN}✓ Stop on stopped database is idempotent${NC}"
+echo -e "${GREEN}✓ Stop on stopped branch is idempotent${NC}"
 
 # Start it back up for next tests
 $BPG start test-prod/main
@@ -364,12 +364,12 @@ else
     exit 1
 fi
 
-# Test 20: Edge case - Try to start non-existent database
-echo -e "\n${BLUE}=== Test 20: Edge case - Start non-existent database ===${NC}"
+# Test 20: Edge case - Try to start non-existent branch
+echo -e "\n${BLUE}=== Test 20: Edge case - Start non-existent branch ===${NC}"
 if $BPG start non-existent/main 2>&1 | grep -q "not found"; then
-    echo -e "${GREEN}✓ Start correctly rejects non-existent databases${NC}"
+    echo -e "${GREEN}✓ Start correctly rejects non-existent branches${NC}"
 else
-    echo -e "${RED}✗ Start should reject non-existent databases${NC}"
+    echo -e "${RED}✗ Start should reject non-existent branches${NC}"
     exit 1
 fi
 

@@ -2,6 +2,8 @@
 
 Instant PostgreSQL database branching using ZFS snapshots. Create production-safe database copies in seconds for testing migrations, debugging, and development.
 
+**Mental Model:** Think of BetterPG like Git for databases. A **project** is like a Git repository, and **branches** are like Git branches - each branch is a full, isolated PostgreSQL database instance.
+
 ## Features
 
 - **Instant branching**: Clone 100GB database in 2-5 seconds
@@ -19,8 +21,8 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 # Initialize
 bpg init
 
-# Create database (creates database with main branch)
-bpg db create prod
+# Create project (creates project with main branch and PostgreSQL database)
+bpg project create prod
 
 # Create application-consistent branch (uses CHECKPOINT)
 bpg branch create prod/dev
@@ -28,7 +30,7 @@ bpg branch create prod/dev
 # Create another branch
 bpg branch create prod/test
 
-# View all databases
+# View all projects and branches
 bpg status
 ```
 
@@ -114,30 +116,33 @@ New branch (prod/dev) - fully isolated
 
 ## Usage
 
-### Database Management
+### Project Management
+
+A **project** is a logical grouping of branches, similar to how a Git repository contains multiple branches. Each branch is a complete, isolated PostgreSQL database instance.
 
 ```bash
-# Create a database (automatically creates <database>/main branch)
-bpg db create myapp
+# Create a project (automatically creates <project>/main branch with PostgreSQL database)
+bpg project create myapp
 
-# List all databases
-bpg db list
+# List all projects
+bpg project list
 
-# Get database details
-bpg db get myapp
+# Get project details
+bpg project get myapp
 
-# Delete database and all branches
-bpg db delete myapp --force
+# Delete project and all branches (removes all PostgreSQL databases)
+bpg project delete myapp --force
 ```
 
-**What happens when you create a database:**
-- Database record: `myapp`
+**What happens when you create a project:**
+- Project record: `myapp`
 - Main branch: `myapp/main` (automatically created)
+- PostgreSQL database in Docker: `bpg-myapp-main`
 - ZFS dataset: `tank/betterpg/databases/myapp-main`
 - Docker container: `bpg-myapp-main` on dynamically allocated port
 - Credentials: auto-generated (view with `bpg status`)
 
-**Note:** Database and branch rename commands are not yet implemented.
+**Note:** Project and branch rename commands are not yet implemented.
 
 ### Branch Management
 
@@ -161,7 +166,7 @@ bpg branch create prod/feature --from prod/dev
 # List all branches
 bpg branch list
 
-# List branches for specific database
+# List branches for specific project
 bpg branch list prod
 
 # Get branch details (shows port, status, size)
@@ -205,7 +210,7 @@ bpg snapshot cleanup prod/main --days 30 --dry-run
 
 ### Point-in-Time Recovery (PITR)
 
-Recover your database to any specific point in time by replaying WAL logs from the nearest snapshot.
+Recover your PostgreSQL database to any specific point in time by replaying WAL logs from the nearest snapshot.
 
 ```bash
 # Recover to specific timestamp (ISO 8601)
@@ -254,7 +259,7 @@ bpg wal cleanup prod/main --days 7 --dry-run
 ### Lifecycle Commands
 
 ```bash
-# View status of all databases and branches (shows port, status, size)
+# View status of all projects and branches (shows port, status, size)
 bpg status
 
 # Start a stopped branch
@@ -401,9 +406,12 @@ psql -h localhost -p <port> -U <username> -d <database>
 
 ### Data Model
 
+Think of a **project** like a Git repository and **branches** like Git branches. Each branch contains a complete, isolated PostgreSQL database.
+
 ```
-Database: prod
+Project: prod
 ├── Branch: prod/main (primary)
+│   ├── PostgreSQL Database: bpg-prod-main (Docker container)
 │   ├── ZFS Dataset: tank/betterpg/databases/prod-main
 │   ├── Docker Container: bpg-prod-main (port: dynamic)
 │   ├── WAL Archive: /var/lib/betterpg/wal-archive/prod-main/
@@ -415,8 +423,8 @@ Database: prod
 
 ### Branch Characteristics
 
-Each branch is:
-- **Independent PostgreSQL instance** - Full database isolation
+Each branch is a complete, isolated PostgreSQL database with:
+- **Independent PostgreSQL instance** - Full isolation from other branches
 - **Full read-write access** - Not read-only replicas
 - **Space-efficient** - Uses ZFS copy-on-write (initially ~100KB)
 - **Network isolated** - Different port per branch
@@ -424,10 +432,10 @@ Each branch is:
 
 ### Namespace Structure
 
-All resources use `<database>/<branch>` namespace format:
+All resources use `<project>/<branch>` namespace format:
 - Branch names: `prod/main`, `prod/dev`, `api/staging`
 - ZFS datasets: `prod-main`, `prod-dev` (using `-` separator)
-- Docker containers: `bpg-prod-main`, `bpg-prod-dev`
+- Docker containers: `bpg-prod-main`, `bpg-prod-dev` (PostgreSQL databases)
 - WAL archives: `/var/lib/betterpg/wal-archive/prod-main/`
 
 ## Performance
@@ -560,11 +568,11 @@ system:
 
 **File locations:**
 - Config: `/etc/betterpg/config.yaml`
-- State: `/var/lib/betterpg/state.json` (tracks databases, branches, snapshots)
+- State: `/var/lib/betterpg/state.json` (tracks projects, branches, snapshots)
 - State lock: `/var/lib/betterpg/state.json.lock` (prevents concurrent modifications)
 - WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
-- ZFS datasets: `<pool>/betterpg/databases/<database>-<branch>`
-- Docker containers: `bpg-<database>-<branch>`
+- ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>`
+- Docker containers: `bpg-<project>-<branch>` (PostgreSQL databases)
 
 ## Testing
 
@@ -580,7 +588,7 @@ system:
 ```
 
 **Test Coverage (70 tests):**
-- Database lifecycle (create, start, stop, restart)
+- Project lifecycle (create, start, stop, restart)
 - Branch creation (application-consistent & crash-consistent)
 - Data persistence across stop/start
 - Branch sync functionality
@@ -651,7 +659,7 @@ sudo zpool create tank /dev/sdb
 | **Query latency** | 1-5ms (local) | 3-15ms (network) | 1-5ms |
 | **Storage** | ZFS copy-on-write | Page-level CoW | Full duplication |
 | **Cost (100GB + 3 branches)** | $200-500/month (hardware) | $170-190/month | $100-400/month |
-| **Data in branches** | ✅ Full copy | ✅ Full copy | ⚠️ Schema only* |
+| **Data in branches** | ✅ Full PostgreSQL copy | ✅ Full copy | ⚠️ Schema only* |
 | **Geographic distribution** | ❌ Single server | ✅ Multi-region | ✅ Multi-region |
 | **Vendor lock-in** | ✅ None | ❌ Proprietary storage | ⚠️ Supabase ecosystem |
 
@@ -675,14 +683,14 @@ sudo zpool create tank /dev/sdb
 - ✅ Snapshot management (create, list, delete with labels)
 - ✅ WAL archiving & monitoring
 - ✅ Point-in-time recovery (PITR)
-- ✅ Database lifecycle commands (start, stop, restart)
+- ✅ Project lifecycle commands (start, stop, restart)
 - ✅ Namespace-based CLI structure
 - ✅ Branch sync functionality
 - ✅ Comprehensive test coverage (70 tests)
 - ✅ GitHub Actions CI pipeline
 
 **Planned features (v0.4.0+)** - see [TODO.md](TODO.md) for details:
-- Database and branch rename commands
+- Project and branch rename commands
 - Automatic snapshot scheduling via cron
 - Remote storage for WAL archives (S3/B2)
 - Schema diff between branches

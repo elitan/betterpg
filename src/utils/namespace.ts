@@ -1,16 +1,16 @@
 /**
  * Utility functions for parsing and working with namespaced names
- * Format: <database>/<branch>
+ * Format: <project>/<branch>
  */
 
 export interface ParsedNamespace {
-  database: string;
+  project: string;
   branch: string;
   full: string;
 }
 
 /**
- * Parse a namespaced name into database and branch components
+ * Parse a namespaced name into project and branch components
  * @param name - The namespaced name (e.g., "api/dev")
  * @returns Parsed components
  * @throws Error if name is not properly namespaced
@@ -20,24 +20,24 @@ export function parseNamespace(name: string): ParsedNamespace {
 
   if (parts.length !== 2) {
     throw new Error(
-      `Invalid namespace format: '${name}'. Expected format: <database>/<branch>`
+      `Invalid namespace format: '${name}'. Expected format: <project>/<branch>`
     );
   }
 
-  const [database, branch] = parts;
+  const [project, branch] = parts;
 
-  if (!database || !branch) {
+  if (!project || !branch) {
     throw new Error(
-      `Invalid namespace format: '${name}'. Database and branch names cannot be empty`
+      `Invalid namespace format: '${name}'. Project and branch names cannot be empty`
     );
   }
 
   // Validate names (alphanumeric, hyphens, underscores)
   const validNameRegex = /^[a-zA-Z0-9_-]+$/;
 
-  if (!validNameRegex.test(database)) {
+  if (!validNameRegex.test(project)) {
     throw new Error(
-      `Invalid database name: '${database}'. Only alphanumeric characters, hyphens, and underscores are allowed`
+      `Invalid project name: '${project}'. Only alphanumeric characters, hyphens, and underscores are allowed`
     );
   }
 
@@ -48,20 +48,20 @@ export function parseNamespace(name: string): ParsedNamespace {
   }
 
   return {
-    database,
+    project,
     branch,
     full: name,
   };
 }
 
 /**
- * Build a namespaced name from database and branch
- * @param database - Database name
+ * Build a namespaced name from project and branch
+ * @param project - Project name
  * @param branch - Branch name
  * @returns Namespaced name
  */
-export function buildNamespace(database: string, branch: string): string {
-  return `${database}/${branch}`;
+export function buildNamespace(project: string, branch: string): string {
+  return `${project}/${branch}`;
 }
 
 /**
@@ -79,10 +79,10 @@ export function isNamespaced(name: string): boolean {
 }
 
 /**
- * Get the main branch name for a database
- * @param database - Database name
+ * Get the main branch name for a project
+ * @param project - Project name
  * @returns Namespaced main branch name
  */
-export function getMainBranch(database: string): string {
-  return buildNamespace(database, 'main');
+export function getMainBranch(project: string): string {
+  return buildNamespace(project, 'main');
 }

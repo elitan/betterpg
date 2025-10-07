@@ -51,44 +51,44 @@ check_test() {
 }
 
 # ============================================================================
-# SECTION 1: Core Database Operations
+# SECTION 1: Core Project Operations
 # ============================================================================
 
-echo -e "\n${BLUE}=== Section 1: Core Database Operations ===${NC}"
+echo -e "\n${BLUE}=== Section 1: Core Project Operations ===${NC}"
 
 # Test 1: Initialize
 echo -e "\n${BLUE}Test 1: Initialize betterpg${NC}"
 $BPG init >/dev/null 2>&1
 check_test "Initialize betterpg"
 
-# Test 2: Create first database
-echo -e "\n${BLUE}Test 2: Create database${NC}"
-$BPG db create test-prod >/dev/null 2>&1 && sleep 3
-check_test "Create database 'test-prod'"
+# Test 2: Create first project
+echo -e "\n${BLUE}Test 2: Create project${NC}"
+$BPG project create test-prod >/dev/null 2>&1 && sleep 3
+check_test "Create project 'test-prod'"
 
-# Test 3: Create second database
-echo -e "\n${BLUE}Test 3: Create second database${NC}"
-$BPG db create test-dev >/dev/null 2>&1 && sleep 3
-check_test "Create database 'test-dev'"
+# Test 3: Create second project
+echo -e "\n${BLUE}Test 3: Create second project${NC}"
+$BPG project create test-dev >/dev/null 2>&1 && sleep 3
+check_test "Create project 'test-dev'"
 
-# Test 4: List databases
-echo -e "\n${BLUE}Test 4: List databases${NC}"
-OUTPUT=$($BPG db list 2>&1)
+# Test 4: List projects
+echo -e "\n${BLUE}Test 4: List projects${NC}"
+OUTPUT=$($BPG project list 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod" && echo "$OUTPUT" | grep -q "test-dev"; then
-    check_test "List databases shows all databases"
+    check_test "List projects shows all projects"
 else
     false
-    check_test "List databases shows all databases"
+    check_test "List projects shows all projects"
 fi
 
-# Test 5: Get database details
-echo -e "\n${BLUE}Test 5: Get database details${NC}"
-OUTPUT=$($BPG db get test-prod 2>&1)
+# Test 5: Get project details
+echo -e "\n${BLUE}Test 5: Get project details${NC}"
+OUTPUT=$($BPG project get test-prod 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod"; then
-    check_test "Get database details"
+    check_test "Get project details"
 else
     false
-    check_test "Get database details"
+    check_test "Get project details"
 fi
 
 # Test 6: Create test data
@@ -138,14 +138,14 @@ else
     check_test "List all branches"
 fi
 
-# Test 11: List branches for specific database
-echo -e "\n${BLUE}Test 11: List branches for specific database${NC}"
+# Test 11: List branches for specific project
+echo -e "\n${BLUE}Test 11: List branches for specific project${NC}"
 OUTPUT=$($BPG branch list test-prod 2>&1)
 if echo "$OUTPUT" | grep -q "test-prod" && echo "$OUTPUT" | grep -q "main"; then
-    check_test "List branches for specific database"
+    check_test "List branches for specific project"
 else
     false
-    check_test "List branches for specific database"
+    check_test "List branches for specific project"
 fi
 
 # Test 12: Get branch details
@@ -369,22 +369,22 @@ check_test "WAL cleanup dry-run"
 
 echo -e "\n${BLUE}=== Section 6: Edge Cases & Error Handling ===${NC}"
 
-# Test 30: Invalid database name
-echo -e "\n${BLUE}Test 30: Invalid database name${NC}"
-if $BPG db create "test@invalid!" 2>&1 | grep -qi "invalid"; then
-    check_test "Reject invalid database name"
+# Test 30: Invalid project name
+echo -e "\n${BLUE}Test 30: Invalid project name${NC}"
+if $BPG project create "test@invalid!" 2>&1 | grep -qi "invalid"; then
+    check_test "Reject invalid project name"
 else
     false
-    check_test "Reject invalid database name"
+    check_test "Reject invalid project name"
 fi
 
-# Test 31: Branch from non-existent database
-echo -e "\n${BLUE}Test 31: Branch from non-existent database${NC}"
+# Test 31: Branch from non-existent project
+echo -e "\n${BLUE}Test 31: Branch from non-existent project${NC}"
 if $BPG branch create non-existent/branch 2>&1 | grep -q "not found"; then
-    check_test "Reject branch from non-existent database"
+    check_test "Reject branch from non-existent project"
 else
     false
-    check_test "Reject branch from non-existent database"
+    check_test "Reject branch from non-existent project"
 fi
 
 # Test 32: Start non-existent branch
@@ -406,14 +406,14 @@ else
     check_test "Delete branch"
 fi
 
-# Test 34: Delete database with --force
-echo -e "\n${BLUE}Test 34: Delete database with --force${NC}"
-$BPG db delete test-dev --force >/dev/null 2>&1
+# Test 34: Delete project with --force
+echo -e "\n${BLUE}Test 34: Delete project with --force${NC}"
+$BPG project delete test-dev --force >/dev/null 2>&1
 if ! sudo zfs list tank/betterpg/databases/test-dev-main >/dev/null 2>&1; then
-    check_test "Delete database with --force"
+    check_test "Delete project with --force"
 else
     false
-    check_test "Delete database with --force"
+    check_test "Delete project with --force"
 fi
 
 # ============================================================================
@@ -425,7 +425,7 @@ echo -e "\n${BLUE}=== Section 7: System Status ===${NC}"
 # Test 35: Status command
 echo -e "\n${BLUE}Test 35: Status command${NC}"
 OUTPUT=$($BPG status 2>&1)
-if echo "$OUTPUT" | grep -q "test-prod" && echo "$OUTPUT" | grep -q "Databases"; then
+if echo "$OUTPUT" | grep -q "test-prod" && (echo "$OUTPUT" | grep -q "Projects" || echo "$OUTPUT" | grep -q "Databases"); then
     check_test "Status command shows system overview"
 else
     false

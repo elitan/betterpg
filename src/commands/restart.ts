@@ -23,7 +23,7 @@ export async function restartCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = branchResult;
+  const { branch, project } = branchResult;
 
   const containerID = await docker.getContainerByName(branch.containerName);
   if (!containerID) {
@@ -41,7 +41,7 @@ export async function restartCommand(name: string) {
 
   branch.status = 'running';
   branch.port = actualPort;
-  await state.updateBranch(database.id, branch);
+  await state.updateBranch(project.id, branch);
 
   console.log();
   console.log(chalk.green.bold(`✓ Branch '${name}' restarted successfully!`));

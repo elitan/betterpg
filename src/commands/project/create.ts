@@ -6,14 +6,14 @@ import { StateManager } from '../../managers/state';
 import { ConfigManager } from '../../managers/config';
 import { WALManager } from '../../managers/wal';
 import { generateUUID, generatePassword, sanitizeName } from '../../utils/helpers';
-import { Database, Branch } from '../../types/state';
+import { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace } from '../../utils/namespace';
 import { CONTAINER_PREFIX } from '../../config/constants';
 
-export async function dbCreateCommand(name: string) {
+export async function projectCreateCommand(name: string) {
   console.log();
-  console.log(chalk.bold(`🚀 Creating database: ${chalk.cyan(name)}`));
+  console.log(chalk.bold(`🚀 Creating project: ${chalk.cyan(name)}`));
   console.log();
 
   // Load config and state
@@ -30,10 +30,10 @@ export async function dbCreateCommand(name: string) {
     console.log(chalk.yellow(`📝 Sanitized name: ${name} → ${sanitizedName}`));
   }
 
-  // Check if database already exists
-  const existing = await state.getDatabaseByName(sanitizedName);
+  // Check if project already exists
+  const existing = await state.getProjectByName(sanitizedName);
   if (existing) {
-    throw new Error(`Database '${sanitizedName}' already exists`);
+    throw new Error(`Project '${sanitizedName}' already exists`);
   }
 
   // Initialize managers
@@ -46,7 +46,7 @@ export async function dbCreateCommand(name: string) {
 
   // Create ZFS dataset for main branch
   const mainBranchName = buildNamespace(sanitizedName, 'main');
-  const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <db>-<branch>
+  const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <project>-<branch>
   const spinner = ora(`Creating ZFS dataset: ${mainBranchName}`).start();
   await zfs.createDataset(mainDatasetName, {
     compression: cfg.zfs.compression,
@@ -108,7 +108,7 @@ export async function dbCreateCommand(name: string) {
   const mainBranch: Branch = {
     id: generateUUID(),
     name: mainBranchName,
-    databaseName: sanitizedName,
+    projectName: sanitizedName,
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
@@ -121,8 +121,8 @@ export async function dbCreateCommand(name: string) {
     status: 'running',
   };
 
-  // Create database record with main branch
-  const database: Database = {
+  // Create project record with main branch
+  const project: Project = {
     id: generateUUID(),
     name: sanitizedName,
     postgresVersion: cfg.postgres.version,
@@ -135,10 +135,10 @@ export async function dbCreateCommand(name: string) {
     branches: [mainBranch],
   };
 
-  await state.addDatabase(database);
+  await state.addProject(project);
 
   console.log();
-  console.log(chalk.green.bold('✓ Database created successfully!'));
+  console.log(chalk.green.bold('✓ Project created successfully!'));
   console.log();
   console.log(chalk.dim('Main branch:'), chalk.cyan(mainBranchName));
   console.log();

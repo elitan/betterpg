@@ -30,12 +30,12 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   await state.load();
 
   // Find the branch
-  const db = await state.getDatabaseByName(target.database);
-  if (!db) {
-    throw new Error(`Database '${target.database}' not found`);
+  const proj = await state.getProjectByName(target.project);
+  if (!proj) {
+    throw new Error(`Project '${target.project}' not found`);
   }
 
-  const branch = db.branches.find(b => b.name === target.full);
+  const branch = proj.branches.find(b => b.name === target.full);
   if (!branch) {
     throw new Error(`Branch '${target.full}' not found`);
   }
@@ -62,7 +62,7 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
     id: generateUUID(),
     branchId: branch.id,
     branchName: branch.name,
-    databaseName: target.database,
+    projectName: target.project,
     zfsSnapshot: fullSnapshotName,
     createdAt: new Date().toISOString(),
     label: options.label,

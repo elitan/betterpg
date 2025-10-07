@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { State, Database, Branch, Backup } from '../types/state';
+import { State, Project, Branch, Backup } from '../types/state';
 
 export class StateManager {
   private state: State | null = null;
@@ -14,36 +14,6 @@ export class StateManager {
     try {
       const content = await fs.readFile(this.filePath, 'utf-8');
       this.state = JSON.parse(content);
-
-      // Migrate old state files
-      let needsSave = false;
-
-      if (!this.state.snapshots) {
-        this.state.snapshots = [];
-        needsSave = true;
-      }
-
-      // Remove deprecated nextPort field if it exists
-      if ('nextPort' in this.state) {
-        delete (this.state as any).nextPort;
-        needsSave = true;
-      }
-
-      // Populate zfsDatasetName for existing branches
-      for (const db of this.state.databases) {
-        for (const branch of db.branches) {
-          if (!branch.zfsDatasetName) {
-            // Extract from full path: "pool/base/name" -> "name"
-            branch.zfsDatasetName = branch.zfsDataset.split('/').pop() || `${db.name}-${branch.name.split('/')[1]}`;
-            needsSave = true;
-          }
-        }
-      }
-
-      // Save if migrations were applied
-      if (needsSave) {
-        await this.save();
-      }
 
       this.validate();
     } catch (error: any) {
@@ -88,7 +58,7 @@ export class StateManager {
       initializedAt: new Date().toISOString(),
       zfsPool: pool,
       zfsDatasetBase: `${pool}/${datasetBase}`,
-      databases: [],
+      projects: [],
       backups: [],
       snapshots: [],
     };
@@ -96,157 +66,157 @@ export class StateManager {
     await this.save();
   }
 
-  // Database operations
-  async addDatabase(db: Database): Promise<void> {
+  // Project operations
+  async addProject(proj: Project): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    if (this.state.databases.some(d => d.name === db.name)) {
-      throw new Error(`Database '${db.name}' already exists`);
+    if (this.state.projects.some(p => p.name === proj.name)) {
+      throw new Error(`Project '${proj.name}' already exists`);
     }
 
-    this.state.databases.push(db);
+    this.state.projects.push(proj);
     await this.save();
   }
 
-  async getDatabase(nameOrID: string): Promise<Database | null> {
+  async getProject(nameOrID: string): Promise<Project | null> {
     if (!this.state) throw new Error('State not loaded');
 
-    return this.state.databases.find(
-      db => db.name === nameOrID || db.id === nameOrID
+    return this.state.projects.find(
+      proj => proj.name === nameOrID || proj.id === nameOrID
     ) || null;
   }
 
-  async getDatabaseByName(name: string): Promise<Database | null> {
+  async getProjectByName(name: string): Promise<Project | null> {
     if (!this.state) throw new Error('State not loaded');
-    return this.state.databases.find(db => db.name === name) || null;
+    return this.state.projects.find(proj => proj.name === name) || null;
   }
 
-  async getDatabaseByID(id: string): Promise<Database | null> {
+  async getProjectByID(id: string): Promise<Project | null> {
     if (!this.state) throw new Error('State not loaded');
-    return this.state.databases.find(db => db.id === id) || null;
+    return this.state.projects.find(proj => proj.id === id) || null;
   }
 
-  async updateDatabase(db: Database): Promise<void> {
+  async updateProject(proj: Project): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    const index = this.state.databases.findIndex(d => d.id === db.id);
+    const index = this.state.projects.findIndex(p => p.id === proj.id);
     if (index === -1) {
-      throw new Error(`Database ${db.id} not found`);
+      throw new Error(`Project ${proj.id} not found`);
     }
 
-    this.state.databases[index] = db;
+    this.state.projects[index] = proj;
     await this.save();
   }
 
-  async deleteDatabase(nameOrID: string): Promise<void> {
+  async deleteProject(nameOrID: string): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    const index = this.state.databases.findIndex(
-      db => db.name === nameOrID || db.id === nameOrID
+    const index = this.state.projects.findIndex(
+      proj => proj.name === nameOrID || proj.id === nameOrID
     );
 
     if (index === -1) {
-      throw new Error(`Database '${nameOrID}' not found`);
+      throw new Error(`Project '${nameOrID}' not found`);
     }
 
-    this.state.databases.splice(index, 1);
+    this.state.projects.splice(index, 1);
     await this.save();
   }
 
-  async listDatabases(): Promise<Database[]> {
+  async listProjects(): Promise<Project[]> {
     if (!this.state) throw new Error('State not loaded');
-    return [...this.state.databases];
+    return [...this.state.projects];
   }
 
   // Branch operations
-  async addBranch(databaseID: string, branch: Branch): Promise<void> {
+  async addBranch(projectID: string, branch: Branch): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    const db = this.state.databases.find(d => d.id === databaseID);
-    if (!db) {
-      throw new Error(`Database ${databaseID} not found`);
+    const proj = this.state.projects.find(p => p.id === projectID);
+    if (!proj) {
+      throw new Error(`Project ${projectID} not found`);
     }
 
-    if (db.branches.some(b => b.name === branch.name)) {
+    if (proj.branches.some(b => b.name === branch.name)) {
       throw new Error(`Branch '${branch.name}' already exists`);
     }
 
-    db.branches.push(branch);
+    proj.branches.push(branch);
     await this.save();
   }
 
-  async getBranch(nameOrID: string): Promise<{ branch: Branch; database: Database } | null> {
+  async getBranch(nameOrID: string): Promise<{ branch: Branch; project: Project } | null> {
     if (!this.state) throw new Error('State not loaded');
 
-    for (const db of this.state.databases) {
-      const branch = db.branches.find(b => b.name === nameOrID || b.id === nameOrID);
+    for (const proj of this.state.projects) {
+      const branch = proj.branches.find(b => b.name === nameOrID || b.id === nameOrID);
       if (branch) {
-        return { branch, database: db };
+        return { branch, project: proj };
       }
     }
 
     return null;
   }
 
-  async getBranchByNamespace(namespacedName: string): Promise<{ branch: Branch; database: Database } | null> {
+  async getBranchByNamespace(namespacedName: string): Promise<{ branch: Branch; project: Project } | null> {
     if (!this.state) throw new Error('State not loaded');
 
-    for (const db of this.state.databases) {
-      const branch = db.branches.find(b => b.name === namespacedName);
+    for (const proj of this.state.projects) {
+      const branch = proj.branches.find(b => b.name === namespacedName);
       if (branch) {
-        return { branch, database: db };
+        return { branch, project: proj };
       }
     }
 
     return null;
   }
 
-  async getMainBranch(databaseName: string): Promise<Branch | null> {
+  async getMainBranch(projectName: string): Promise<Branch | null> {
     if (!this.state) throw new Error('State not loaded');
 
-    const db = this.state.databases.find(d => d.name === databaseName);
-    if (!db) return null;
+    const proj = this.state.projects.find(p => p.name === projectName);
+    if (!proj) return null;
 
-    return db.branches.find(b => b.isPrimary) || null;
+    return proj.branches.find(b => b.isPrimary) || null;
   }
 
-  async updateBranch(databaseID: string, branch: Branch): Promise<void> {
+  async updateBranch(projectID: string, branch: Branch): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    const db = this.state.databases.find(d => d.id === databaseID);
-    if (!db) {
-      throw new Error(`Database ${databaseID} not found`);
+    const proj = this.state.projects.find(p => p.id === projectID);
+    if (!proj) {
+      throw new Error(`Project ${projectID} not found`);
     }
 
-    const index = db.branches.findIndex(b => b.id === branch.id);
+    const index = proj.branches.findIndex(b => b.id === branch.id);
     if (index === -1) {
       throw new Error(`Branch ${branch.id} not found`);
     }
 
-    db.branches[index] = branch;
+    proj.branches[index] = branch;
     await this.save();
   }
 
-  async deleteBranch(databaseID: string, branchID: string): Promise<void> {
+  async deleteBranch(projectID: string, branchID: string): Promise<void> {
     if (!this.state) throw new Error('State not loaded');
 
-    const db = this.state.databases.find(d => d.id === databaseID);
-    if (!db) {
-      throw new Error(`Database ${databaseID} not found`);
+    const proj = this.state.projects.find(p => p.id === projectID);
+    if (!proj) {
+      throw new Error(`Project ${projectID} not found`);
     }
 
-    const index = db.branches.findIndex(b => b.id === branchID);
+    const index = proj.branches.findIndex(b => b.id === branchID);
     if (index === -1) {
       throw new Error(`Branch ${branchID} not found`);
     }
 
-    db.branches.splice(index, 1);
+    proj.branches.splice(index, 1);
     await this.save();
   }
 
   async listAllBranches(): Promise<Branch[]> {
     if (!this.state) throw new Error('State not loaded');
-    return this.state.databases.flatMap(db => db.branches);
+    return this.state.projects.flatMap(proj => proj.branches);
   }
 
 
@@ -257,9 +227,9 @@ export class StateManager {
     await this.save();
   }
 
-  async getBackupsForDatabase(databaseID: string): Promise<Backup[]> {
+  async getBackupsForProject(projectID: string): Promise<Backup[]> {
     if (!this.state) throw new Error('State not loaded');
-    return this.state.backups.filter(b => b.databaseId === databaseID);
+    return this.state.backups.filter(b => b.projectId === projectID);
   }
 
   async deleteOldBackups(retentionDays: number): Promise<Backup[]> {
@@ -292,9 +262,9 @@ export class StateManager {
     return this.state.snapshots.filter(s => s.branchName === branchName);
   }
 
-  async getSnapshotsForDatabase(databaseName: string): Promise<Snapshot[]> {
+  async getSnapshotsForProject(projectName: string): Promise<Snapshot[]> {
     if (!this.state) throw new Error('State not loaded');
-    return this.state.snapshots.filter(s => s.databaseName === databaseName);
+    return this.state.snapshots.filter(s => s.projectName === projectName);
   }
 
   async getSnapshotById(id: string): Promise<Snapshot | undefined> {
@@ -355,26 +325,26 @@ export class StateManager {
   private validate(): void {
     if (!this.state) throw new Error('State is null');
 
-    if (!this.state.version || !this.state.zfsPool || !this.state.databases) {
+    if (!this.state.version || !this.state.zfsPool || !this.state.projects) {
       throw new Error('Invalid state structure');
     }
 
-    const dbNames = new Set<string>();
+    const projNames = new Set<string>();
     const branchNames = new Set<string>();
 
-    for (const db of this.state.databases) {
-      if (dbNames.has(db.name)) {
-        throw new Error(`Duplicate database name: ${db.name}`);
+    for (const proj of this.state.projects) {
+      if (projNames.has(proj.name)) {
+        throw new Error(`Duplicate project name: ${proj.name}`);
       }
-      dbNames.add(db.name);
+      projNames.add(proj.name);
 
-      // Check that database has a main branch
-      const mainBranch = db.branches.find(b => b.isPrimary);
+      // Check that project has a main branch
+      const mainBranch = proj.branches.find(b => b.isPrimary);
       if (!mainBranch) {
-        throw new Error(`Database '${db.name}' must have a main branch`);
+        throw new Error(`Project '${proj.name}' must have a main branch`);
       }
 
-      for (const branch of db.branches) {
+      for (const branch of proj.branches) {
         // Branch name should be namespaced
         if (!branch.name.includes('/')) {
           throw new Error(`Branch name must be namespaced: ${branch.name}`);
@@ -385,9 +355,9 @@ export class StateManager {
         }
         branchNames.add(branch.name);
 
-        // Validate branch belongs to correct database
-        if (branch.databaseName !== db.name) {
-          throw new Error(`Branch '${branch.name}' has incorrect databaseName`);
+        // Validate branch belongs to correct project
+        if (branch.projectName !== proj.name) {
+          throw new Error(`Branch '${branch.name}' has incorrect projectName`);
         }
       }
     }

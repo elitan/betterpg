@@ -49,7 +49,7 @@ check_test() {
 
 echo -e "\n${BLUE}=== Setup ===${NC}"
 $BPG init >/dev/null 2>&1
-$BPG db create test-db >/dev/null 2>&1 && sleep 3
+$BPG project create test-db >/dev/null 2>&1 && sleep 3
 PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].credentials.password')
 PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].port')
 
@@ -141,11 +141,11 @@ done
 # Verify all branches are in state
 BRANCH_COUNT=$(cat ~/.local/share/betterpg/state.json | jq '.databases[0].branches | length')
 if [ "$BRANCH_COUNT" -ge 5 ]; then  # main + dev + 3 new branches
-    check_test "State tracks all branches"
+    check_test "State tracks all branches in project"
 else
     echo "  Expected >= 5 branches, got $BRANCH_COUNT"
     false
-    check_test "State tracks all branches"
+    check_test "State tracks all branches in project"
 fi
 
 # Test 5: Verify no duplicate branch names

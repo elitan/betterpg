@@ -52,12 +52,12 @@ export async function snapshotCleanupCommand(
     // Clean up snapshots for specific branch
     const target = parseNamespace(branchName);
 
-    const db = await state.getDatabaseByName(target.database);
-    if (!db) {
-      throw new Error(`Database '${target.database}' not found`);
+    const proj = await state.getProjectByName(target.project);
+    if (!proj) {
+      throw new Error(`Project '${target.project}' not found`);
     }
 
-    const branch = db.branches.find(b => b.name === target.full);
+    const branch = proj.branches.find(b => b.name === target.full);
     if (!branch) {
       throw new Error(`Branch '${target.full}' not found`);
     }

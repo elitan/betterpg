@@ -18,12 +18,12 @@ export async function walInfoCommand(branchName?: string) {
   if (branchName) {
     // Show info for specific branch
     const target = parseNamespace(branchName);
-    const db = await state.getDatabaseByName(target.database);
-    if (!db) {
-      throw new Error(`Database '${target.database}' not found`);
+    const proj = await state.getProjectByName(target.project);
+    if (!proj) {
+      throw new Error(`Project '${target.project}' not found`);
     }
 
-    const branch = db.branches.find(b => b.name === target.full);
+    const branch = proj.branches.find(b => b.name === target.full);
     if (!branch) {
       throw new Error(`Branch '${target.full}' not found`);
     }
@@ -61,19 +61,19 @@ export async function walInfoCommand(branchName?: string) {
     }
     console.log();
   } else {
-    // Show info for all databases
-    const databases = state.getAllDatabases();
+    // Show info for all projects
+    const projects = state.getAllProjects();
 
-    if (databases.length === 0) {
-      console.log(chalk.dim('No databases found'));
+    if (projects.length === 0) {
+      console.log(chalk.dim('No projects found'));
       console.log();
       return;
     }
 
-    for (const db of databases) {
-      console.log(chalk.bold(chalk.cyan(db.name)));
+    for (const proj of projects) {
+      console.log(chalk.bold(chalk.cyan(proj.name)));
 
-      for (const branch of db.branches) {
+      for (const branch of proj.branches) {
         const datasetName = branch.zfsDataset.split('/').pop() || '';
         const info = await wal.getArchiveInfo(datasetName);
 

@@ -66,15 +66,15 @@ export async function statusCommand() {
   console.log(poolTable.toString());
   console.log();
 
-  // Get all databases
-  const databases = await state.listDatabases();
+  // Get all projects
+  const projects = await state.listProjects();
 
-  if (databases.length === 0) {
-    console.log(chalk.dim('No databases found.'));
+  if (projects.length === 0) {
+    console.log(chalk.dim('No projects found.'));
     return;
   }
 
-  console.log(chalk.bold(`📊 Databases (${databases.length})`));
+  console.log(chalk.bold(`📊 Projects (${projects.length})`));
   console.log();
 
   // Create table for all instances (primaries + branches)
@@ -86,10 +86,10 @@ export async function statusCommand() {
     }
   });
 
-  for (const db of databases) {
+  for (const proj of projects) {
     // Get container status
     let containerStatus = null;
-    const containerID = await docker.getContainerByName(db.containerName);
+    const containerID = await docker.getContainerByName(proj.containerName);
     if (containerID) {
       try {
         containerStatus = await docker.getContainerStatus(containerID);
@@ -98,7 +98,7 @@ export async function statusCommand() {
       }
     }
 
-    const actualStatus = containerStatus ? containerStatus.state : db.status;
+    const actualStatus = containerStatus ? containerStatus.state : proj.status;
     const statusIcon = actualStatus === 'running' ? chalk.green('●') : chalk.red('●');
     const statusText = actualStatus === 'running' ? chalk.green('running') : chalk.red(actualStatus);
     const uptime = containerStatus?.state === 'running' && containerStatus.startedAt
@@ -107,18 +107,18 @@ export async function statusCommand() {
 
     instanceTable.push([
       statusIcon,
-      chalk.bold(db.name),
+      chalk.bold(proj.name),
       chalk.blue('primary'),
       statusText,
       uptime,
-      db.port,
-      `PG ${db.postgresVersion}`,
-      formatBytes(db.sizeBytes),
-      new Date(db.createdAt).toLocaleString()
+      proj.port,
+      `PG ${proj.postgresVersion}`,
+      formatBytes(proj.sizeBytes),
+      new Date(proj.createdAt).toLocaleString()
     ]);
 
     // Add branches
-    for (const branch of db.branches) {
+    for (const branch of proj.branches) {
       // Get branch container status
       let branchContainerStatus = null;
       const branchContainerID = await docker.getContainerByName(branch.containerName);

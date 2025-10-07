@@ -4,10 +4,10 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { CLI_NAME } from './config/constants';
 import { initCommand } from './commands/init';
-import { dbCreateCommand } from './commands/db/create';
-import { dbListCommand } from './commands/db/list';
-import { dbGetCommand } from './commands/db/get';
-import { dbDeleteCommand } from './commands/db/delete';
+import { projectCreateCommand } from './commands/project/create';
+import { projectListCommand } from './commands/project/list';
+import { projectGetCommand } from './commands/project/get';
+import { projectDeleteCommand } from './commands/project/delete';
 import { branchCreateCommand } from './commands/branch/create';
 import { branchListCommand } from './commands/branch/list';
 import { branchGetCommand } from './commands/branch/get';
@@ -33,67 +33,68 @@ program
   .version(packageJson.version);
 
 // ============================================================================
-// Database commands
+// Project commands
 // ============================================================================
 
-const dbCommand = program
-  .command('db')
-  .alias('database')
-  .description('Manage databases (projects)');
+const projectCommand = program
+  .command('project')
+  .alias('proj')
+  .description('Manage projects');
 
-dbCommand
+projectCommand
   .command('create')
-  .description('Create a new database with main branch')
-  .argument('<name>', 'database name')
+  .description('Create a new project with main branch')
+  .argument('<name>', 'project name')
   .action(async (name: string) => {
     try {
-      await dbCreateCommand(name);
+      await projectCreateCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
     }
   });
 
-dbCommand
+projectCommand
   .command('list')
   .alias('ls')
-  .description('List all databases')
+  .description('List all projects')
   .action(async () => {
     try {
-      await dbListCommand();
+      await projectListCommand();
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
     }
   });
 
-dbCommand
+projectCommand
   .command('get')
-  .description('Get details about a database')
-  .argument('<name>', 'database name')
+  .description('Get details about a project')
+  .argument('<name>', 'project name')
   .action(async (name: string) => {
     try {
-      await dbGetCommand(name);
+      await projectGetCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
     }
   });
 
-dbCommand
+projectCommand
   .command('delete')
   .alias('rm')
-  .description('Delete a database and all its branches')
-  .argument('<name>', 'database name')
+  .description('Delete a project and all its branches')
+  .argument('<name>', 'project name')
   .option('-f, --force', 'force delete even if branches exist')
   .action(async (name: string, options: { force?: boolean }) => {
     try {
-      await dbDeleteCommand(name, options);
+      await projectDeleteCommand(name, options);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
     }
   });
+
 
 // ============================================================================
 // Branch commands

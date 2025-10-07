@@ -52,7 +52,7 @@ trap cleanup EXIT
 # Initialize
 $BPG init > /dev/null
 
-# Create test database
+# Create test project
 $BPG create test-db > /dev/null
 PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].port')
 PGPASSWORD=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].credentials.password')

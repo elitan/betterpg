@@ -25,7 +25,7 @@ export async function startCommand(name: string) {
     throw new Error(`Branch '${name}' not found`);
   }
 
-  const { branch, database } = branchResult;
+  const { branch, project } = branchResult;
 
   if (branch.status === 'running') {
     console.log(chalk.dim(`✓ Branch '${name}' is already running`));
@@ -49,7 +49,7 @@ export async function startCommand(name: string) {
   // Update state
   branch.status = 'running';
   branch.port = actualPort;
-  await state.updateBranch(database.id, branch);
+  await state.updateBranch(project.id, branch);
 
   console.log();
   console.log(chalk.green.bold(`✓ Branch '${name}' started successfully!`));

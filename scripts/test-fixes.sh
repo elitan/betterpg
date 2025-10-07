@@ -11,11 +11,11 @@ echo ""
 
 # Test 1: Dynamic port allocation
 echo "Test 1: Dynamic Port Allocation"
-echo "  Creating database..."
-$BPG db create "$TEST_DB" > /tmp/bpg-create.log 2>&1
+echo "  Creating project..."
+$BPG project create "$TEST_DB" > /tmp/bpg-create.log 2>&1
 
 PORT1=$(grep "Port:" /tmp/bpg-create.log | awk '{print $2}')
-echo "  ✓ Database created with dynamic port: $PORT1"
+echo "  ✓ Project created with dynamic port: $PORT1"
 
 # Create a branch
 echo "  Creating branch..."
@@ -66,8 +66,8 @@ echo "  → Full lock tests in: ./scripts/test-stale-lock.sh"
 
 # Cleanup
 echo ""
-echo "Cleanup: Removing test database..."
-$BPG db delete "$TEST_DB" --force > /dev/null 2>&1
+echo "Cleanup: Removing test project..."
+$BPG project delete "$TEST_DB" --force > /dev/null 2>&1
 
 echo ""
 echo "✅ All v0.3.1 fixes verified!"

@@ -6,8 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BetterPG provides instant PostgreSQL database branching using ZFS snapshots. It combines ZFS copy-on-write, PostgreSQL backup mode, and Docker isolation to create production-safe database copies in seconds for testing migrations, debugging, and development.
 
+**Mental Model:** Think of BetterPG like Git for databases:
+- **Project** = Git repository (logical grouping of branches)
+- **Branch** = Git branch (complete, isolated PostgreSQL database instance)
+
 **Key capabilities:**
-- Branch 100GB database in 2-5 seconds with zero data loss
+- Branch 100GB PostgreSQL database in 2-5 seconds with zero data loss
 - Space-efficient: branches are ~100KB initially (ZFS CoW)
 - Full isolation: each branch is an independent PostgreSQL instance
 - Production-safe: application-consistent snapshots via `pg_backup_start`/`pg_backup_stop`
@@ -43,49 +47,51 @@ sudo cp dist/bpg /usr/local/bin/
 - Development on macOS requires SSH to a VPS with ZFS installed
 - VPS access: `ssh betterpg` (configured with ZFS pool `tank`)
 - All tests assume a ZFS pool named `tank` exists
-- Tests create temporary databases and clean up afterwards
+- Tests create temporary projects and clean up afterwards
 
 ## Architecture
 
 ### Namespace-based CLI Structure
 
-Commands follow a hierarchical namespace pattern: `<database>/<branch>`
+Commands follow a hierarchical namespace pattern: `<project>/<branch>`
 
-**Database commands** (`bpg db <command>`):
-- `db create <name>` - Creates database + main branch (`<name>/main`)
-- `db list` - Lists all databases
-- `db get <name>` - Shows database details
-- `db delete <name>` - Deletes database and all branches
+A **project** is a logical grouping of branches (like a Git repo), and each **branch** is a complete, isolated PostgreSQL database instance.
+
+**Project commands** (`bpg project <command>`):
+- `project create <name>` - Creates project + main branch (`<name>/main`) with PostgreSQL database
+- `project list` - Lists all projects
+- `project get <name>` - Shows project details
+- `project delete <name>` - Deletes project and all branches (removes all PostgreSQL databases)
 
 **Branch commands** (`bpg branch <command>`):
-- `branch create <db>/<branch>` - Creates branch (e.g., `api/dev`)
-  - `--from <db>/<branch>` - Create from specific branch (default: main)
+- `branch create <project>/<branch>` - Creates branch (e.g., `api/dev`) with new PostgreSQL database
+  - `--from <project>/<branch>` - Create from specific branch (default: main)
   - `--pitr <timestamp>` - Create branch from point-in-time
-- `branch list [db]` - Lists branches (all or for specific database)
-- `branch get <db>/<branch>` - Shows branch details
-- `branch delete <db>/<branch>` - Deletes branch
-- `branch sync <db>/<branch>` - Syncs branch with parent's current state
+- `branch list [project]` - Lists branches (all or for specific project)
+- `branch get <project>/<branch>` - Shows branch details (port, credentials, etc.)
+- `branch delete <project>/<branch>` - Deletes branch (removes PostgreSQL database)
+- `branch sync <project>/<branch>` - Syncs branch with parent's current state
 
 **Snapshot commands** (`bpg snapshot <command>`):
-- `snapshot create <db>/<branch>` - Create manual snapshot
+- `snapshot create <project>/<branch>` - Create manual snapshot
   - `--label <name>` - Optional label for snapshot
-- `snapshot list [db/branch]` - List snapshots (all or for specific branch)
+- `snapshot list [project/branch]` - List snapshots (all or for specific branch)
 - `snapshot delete <snapshot-id>` - Delete snapshot
-- `snapshot cleanup [db/branch]` - Clean up old snapshots
+- `snapshot cleanup [project/branch]` - Clean up old snapshots
   - `--days <n>` - Retention period in days (default: 30)
   - `--dry-run` - Preview without deleting
   - `--all` - Cleanup across all branches
 
 **WAL commands** (`bpg wal <command>`):
-- `wal info [db/branch]` - Show WAL archive status (all or specific branch)
-- `wal cleanup <db>/<branch>` - Clean up old WAL files
+- `wal info [project/branch]` - Show WAL archive status (all or specific branch)
+- `wal cleanup <project>/<branch>` - Clean up old WAL files
   - `--days <n>` - Remove WAL files older than n days
 
-**Lifecycle commands** (database and branch level):
-- `start <db>/<branch>` - Start a stopped branch
-- `stop <db>/<branch>` - Stop a running branch
-- `restart <db>/<branch>` - Restart a branch
-- `status` - Show status of all databases and branches
+**Lifecycle commands** (project and branch level):
+- `start <project>/<branch>` - Start a stopped branch (starts PostgreSQL container)
+- `stop <project>/<branch>` - Stop a running branch (stops PostgreSQL container)
+- `restart <project>/<branch>` - Restart a branch (restarts PostgreSQL container)
+- `status` - Show status of all projects and branches
 
 ### Manager Classes
 
@@ -93,18 +99,20 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - Manages JSON state file at `/var/lib/betterpg/state.json`
 - Implements file locking to prevent concurrent modifications
 - Validates state integrity (unique names, namespaced branches, main branch exists)
-- State structure: databases[] with nested branches[]
-- Branch names are always namespaced: `<database>/<branch>`
+- State structure: projects[] with nested branches[]
+- Branch names are always namespaced: `<project>/<branch>`
+- Each branch represents a complete PostgreSQL database instance
 
 **ZFSManager** (`src/managers/zfs.ts`):
 - Wraps ZFS commands using Bun's `$` shell API
-- Dataset naming: `<database>-<branch>` (e.g., `api-dev`)
+- Dataset naming: `<project>-<branch>` (e.g., `api-dev`)
 - All operations use `${pool}/${datasetBase}/${name}` pattern
 - Key methods: `createSnapshot()`, `cloneSnapshot()`, `destroyDataset()`
 
 **DockerManager** (`src/managers/docker.ts`):
 - Uses dockerode library for Docker API
-- Container naming: `bpg-<database>-<branch>` (e.g., `bpg-api-dev`)
+- Container naming: `bpg-<project>-<branch>` (e.g., `bpg-api-dev`)
+- Each container is a complete PostgreSQL database instance
 - Implements PostgreSQL backup mode: `startBackupMode()`, `stopBackupMode()`
 - Compatible with PostgreSQL 15+ (`pg_backup_*`) and <15 (`pg_start_backup`)
 - Uses Bun.spawn for SQL execution to avoid dockerode stream issues
@@ -133,14 +141,14 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - Commands: `bpg wal info [branch]`, `bpg wal cleanup <branch> --days <n>`
 
 **Snapshot Management:**
-- Manual snapshots: `bpg snapshot create <db>/<branch> --label <name>`
+- Manual snapshots: `bpg snapshot create <project>/<branch> --label <name>`
 - List snapshots: `bpg snapshot list [branch]`
 - Delete snapshots: `bpg snapshot delete <snapshot-id>`
 - Snapshots stored in state.json with metadata (id, timestamp, label, size)
 - Snapshots are application-consistent (use pg_backup_start/stop)
 
 **Point-in-Time Recovery (PITR):**
-- Create branch from specific time: `bpg branch create <db>/<name> --pitr <timestamp>`
+- Create branch from specific time: `bpg branch create <project>/<name> --pitr <timestamp>`
 - Auto-finds best snapshot BEFORE recovery target time
 - Replays WAL logs from snapshot to target
 - Timestamp formats: ISO 8601 ("2025-10-07T14:30:00Z") or relative ("2 hours ago")
@@ -165,14 +173,14 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - Used by: `bpg snapshot create`, `bpg branch create`
 
 **PITR recovery**: Uses existing snapshots + WAL replay
-- Recovers to specific point in time
+- Recovers PostgreSQL database to specific point in time
 - Uses crash-consistent snapshots (WAL replay provides consistency)
 - Replays WAL logs from snapshot to target time
 - Used by: `bpg branch create --pitr <timestamp>`
 
 Implementation in `src/commands/branch/create.ts`:
 1. If `--pitr`: find existing snapshot before recovery target, skip creating new one
-2. If creating new snapshot and database is running: call `CHECKPOINT`
+2. If creating new snapshot and PostgreSQL container is running: call `CHECKPOINT`
 3. Create ZFS snapshot (or use existing for PITR)
 4. Clone snapshot to new dataset
 5. If PITR: setup recovery configuration (recovery.signal + postgresql.auto.conf)
@@ -181,21 +189,21 @@ Implementation in `src/commands/branch/create.ts`:
 ### State Validation Rules
 
 The StateManager validates:
-1. Every database must have exactly one main branch (`isPrimary: true`)
-2. All branch names must be namespaced: `<database>/<branch>`
-3. Branch `databaseName` field must match parent database `name`
-4. No duplicate database or branch names
-5. ZFS dataset naming follows `<database>-<branch>` pattern
+1. Every project must have exactly one main branch (`isPrimary: true`)
+2. All branch names must be namespaced: `<project>/<branch>`
+3. Branch `projectName` field must match parent project `name`
+4. No duplicate project or branch names
+5. ZFS dataset naming follows `<project>-<branch>` pattern
 
 ### Namespace Utilities
 
 `src/utils/namespace.ts` provides:
-- `parseNamespace(name)` - Splits `<database>/<branch>` into components
-- `buildNamespace(db, branch)` - Constructs `<database>/<branch>`
+- `parseNamespace(name)` - Splits `<project>/<branch>` into components
+- `buildNamespace(project, branch)` - Constructs `<project>/<branch>`
 - `isNamespaced(name)` - Validates format
-- `getMainBranch(database)` - Returns `<database>/main`
+- `getMainBranch(project)` - Returns `<project>/main`
 
-Naming validation: Only `[a-zA-Z0-9_-]+` allowed for database/branch names
+Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 ## File Locations
 
@@ -203,33 +211,34 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for database/branch names
 - State: `/var/lib/betterpg/state.json`
 - State lock: `/var/lib/betterpg/state.json.lock`
 - WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
-- ZFS datasets: `tank/betterpg/databases/<database>-<branch>`
-- Docker containers: `bpg-<database>-<branch>`
+- ZFS datasets: `tank/betterpg/databases/<project>-<branch>`
+- Docker containers: `bpg-<project>-<branch>` (PostgreSQL databases)
 
 ## Common Development Patterns
 
-**Adding a new database command:**
-1. Create file in `src/commands/db/`
-2. Export async function: `export async function dbFooCommand(...)`
-3. Import and wire in `src/index.ts` under `dbCommand`
+**Adding a new project command:**
+1. Create file in `src/commands/project/` (formerly `src/commands/db/`)
+2. Export async function: `export async function projectFooCommand(...)`
+3. Import and wire in `src/index.ts` under `projectCommand`
 4. Use namespace utilities to parse/validate names
 5. Load state, perform operation, save state
 
 **Adding a new branch command:**
 1. Create file in `src/commands/branch/`
-2. Use `parseNamespace()` to extract database/branch from input
-3. Look up database via `state.getDatabaseByName()`
-4. Find branch in `database.branches[]` array
+2. Use `parseNamespace()` to extract project/branch from input
+3. Look up project via `state.getProjectByName()` (formerly `getDatabaseByName()`)
+4. Find branch in `project.branches[]` array
 5. Perform ZFS/Docker operations using managers
 
 **Working with ZFS:**
-- Dataset names use `-` separator: `<database>-<branch>`
-- Full path: `${pool}/${datasetBase}/${database}-${branch}`
+- Dataset names use `-` separator: `<project>-<branch>`
+- Full path: `${pool}/${datasetBase}/${project}-${branch}`
 - Snapshots: `${fullDatasetPath}@${timestamp}`
 - Always extract dataset name from branch.zfsDataset when needed
 
 **Working with Docker:**
-- Container names use `-` separator: `bpg-<database>-<branch>`
+- Container names use `-` separator: `bpg-<project>-<branch>`
+- Each container is a complete PostgreSQL database instance
 - Always use `docker.getContainerByName()` to get container ID
 - For SQL execution, use `docker.execSQL()` (not `execInContainer()`)
 - Wait for health check with `docker.waitForHealthy()`
@@ -238,7 +247,7 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for database/branch names
 
 When modifying branching logic:
 1. Application-consistent snapshots (via CHECKPOINT) are always used
-2. Never skip CHECKPOINT for running databases
+2. Never skip CHECKPOINT for running PostgreSQL containers
 3. All snapshots are safe for production use
 4. Document snapshot creation timestamps for debugging
 
@@ -254,7 +263,7 @@ When modifying branching logic:
 ## Roadmap Context
 
 From TODO.md, completed features (v0.3.4):
-- ✅ Database lifecycle (create, start, stop, restart)
+- ✅ Project lifecycle (create, start, stop, restart)
 - ✅ Application-consistent snapshots (CHECKPOINT)
 - ✅ Namespace-based CLI structure
 - ✅ Snapshot management (create, list, delete with labels)
@@ -265,6 +274,7 @@ From TODO.md, completed features (v0.3.4):
 - ✅ GitHub Actions CI pipeline
 
 Next priorities (v0.4.0+):
+- Project and branch rename commands
 - Automatic snapshot scheduling via cron
 - Remote storage for WAL archives (S3/B2)
 - CI/CD integration examples
@@ -273,7 +283,7 @@ Next priorities (v0.4.0+):
 
 **Test Suites (70 tests total):**
 1. **Extended tests** (`scripts/run-extended-tests.sh`) - 21 tests
-   - Database lifecycle (create → stop → start → restart)
+   - Project lifecycle (create → stop → start → restart)
    - Data persistence across stop/start cycles
    - Branch creation (both snapshot types)
    - Branch data verification and isolation
@@ -281,7 +291,7 @@ Next priorities (v0.4.0+):
 
 2. **V1 tests** (`scripts/run-v1-tests.sh`) - 36 tests
    - Comprehensive coverage of all implemented features
-   - Database, branch, snapshot, WAL commands
+   - Project, branch, snapshot, WAL commands
    - Edge cases and error handling
 
 3. **Advanced tests** (`scripts/run-advanced-tests.sh`) - 13 tests
@@ -296,3 +306,4 @@ Next priorities (v0.4.0+):
 - File-based ZFS pool for testing
 
 Always run full test suite before committing changes to core managers.
+- we do not need to consider backward compaiblity
