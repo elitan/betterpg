@@ -91,6 +91,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   // For PITR, find existing snapshot before recovery target
   let fullSnapshotName: string;
   let snapshotName: string;
+  let createdSnapshot = false;
 
   if (options.pitr && recoveryTarget) {
     // Find snapshots for source branch
@@ -132,33 +133,29 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     const useFastSnapshot = options.fast;
 
     if (!useFastSnapshot && sourceBranch.status === 'running') {
-      // Application-consistent snapshot using pg_backup_start
-      const spinner = ora('Starting PostgreSQL backup mode').start();
+      // Application-consistent snapshot using CHECKPOINT
+      // We use CHECKPOINT instead of pg_backup_start because:
+      // 1. ZFS snapshots are atomic and instantaneous
+      // 2. CHECKPOINT ensures all data is flushed to disk
+      // 3. This provides crash-consistent snapshots which are safe for PostgreSQL
+      // 4. No need for WAL replay on recovery
+      const spinner = ora('Checkpointing database').start();
       const containerID = await docker.getContainerByName(sourceBranch.containerName);
       if (!containerID) {
         throw new Error(`Container ${sourceBranch.containerName} not found`);
       }
 
       try {
-        // Start backup mode
-        const startLSN = await docker.startBackupMode(containerID, sourceDb.credentials.username);
-        spinner.succeed(`Backup mode started ${chalk.dim(`(LSN: ${startLSN})`)}`);
+        // Force a checkpoint to ensure all data is written to disk
+        await docker.execSQL(containerID, 'CHECKPOINT;', sourceDb.credentials.username);
+        spinner.succeed('Database checkpointed');
 
-        // Create ZFS snapshot while in backup mode
+        // Create ZFS snapshot immediately after checkpoint
         const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
         await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
         createdSnapshot = true;
         snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
-
-        // Stop backup mode
-        const stopSpinner = ora('Stopping backup mode').start();
-        const stopLSN = await docker.stopBackupMode(containerID, sourceDb.credentials.username);
-        stopSpinner.succeed(`Backup mode stopped ${chalk.dim(`(LSN: ${stopLSN})`)}`);
       } catch (error: any) {
-        // Try to clean up backup mode
-        try {
-          await docker.stopBackupMode(containerID, sourceDb.credentials.username).catch(() => {});
-        } catch {}
         throw error;
       }
     } else {
@@ -180,7 +177,6 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   let mountpoint: string;
   let port: number;
   let containerID: string | undefined;
-  let createdSnapshot = false;
 
   try {
     cloneSpinner = ora(`Cloning snapshot to: ${target.branch}`).start();

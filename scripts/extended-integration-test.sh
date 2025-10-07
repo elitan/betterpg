@@ -184,8 +184,8 @@ sleep 5
 
 # Test 8: Create branch with application-consistent snapshot (default)
 echo -e "\n${BLUE}=== Test 8: Create branch with application-consistent snapshot ===${NC}"
-if $BPG branch create test-prod/dev 2>&1 | tee /tmp/branch_output.txt | grep -q "Backup mode started"; then
-    echo -e "${GREEN}✓ Application-consistent snapshot used (pg_backup_start detected)${NC}"
+if $BPG branch create test-prod/dev 2>&1 | tee /tmp/branch_output.txt | grep -q "checkpointed"; then
+    echo -e "${GREEN}✓ Application-consistent snapshot used (checkpoint detected)${NC}"
 else
     echo -e "${RED}✗ Application-consistent snapshot verification failed${NC}"
     exit 1
@@ -214,13 +214,13 @@ else
     exit 1
 fi
 
-# Test 8b: Verify neither backup mode used with --fast
-echo -e "\n${BLUE}=== Test 8b: Verify --fast skips backup mode ===${NC}"
-if grep -q "Backup mode" /tmp/branch_fast_output.txt; then
-    echo -e "${RED}✗ Fast mode should not use backup mode${NC}"
+# Test 8b: Verify neither checkpoint used with --fast
+echo -e "\n${BLUE}=== Test 8b: Verify --fast skips checkpoint ===${NC}"
+if grep -q "Checkpointing\|checkpointed" /tmp/branch_fast_output.txt; then
+    echo -e "${RED}✗ Fast mode should not use checkpoint${NC}"
     exit 1
 else
-    echo -e "${GREEN}✓ Fast mode correctly skipped backup mode${NC}"
+    echo -e "${GREEN}✓ Fast mode correctly skipped checkpoint${NC}"
 fi
 
 # Test 9: Verify branch has same data
