@@ -36,7 +36,11 @@ export async function restartCommand(name: string) {
   await docker.waitForHealthy(containerID);
   spinner.succeed('PostgreSQL is ready');
 
+  // Get the actual port (Docker may reassign on restart)
+  const actualPort = await docker.getContainerPort(containerID);
+
   branch.status = 'running';
+  branch.port = actualPort;
   await state.updateBranch(database.id, branch);
 
   console.log();

@@ -138,7 +138,6 @@ fi
 # Test 6: Test start command
 echo -e "\n${BLUE}=== Test 6: Start database ===${NC}"
 $BPG start test-prod/main
-sleep 3
 
 if check_container_state "bpg-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Database started successfully${NC}"
@@ -146,6 +145,20 @@ else
     echo -e "${RED}✗ Database start failed${NC}"
     exit 1
 fi
+
+# Re-read port from state (Docker may have reassigned it)
+PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+
+# Wait for PostgreSQL to be ready to accept connections
+echo -n "  Waiting for PostgreSQL to accept connections (port: $PGPORT)"
+for i in {1..30}; do
+    if PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+        echo " ✓"
+        break
+    fi
+    echo -n "."
+    sleep 1
+done
 
 # Verify database still has data
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
@@ -158,7 +171,6 @@ fi
 # Test 7: Test restart command
 echo -e "\n${BLUE}=== Test 7: Restart database ===${NC}"
 $BPG restart test-prod/main
-sleep 3
 
 if check_container_state "bpg-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Database restarted successfully${NC}"
@@ -166,6 +178,9 @@ else
     echo -e "${RED}✗ Database restart failed${NC}"
     exit 1
 fi
+
+# Wait for PostgreSQL to be ready after restart
+sleep 5
 
 # Test 8: Create branch with application-consistent snapshot (default)
 echo -e "\n${BLUE}=== Test 8: Create branch with application-consistent snapshot ===${NC}"

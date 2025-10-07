@@ -5,7 +5,8 @@ export function generateUUID(): string {
 }
 
 export function generatePassword(length = 32): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  // Use only alphanumeric characters to avoid shell escaping issues
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = randomBytes(length);
   let password = '';
 
