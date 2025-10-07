@@ -76,10 +76,10 @@
 - [x] Update integration tests to verify consistent snapshots
   - Added tests 8, 8a, 8b to verify both snapshot types
   - All 25 tests passing
-- [ ] Document production branching best practices
+- [x] Document production branching best practices
   - Migration testing workflow
   - Performance impact (2-5s)
-  - When to use --fast vs default
+  - Automated snapshot scheduling via cron
 
 ### Namespace-based CLI (v0.2.0) ✅ COMPLETE
 **Goal:** Restructure CLI to use `<database>/<branch>` namespace pattern for clarity
@@ -91,7 +91,7 @@
 - [x] Update integration tests for namespace syntax
 - [x] Create CLAUDE.md documentation
 - [x] Delete old unused command files (cleanup)
-- [ ] Update README.md with namespace examples
+- [x] Update README.md with namespace examples
 
 ### Production Hardening (v0.3.1) ✅ COMPLETE
 **Goal:** Fix critical architectural issues for production readiness

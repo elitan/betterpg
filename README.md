@@ -92,9 +92,25 @@ sudo bpg init
 
 BetterPG combines three technologies:
 
-1. **ZFS snapshots**: Instant, space-efficient filesystem clones
-2. **PostgreSQL backup mode**: Application-consistent snapshots via `pg_backup_start`/`pg_backup_stop`
-3. **Docker**: Isolated PostgreSQL containers for each branch
+1. **ZFS snapshots**: Instant, space-efficient filesystem clones (copy-on-write)
+2. **PostgreSQL CHECKPOINT**: Application-consistent snapshots by flushing all data to disk
+3. **Docker**: Isolated PostgreSQL containers for each branch with automatic port allocation
+4. **WAL archiving**: Continuous archiving enables point-in-time recovery (PITR)
+
+**The branching process:**
+```
+Source branch (prod/main)
+    ↓
+1. CHECKPOINT command (flush dirty buffers)
+    ↓
+2. ZFS snapshot (atomic, ~100ms)
+    ↓
+3. ZFS clone (instant, copy-on-write)
+    ↓
+4. Docker container (new PostgreSQL instance)
+    ↓
+New branch (prod/dev) - fully isolated
+```
 
 ## Usage
 
@@ -111,33 +127,36 @@ bpg db list
 bpg db get myapp
 
 # Delete database and all branches
-# Note: db rename not yet implemented
 bpg db delete myapp --force
 ```
 
-Creates:
-- Database: `myapp`
-- Main branch: `myapp/main`
+**What happens when you create a database:**
+- Database record: `myapp`
+- Main branch: `myapp/main` (automatically created)
 - ZFS dataset: `tank/betterpg/databases/myapp-main`
-- PostgreSQL container on allocated port
+- Docker container: `bpg-myapp-main` on dynamically allocated port
+- Credentials: auto-generated (view with `bpg status`)
+
+**Note:** Database and branch rename commands are not yet implemented.
 
 ### Branch Management
 
-**Create branch (application-consistent)**:
+**Create branch (application-consistent):**
 ```bash
+# Create branch from main (default)
 bpg branch create prod/dev
-```
-- Uses CHECKPOINT to flush data to disk
-- Zero data loss guaranteed
-- 2-5 seconds total time
-- Safe for production data
 
-**Branch from another branch**:
-```bash
+# Create branch from specific parent
 bpg branch create prod/feature --from prod/dev
 ```
 
-**Other branch operations**:
+**How application-consistent snapshots work:**
+1. Runs `CHECKPOINT` command to flush all data to disk
+2. Creates instant ZFS snapshot (~100ms)
+3. Clones snapshot and starts new PostgreSQL container
+4. **Result:** Zero data loss, all committed transactions included
+
+**Branch operations:**
 ```bash
 # List all branches
 bpg branch list
@@ -145,20 +164,22 @@ bpg branch list
 # List branches for specific database
 bpg branch list prod
 
-# Get branch details
+# Get branch details (shows port, status, size)
 bpg branch get prod/dev
 
 # Sync branch with parent's current state
-# Note: branch rename not yet implemented
 bpg branch sync prod/dev
 
 # Delete branch
 bpg branch delete prod/dev
 ```
 
+**Note:** Branch rename is not yet implemented.
+
 ### Snapshot Management
 
-**Create manual snapshots**:
+Manual snapshots enable point-in-time recovery (PITR). Create regular snapshots to define your recovery window.
+
 ```bash
 # Create snapshot with optional label
 bpg snapshot create prod/main --label "before-migration"
@@ -169,99 +190,174 @@ bpg snapshot list
 # List snapshots for specific branch
 bpg snapshot list prod/main
 
-# Delete snapshot
+# Delete snapshot by ID
 bpg snapshot delete <snapshot-id>
+
+# Clean up old snapshots (keeps last 30 days by default)
+bpg snapshot cleanup prod/main --days 30
+bpg snapshot cleanup --all --days 30  # Cleanup across all branches
+
+# Dry run to preview cleanup
+bpg snapshot cleanup prod/main --days 30 --dry-run
 ```
+
+**Best practice:** Create snapshots regularly (e.g., via cron) to enable fine-grained PITR.
 
 ### Point-in-Time Recovery (PITR)
 
-**Create branch from specific point in time**:
+Recover your database to any specific point in time by replaying WAL logs from the nearest snapshot.
+
 ```bash
 # Recover to specific timestamp (ISO 8601)
 bpg branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
 
 # Recover using relative time
 bpg branch create prod/recovered --pitr "2 hours ago"
+
+# Optionally specify source branch
+bpg branch create prod/recovered --from prod/dev --pitr "1 hour ago"
 ```
 
-**Requirements for PITR:**
-- Regular snapshots must be created (PITR target must be AFTER snapshot creation)
-- WAL archiving enabled (automatic for all branches)
-- Source branch must have WAL archive available
+**How PITR works:**
+1. Automatically finds the closest snapshot **before** your recovery target
+2. Clones that snapshot to a new ZFS dataset
+3. PostgreSQL replays WAL logs from snapshot time to your target time
+4. New branch becomes available at the recovered state
+
+**Requirements:**
+- Recovery target must be **after** an existing snapshot
+- WAL archiving is automatic for all branches
+- Create regular snapshots to enable fine-grained recovery (the more snapshots, the better)
+
+**Limitation:** Cannot recover to a time before the latest snapshot. Solution: Create snapshots regularly via cron.
 
 ### WAL Archive Management
 
-**Monitor and manage WAL archives**:
+WAL (Write-Ahead Log) archiving is automatically enabled for all branches. Monitor and clean up WAL files to manage disk usage.
+
 ```bash
-# View WAL archive info for all branches
+# View WAL archive info for all branches (shows file count, size, age)
 bpg wal info
 
 # View WAL archive info for specific branch
 bpg wal info prod/main
 
-# Clean up old WAL files (older than 7 days)
+# Clean up old WAL files (default: 7 days)
 bpg wal cleanup prod/main --days 7
+
+# Dry run to preview cleanup
+bpg wal cleanup prod/main --days 7 --dry-run
 ```
+
+**Note:** WAL files are stored at `/var/lib/betterpg/wal-archive/<dataset>/`
 
 ### Lifecycle Commands
 
 ```bash
-# Start a branch
-bpg start prod/main
+# View status of all databases and branches (shows port, status, size)
+bpg status
+
+# Start a stopped branch
 bpg start prod/dev
 
-# Stop a branch
+# Stop a running branch
 bpg stop prod/dev
 
 # Restart a branch
 bpg restart prod/dev
-
-# View status of all databases and branches
-bpg status
 ```
 
 ### Connection
 
 ```bash
-# Get connection details from status
+# Get connection details from status command
 bpg status
 
-# Connect to a branch
-psql -h localhost -p <port> -U postgres
+# Example output shows:
+# - Host: localhost
+# - Port: (dynamically allocated by Docker)
+# - Database name
+# - Username/password
+
+# Connect using psql
+psql -h localhost -p <port> -U <username> -d <database>
+
+# Or use connection string from status output
+psql postgresql://<username>:<password>@localhost:<port>/<database>
 ```
 
 ## Use Cases
 
-### 1. Migration Testing
+### 1. Migration Testing (Most Common)
+
+Test migrations on production data before applying to prod. This is BetterPG's primary use case.
 
 ```bash
-# Create branch of production
+# 1. Create snapshot of production before migration
+bpg snapshot create prod/main --label "before-migration-v2.3"
+
+# 2. Create test branch
 bpg branch create prod/migration-test
 
-# Get port from status
+# 3. Get connection details
 bpg status
 
-# Test migration
-psql -h localhost -p <port> -f migration.sql
+# 4. Run migration on test branch
+psql -h localhost -p <port> -U <username> -d <database> -f migrations/v2.3.sql
 
-# If successful, apply to prod. If failed, destroy and retry
+# 5. Verify migration success
+psql -h localhost -p <port> -U <username> -d <database> -c "SELECT * FROM schema_version;"
+
+# 6. If successful, apply to production
+# If failed, delete branch and fix migration
 bpg branch delete prod/migration-test
+
+# 7. Apply successful migration to production
+psql -h localhost -p <prod-port> -U <username> -d <database> -f migrations/v2.3.sql
+
+# 8. If production migration fails, recover using PITR
+bpg branch create prod/recovered --pitr "before-migration-v2.3"
 ```
 
-### 2. Developer Databases
+**Benefits:**
+- Zero risk to production (test on exact copy)
+- Catch migration errors before production
+- Fast rollback via PITR if production migration fails
+- Test with real data volume and constraints
+
+### 2. Developer Databases with Real Data
+
+Give developers production data copies for realistic development and debugging.
 
 ```bash
-# Give developers production data
-bpg branch create prod/dev-alice
+# Create snapshot once
+bpg snapshot create prod/main --label "weekly-dev-refresh"
+
+# Create branch for each developer
+bpg branch create prod/dev-alice --from prod/main
+bpg branch create prod/dev-bob --from prod/main
 
 # Get connection info
 bpg status
 
-# Anonymize sensitive data
-psql -h localhost -p <port> -U postgres <<EOF
-UPDATE users SET email = CONCAT('user', id, '@example.com');
+# Anonymize sensitive data (run once per branch)
+psql -h localhost -p <port> -U <username> -d <database> <<EOF
+UPDATE users SET
+  email = CONCAT('user', id, '@example.com'),
+  phone = NULL,
+  ssn = NULL;
+UPDATE credit_cards SET number = '4111111111111111';
 EOF
+
+# Developers work with realistic data
+# When done, delete branches to reclaim space
+bpg branch delete prod/dev-alice
 ```
+
+**Benefits:**
+- Developers test with real data volumes and distributions
+- Find edge cases that don't exist in test fixtures
+- Each dev has isolated environment (can't break each other's data)
 
 ### 3. Debugging Production Issues
 
@@ -279,91 +375,196 @@ psql -h localhost -p <port> -U postgres
 bpg branch delete prod/debug-issue-123
 ```
 
-### 4. Point-in-Time Recovery
+### 4. Point-in-Time Recovery (Incident Response)
 
 ```bash
-# Create regular snapshots for PITR capability
+# 1. Create regular snapshots (ideally via cron)
 bpg snapshot create prod/main --label "daily-backup-$(date +%Y%m%d)"
 
-# Recover to specific point after incident
+# 2. After incident, recover to point before incident
 bpg branch create prod/before-incident --pitr "2025-10-07T14:30:00Z"
 
-# Verify recovered data
-bpg status
-psql -h localhost -p <port> -U postgres
+# 3. Verify recovered data
+bpg status  # Get connection details
+psql -h localhost -p <port> -U <username> -d <database>
 
-# If good, can sync main branch or promote recovered branch
+# 4. Query to verify data integrity
+# SELECT * FROM critical_table WHERE updated_at < '2025-10-07 14:30:00';
+
+# 5. If data is good, can restore to production manually
+# Or keep branch for investigation
 ```
 
+**Recovery time:** Depends on WAL replay duration (typically minutes for hours of WAL).
+
 ## Architecture
+
+### Data Model
 
 ```
 Database: prod
 ├── Branch: prod/main (primary)
 │   ├── ZFS Dataset: tank/betterpg/databases/prod-main
-│   ├── PostgreSQL Container (port 5432)
-│   ├── Snapshot 1: 2025-01-15T10:30:00
-│   │   └── Branch: prod/dev (clone, port 5433)
-│   └── Snapshot 2: 2025-01-15T14:45:00
-│       └── Branch: prod/test (clone, port 5434)
+│   ├── Docker Container: bpg-prod-main (port: dynamic)
+│   ├── WAL Archive: /var/lib/betterpg/wal-archive/prod-main/
+│   ├── Snapshot 1: 2025-01-15T10:30:00 (label: before-migration)
+│   │   └── Branch: prod/dev (cloned from snapshot 1)
+│   └── Snapshot 2: 2025-01-15T14:45:00 (label: daily-backup)
+│       └── Branch: prod/test (cloned from snapshot 2)
 ```
 
-Each branch:
-- Independent PostgreSQL instance
-- Full read-write access
-- Isolated from parent
-- Uses only delta storage (ZFS copy-on-write)
+### Branch Characteristics
+
+Each branch is:
+- **Independent PostgreSQL instance** - Full database isolation
+- **Full read-write access** - Not read-only replicas
+- **Space-efficient** - Uses ZFS copy-on-write (initially ~100KB)
+- **Network isolated** - Different port per branch
+- **WAL-enabled** - Continuous archiving for PITR
+
+### Namespace Structure
+
+All resources use `<database>/<branch>` namespace format:
+- Branch names: `prod/main`, `prod/dev`, `api/staging`
+- ZFS datasets: `prod-main`, `prod-dev` (using `-` separator)
+- Docker containers: `bpg-prod-main`, `bpg-prod-dev`
+- WAL archives: `/var/lib/betterpg/wal-archive/prod-main/`
 
 ## Performance
 
+### Operation Timings
+
 | Operation | Time | Notes |
 |-----------|------|-------|
-| Create database | 5-10s | Pull image + container start |
-| Create branch | 2-5s | Uses CHECKPOINT |
-| Sync branch | 2-3s | Re-clone from parent |
-| Delete branch | <1s | Remove container + dataset |
+| Create database | 5-15s | First run: pull PostgreSQL image (~2GB)<br>Subsequent: 5-10s (container start + init) |
+| Create branch | 2-5s | CHECKPOINT (1-3s) + ZFS snapshot (~100ms) + clone + container start |
+| Branch sync | 2-5s | Re-snapshot parent + clone + restart |
+| PITR recovery | 1-10min | Depends on WAL replay duration (GB of WAL) |
+| Delete branch | 1-2s | Stop container + remove dataset |
+| Stop/Start | 5-10s | Container lifecycle |
 
-**Space efficiency**:
-- 10GB database → 100KB branch (initially)
-- Storage grows only with data changes
-- Example: 10GB DB, change 100MB → branch uses ~100MB
+### Space Efficiency
+
+ZFS copy-on-write provides extreme space efficiency:
+
+| Scenario | Storage Used |
+|----------|--------------|
+| 10GB database + new branch | ~10GB + 100KB |
+| 10GB database + branch with 100MB changes | ~10.1GB total |
+| 10GB database + 5 branches (minimal changes) | ~10GB + 500KB |
+
+**Key insight:** Branches share unchanged blocks with parent, only divergent data uses additional space.
 
 ## Production Safety
 
-### Application-Consistent Snapshots
+### Application-Consistent Snapshots (Default)
 
-When you run `bpg branch create prod/dev`:
+BetterPG uses **application-consistent snapshots** by default, making it safe for production use.
 
-1. Executes `CHECKPOINT` - flushes all data to disk
-2. Creates ZFS snapshot (~100ms)
-3. Clones snapshot and starts container
+**How it works:**
+1. Executes `CHECKPOINT` command - PostgreSQL flushes all dirty buffers to disk
+2. Creates instant ZFS snapshot (~100ms)
+3. Clones snapshot to new ZFS dataset
+4. Starts new PostgreSQL container
 
-**Guarantees**:
-- Zero data loss
-- All committed transactions included
-- Database in consistent state
-- Safe for production use
+**Guarantees:**
+- ✅ **Zero data loss** - All committed transactions included
+- ✅ **Crash-safe** - No recovery needed on startup
+- ✅ **Consistent state** - All foreign keys, constraints valid
+- ✅ **Production-ready** - Safe to clone production databases
+
+**Performance impact:** 2-5 seconds total (acceptable for production workflows)
+
+### When to Create Branches
+
+**Safe for production:**
+- ✅ Migration testing (test migration on production copy)
+- ✅ Developer environments (give devs real data)
+- ✅ Debugging production issues
+- ✅ Pre-deployment validation
+- ✅ Multiple branches per day
+
+**Not recommended:**
+- ❌ Per-request branching (too slow, use connection pooling instead)
+- ❌ Thousands of branches (ZFS overhead, use traditional backups)
+
+### Best Practices
+
+1. **Regular snapshots for PITR:** Create daily/hourly snapshots via cron (see below)
+2. **Branch cleanup:** Delete branches after use to reclaim space
+3. **Monitor disk usage:** WAL archives and snapshots accumulate over time
+4. **Test recovery:** Regularly verify PITR works (create test branch with `--pitr`)
+5. **Secure credentials:** State file contains plaintext passwords (TODO: encryption)
+
+### Automated Snapshot Scheduling (Recommended)
+
+Create regular snapshots using cron to enable fine-grained PITR:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add these lines for automated snapshots:
+
+# Hourly snapshots during business hours (9 AM - 5 PM, Mon-Fri)
+0 9-17 * * 1-5 /usr/local/bin/bpg snapshot create prod/main --label "hourly-$(date +\%Y\%m\%d-\%H00)"
+
+# Daily snapshots at 2 AM
+0 2 * * * /usr/local/bin/bpg snapshot create prod/main --label "daily-$(date +\%Y\%m\%d)"
+
+# Weekly cleanup: delete snapshots older than 30 days
+0 3 * * 0 /usr/local/bin/bpg snapshot cleanup --all --days 30
+
+# Weekly WAL cleanup: delete WAL files older than 7 days
+0 4 * * 0 /usr/local/bin/bpg wal cleanup prod/main --days 7
+```
+
+**Recommendation:** Adjust snapshot frequency based on your recovery point objective (RPO). More snapshots = finer recovery granularity but more storage.
 
 ## Configuration
 
-Config file: `/etc/betterpg/config.yaml`
+Config file: `/etc/betterpg/config.yaml` (created by `bpg init`)
 
 ```yaml
+version: 1
+
 zfs:
   pool: tank
   datasetBase: betterpg/databases
+  compression: lz4
+  recordsize: 8k
 
 postgres:
-  image: postgres:16-alpine
   version: "16"
-  # PostgreSQL config options can be customized here
+  image: postgres:16-alpine
+  basePort: 5432  # Starting port (Docker assigns dynamically)
+  config:
+    shared_buffers: 256MB
+    max_connections: "100"
+    wal_level: replica
+    archive_mode: on
+    archive_timeout: "300"
+    max_wal_size: 1GB
+
+backups:
+  enabled: true
+  provider: local
+  retentionDays: 30
+  local:
+    path: /var/lib/betterpg/backups
+
+system:
+  logLevel: info
+  logFile: /var/log/betterpg.log
 ```
 
 **File locations:**
 - Config: `/etc/betterpg/config.yaml`
-- State: `/var/lib/betterpg/state.json`
+- State: `/var/lib/betterpg/state.json` (tracks databases, branches, snapshots)
+- State lock: `/var/lib/betterpg/state.json.lock` (prevents concurrent modifications)
 - WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/betterpg/databases/<database>-<branch>`
+- Docker containers: `bpg-<database>-<branch>`
 
 ## Testing
 

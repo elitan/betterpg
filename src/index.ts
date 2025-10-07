@@ -28,7 +28,7 @@ const program = new Command();
 program
   .name('bpg')
   .description('PostgreSQL database branching using ZFS snapshots')
-  .version('0.2.0');
+  .version('0.3.4');
 
 // ============================================================================
 // Database commands
