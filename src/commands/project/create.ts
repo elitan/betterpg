@@ -1,33 +1,77 @@
 import ora from 'ora';
 import chalk from 'chalk';
+import { $ } from 'bun';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
-import { ConfigManager } from '../../managers/config';
 import { WALManager } from '../../managers/wal';
 import { generateUUID, generatePassword, sanitizeName } from '../../utils/helpers';
 import { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace } from '../../utils/namespace';
 import { CONTAINER_PREFIX } from '../../config/constants';
+import { DEFAULTS } from '../../config/defaults';
+import { getZFSPool } from '../../utils/zfs-pool';
+import * as fs from 'fs/promises';
 
-export async function projectCreateCommand(name: string) {
+interface CreateOptions {
+  pool?: string;
+  version?: string;
+  image?: string;
+}
+
+export async function projectCreateCommand(name: string, options: CreateOptions = {}) {
   console.log();
   console.log(chalk.bold(`🚀 Creating project: ${chalk.cyan(name)}`));
   console.log();
 
-  // Load config and state
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
+  // Validate flags
+  if (options.version && options.image) {
+    throw new Error('Cannot specify both --version and --image. Use one or the other.');
+  }
 
-  const state = new StateManager(PATHS.STATE);
-  await state.load();
+  // Determine Docker image to use
+  let dockerImage: string;
+  if (options.image) {
+    dockerImage = options.image;
+  } else if (options.version) {
+    dockerImage = `postgres:${options.version}-alpine`;
+  } else {
+    dockerImage = DEFAULTS.postgres.defaultImage;
+  }
 
   // Sanitize and validate name
   const sanitizedName = sanitizeName(name);
   if (sanitizedName !== name) {
     console.log(chalk.yellow(`📝 Sanitized name: ${name} → ${sanitizedName}`));
+  }
+
+  // Load state
+  const state = new StateManager(PATHS.STATE);
+  await state.load();
+
+  // Auto-detect or validate ZFS pool
+  let pool: string;
+  if (options.pool) {
+    const poolSpinner = ora(`Validating ZFS pool: ${options.pool}`).start();
+    pool = await getZFSPool(options.pool);
+    poolSpinner.succeed(`Using ZFS pool: ${pool}`);
+  } else {
+    const poolSpinner = ora('Detecting ZFS pool').start();
+    pool = await getZFSPool();
+    poolSpinner.succeed(`Auto-detected ZFS pool: ${pool}`);
+  }
+
+  // Auto-initialize state if needed (first project create)
+  if (!state.isInitialized()) {
+    const initSpinner = ora('Initializing BetterPG').start();
+
+    // Create WAL archive directory
+    await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
+
+    // Initialize state
+    await state.autoInitialize(pool, DEFAULTS.zfs.datasetBase);
+    initSpinner.succeed('BetterPG initialized');
   }
 
   // Check if project already exists
@@ -36,8 +80,12 @@ export async function projectCreateCommand(name: string) {
     throw new Error(`Project '${sanitizedName}' already exists`);
   }
 
+  // Get ZFS config from state
+  const stateData = state.getState();
+  const fullDatasetBase = stateData.zfsDatasetBase; // e.g., "betterpg/databases"
+
   // Initialize managers
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const zfs = new ZFSManager(pool, fullDatasetBase);
   const docker = new DockerManager();
   const wal = new WALManager();
 
@@ -49,8 +97,8 @@ export async function projectCreateCommand(name: string) {
   const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <project>-<branch>
   const spinner = ora(`Creating ZFS dataset: ${mainBranchName}`).start();
   await zfs.createDataset(mainDatasetName, {
-    compression: cfg.zfs.compression,
-    recordsize: cfg.zfs.recordsize,
+    compression: DEFAULTS.zfs.compression,
+    recordsize: DEFAULTS.zfs.recordsize,
   });
   spinner.succeed(`Created ZFS dataset: ${mainBranchName}`);
 
@@ -62,11 +110,11 @@ export async function projectCreateCommand(name: string) {
   const containerName = `${CONTAINER_PREFIX}-${sanitizedName}-main`;
 
   // Pull PostgreSQL image if needed
-  const imageExists = await docker.imageExists(cfg.postgres.image);
+  const imageExists = await docker.imageExists(dockerImage);
   if (!imageExists) {
-    const pullSpinner = ora(`Pulling PostgreSQL image: ${cfg.postgres.image}`).start();
-    await docker.pullImage(cfg.postgres.image);
-    pullSpinner.succeed(`Pulled PostgreSQL image: ${cfg.postgres.image}`);
+    const pullSpinner = ora(`Pulling PostgreSQL image: ${dockerImage}`).start();
+    await docker.pullImage(dockerImage);
+    pullSpinner.succeed(`Pulled PostgreSQL image: ${dockerImage}`);
   }
 
   // Create WAL archive directory
@@ -77,16 +125,13 @@ export async function projectCreateCommand(name: string) {
   const createSpinner = ora('Creating PostgreSQL container').start();
   const containerID = await docker.createContainer({
     name: containerName,
-    version: cfg.postgres.version,
+    image: dockerImage,
     port,
     dataPath: mountpoint,
     walArchivePath,
     password,
     username: 'postgres',
     database: 'postgres',
-    sharedBuffers: cfg.postgres.config.shared_buffers,
-    maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
-    extraConfig: cfg.postgres.config,
   });
   createSpinner.succeed(`Created container ${chalk.dim(containerID.slice(0, 12))}`);
 
@@ -112,7 +157,7 @@ export async function projectCreateCommand(name: string) {
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
-    zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${mainDatasetName}`,
+    zfsDataset: `${pool}/${fullDatasetBase}/${mainDatasetName}`,
     zfsDatasetName: mainDatasetName,
     containerName,
     port,
@@ -125,7 +170,7 @@ export async function projectCreateCommand(name: string) {
   const project: Project = {
     id: generateUUID(),
     name: sanitizedName,
-    postgresVersion: cfg.postgres.version,
+    dockerImage,
     createdAt: new Date().toISOString(),
     credentials: {
       username: 'postgres',
@@ -140,7 +185,8 @@ export async function projectCreateCommand(name: string) {
   console.log();
   console.log(chalk.green.bold('✓ Project created successfully!'));
   console.log();
-  console.log(chalk.dim('Main branch:'), chalk.cyan(mainBranchName));
+  console.log(chalk.dim('Docker image:'), chalk.cyan(dockerImage));
+  console.log(chalk.dim('Main branch: '), chalk.cyan(mainBranchName));
   console.log();
   console.log(chalk.bold('Connection details:'));
   console.log(chalk.dim('  Host:    '), 'localhost');

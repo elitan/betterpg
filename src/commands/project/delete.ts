@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
-import { ConfigManager } from '../../managers/config';
 import { PATHS } from '../../utils/paths';
 
 export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
@@ -31,12 +30,11 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
     process.exit(1);
   }
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
+  // Get ZFS config from state
+  const stateData = state.getState();
 
   const docker = new DockerManager();
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Delete all branches (in reverse order, main last)
   const branchesToDelete = [...project.branches].reverse();

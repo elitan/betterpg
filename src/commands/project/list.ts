@@ -15,7 +15,7 @@ export async function projectListCommand() {
   }
 
   const table = new Table({
-    head: ['Name', 'Branches', 'Running', 'Version', 'Created'],
+    head: ['Name', 'Branches', 'Running', 'Image', 'Created'],
     style: {
       head: ['cyan'],
       border: ['gray']
@@ -30,7 +30,7 @@ export async function projectListCommand() {
       chalk.bold(proj.name),
       totalBranches.toString(),
       `${runningBranches}/${totalBranches}`,
-      chalk.dim(`PG ${proj.postgresVersion}`),
+      chalk.dim(proj.dockerImage),
       new Date(proj.createdAt).toLocaleString()
     ]);
   }

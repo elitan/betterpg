@@ -1,9 +1,9 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
+import { format } from 'date-fns';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { ZFSManager } from '../managers/zfs';
-import { ConfigManager } from '../managers/config';
 import { formatBytes } from '../utils/helpers';
 import { PATHS } from '../utils/paths';
 import { TOOL_NAME } from '../config/constants';
@@ -25,20 +25,23 @@ function formatUptime(startedAt: Date | null): string {
   return `${seconds}s`;
 }
 
+function formatDate(dateStr: string): string {
+  return format(new Date(dateStr), 'yyyy-MM-dd HH:mm:ss');
+}
+
 export async function statusCommand() {
   console.log();
   console.log(chalk.bold(`📊 ${TOOL_NAME} Status`));
   console.log();
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
-
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
+  // Get ZFS config from state
+  const stateData = state.getState();
+
   const docker = new DockerManager();
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Get pool status
   const poolStatus = await zfs.getPoolStatus();
@@ -79,7 +82,7 @@ export async function statusCommand() {
 
   // Create table for all instances (primaries + branches)
   const instanceTable = new Table({
-    head: ['', 'Name', 'Type', 'Status', 'Uptime', 'Port', 'Version', 'Size', 'Created'],
+    head: ['', 'Name', 'Type', 'Image', 'Branches', 'Created'],
     style: {
       head: ['cyan'],
       border: ['gray']
@@ -87,34 +90,14 @@ export async function statusCommand() {
   });
 
   for (const proj of projects) {
-    // Get container status
-    let containerStatus = null;
-    const containerID = await docker.getContainerByName(proj.containerName);
-    if (containerID) {
-      try {
-        containerStatus = await docker.getContainerStatus(containerID);
-      } catch {
-        // Container doesn't exist
-      }
-    }
-
-    const actualStatus = containerStatus ? containerStatus.state : proj.status;
-    const statusIcon = actualStatus === 'running' ? chalk.green('●') : chalk.red('●');
-    const statusText = actualStatus === 'running' ? chalk.green('running') : chalk.red(actualStatus);
-    const uptime = containerStatus?.state === 'running' && containerStatus.startedAt
-      ? formatUptime(containerStatus.startedAt)
-      : chalk.dim('—');
-
+    // Project row - only show project-level info
     instanceTable.push([
-      statusIcon,
+      chalk.blue('●'),
       chalk.bold(proj.name),
-      chalk.blue('primary'),
-      statusText,
-      uptime,
-      proj.port,
-      `PG ${proj.postgresVersion}`,
-      formatBytes(proj.sizeBytes),
-      new Date(proj.createdAt).toLocaleString()
+      chalk.blue('project'),
+      chalk.dim(proj.dockerImage),
+      proj.branches.length.toString(),
+      formatDate(proj.createdAt)
     ]);
 
     // Add branches
@@ -137,16 +120,14 @@ export async function statusCommand() {
         ? formatUptime(branchContainerStatus.startedAt)
         : chalk.dim('—');
 
+      // Branch row with different columns
       instanceTable.push([
         branchStatusIcon,
         chalk.dim('  ↳ ') + branch.name,
-        chalk.yellow('branch'),
-        branchStatusText,
-        branchUptime,
-        branch.port,
-        chalk.dim('—'),
+        `${branchStatusText} | ${branchUptime}`,
+        `Port ${branch.port}`,
         formatBytes(branch.sizeBytes),
-        new Date(branch.createdAt).toLocaleString()
+        formatDate(branch.createdAt)
       ]);
     }
   }

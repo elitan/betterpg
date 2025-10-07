@@ -11,7 +11,8 @@ export interface State {
 export interface Project {
   id: string;
   name: string;
-  postgresVersion: string;
+  dockerImage: string;           // Docker image used (e.g., postgres:17-alpine, ankane/pgvector:17)
+  postgresVersion?: string;      // Optional, for display purposes only
   createdAt: string;
   credentials: Credentials;
   branches: Branch[];

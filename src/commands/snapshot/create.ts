@@ -2,7 +2,6 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
-import { ConfigManager } from '../../managers/config';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { generateUUID, formatTimestamp } from '../../utils/helpers';
@@ -22,10 +21,6 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   }
   console.log();
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
-
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
@@ -40,7 +35,9 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
     throw new Error(`Branch '${target.full}' not found`);
   }
 
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  // Get ZFS config from state
+  const stateData = state.getState();
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Create ZFS snapshot
   const snapshotTimestamp = formatTimestamp(new Date());

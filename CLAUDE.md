@@ -59,6 +59,9 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **Project commands** (`bpg project <command>`):
 - `project create <name>` - Creates project + main branch (`<name>/main`) with PostgreSQL database
+  - `--pg-version <version>` - PostgreSQL version (e.g., 17, 16) - uses `postgres:{version}-alpine`
+  - `--image <image>` - Custom Docker image (e.g., `ankane/pgvector:17`, `timescale/timescaledb:latest-pg17`)
+  - `--pool <name>` - ZFS pool to use (auto-detected if only one pool exists)
 - `project list` - Lists all projects
 - `project get <name>` - Shows project details
 - `project delete <name>` - Deletes project and all branches (removes all PostgreSQL databases)
@@ -116,11 +119,6 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - Implements PostgreSQL backup mode: `startBackupMode()`, `stopBackupMode()`
 - Compatible with PostgreSQL 15+ (`pg_backup_*`) and <15 (`pg_start_backup`)
 - Uses Bun.spawn for SQL execution to avoid dockerode stream issues
-
-**ConfigManager** (`src/managers/config.ts`):
-- Loads YAML config from `/etc/betterpg/config.yaml`
-- Contains ZFS pool, PostgreSQL image version, etc.
-- Note: Port allocation is handled dynamically by Docker (no port range config needed)
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
@@ -205,30 +203,47 @@ The StateManager validates:
 
 Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
+## Configuration & Initialization
+
+**No configuration file needed!** BetterPG uses sensible hardcoded defaults:
+- Default PostgreSQL image: `postgres:17-alpine`
+- ZFS compression: `lz4` (fast, good for databases)
+- ZFS recordsize: `8k` (PostgreSQL page size)
+- ZFS base dataset: `betterpg/databases`
+
+**No init command needed!** Auto-initialization happens on first `project create`:
+1. Auto-detects ZFS pool (or use `--pool` if multiple pools exist)
+2. Creates base dataset and WAL archive directory
+3. Initializes state.json with pool/dataset info
+
+**Defaults location:** `src/config/defaults.ts`
+
 ## File Locations
 
-- Config: `/etc/betterpg/config.yaml`
-- State: `/var/lib/betterpg/state.json`
+- State: `/var/lib/betterpg/state.json` (stores pool, dataset base, projects, branches, snapshots)
 - State lock: `/var/lib/betterpg/state.json.lock`
 - WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
-- ZFS datasets: `tank/betterpg/databases/<project>-<branch>`
+- ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>` (pool auto-detected)
 - Docker containers: `bpg-<project>-<branch>` (PostgreSQL databases)
 
 ## Common Development Patterns
 
 **Adding a new project command:**
-1. Create file in `src/commands/project/` (formerly `src/commands/db/`)
+1. Create file in `src/commands/project/`
 2. Export async function: `export async function projectFooCommand(...)`
 3. Import and wire in `src/index.ts` under `projectCommand`
 4. Use namespace utilities to parse/validate names
-5. Load state, perform operation, save state
+5. Load state with `StateManager`, get ZFS config from `state.getState()`
+6. Initialize managers: `new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase)`
+7. Perform operation, save state
 
 **Adding a new branch command:**
 1. Create file in `src/commands/branch/`
 2. Use `parseNamespace()` to extract project/branch from input
-3. Look up project via `state.getProjectByName()` (formerly `getDatabaseByName()`)
+3. Look up project via `state.getProjectByName()`
 4. Find branch in `project.branches[]` array
-5. Perform ZFS/Docker operations using managers
+5. Use `project.dockerImage` when creating Docker containers
+6. Perform ZFS/Docker operations using managers
 
 **Working with ZFS:**
 - Dataset names use `-` separator: `<project>-<branch>`
@@ -239,9 +254,11 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 **Working with Docker:**
 - Container names use `-` separator: `bpg-<project>-<branch>`
 - Each container is a complete PostgreSQL database instance
+- Use `project.dockerImage` when creating containers (branches inherit from parent project)
 - Always use `docker.getContainerByName()` to get container ID
 - For SQL execution, use `docker.execSQL()` (not `execInContainer()`)
 - Wait for health check with `docker.waitForHealthy()`
+- `DockerManager.createContainer()` accepts `image` parameter (not `version`)
 
 ## Production Safety Requirements
 
@@ -256,13 +273,13 @@ When modifying branching logic:
 - Linux + ZFS required (no macOS support)
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
-- ZFS pool must exist before `bpg init`
+- ZFS pool must exist before first `bpg project create` (auto-detected)
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
 
 ## Roadmap Context
 
-From TODO.md, completed features (v0.3.4):
+From TODO.md, completed features (v0.3.5):
 - ✅ Project lifecycle (create, start, stop, restart)
 - ✅ Application-consistent snapshots (CHECKPOINT)
 - ✅ Namespace-based CLI structure
@@ -272,6 +289,9 @@ From TODO.md, completed features (v0.3.4):
 - ✅ Branch sync functionality
 - ✅ Comprehensive test coverage (70 tests total)
 - ✅ GitHub Actions CI pipeline
+- ✅ **Zero-config design** - no config file, no init command, auto-detects ZFS pool
+- ✅ **Custom Docker images** - support for PostgreSQL extensions (pgvector, TimescaleDB, etc.)
+- ✅ **Per-project PostgreSQL versions** - projects can use different PG versions
 
 Next priorities (v0.4.0+):
 - Project and branch rename commands

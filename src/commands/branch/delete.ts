@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
-import { ConfigManager } from '../../managers/config';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 
@@ -29,12 +28,11 @@ export async function branchDeleteCommand(name: string) {
     throw new Error(`Cannot delete main branch. Use 'bpg project delete ${project.name}' to delete the entire project.`);
   }
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
+  // Get ZFS config from state
+  const stateData = state.getState();
 
   const docker = new DockerManager();
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Stop and remove container
   const spinner = ora('Stopping container').start();

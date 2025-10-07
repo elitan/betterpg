@@ -18,10 +18,44 @@ export class StateManager {
       this.validate();
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        throw new Error('State file not found. Run "bpg init" first.');
+        // Return without error - state will be auto-initialized on first project create
+        return;
       }
       throw new Error(`Failed to load state: ${error.message}`);
     }
+  }
+
+  /**
+   * Check if state is initialized
+   */
+  isInitialized(): boolean {
+    return this.state !== null;
+  }
+
+  /**
+   * Auto-initialize state if not already initialized
+   * Called automatically on first project create
+   */
+  async autoInitialize(pool: string, datasetBase: string): Promise<void> {
+    if (this.isInitialized()) {
+      return; // Already initialized
+    }
+
+    this.state = {
+      version: '1.0.0',
+      initializedAt: new Date().toISOString(),
+      zfsPool: pool,
+      zfsDatasetBase: datasetBase,
+      projects: [],
+      backups: [],
+      snapshots: [],
+    };
+
+    // Create directory if it doesn't exist
+    const dir = this.filePath.substring(0, this.filePath.lastIndexOf('/'));
+    await fs.mkdir(dir, { recursive: true });
+
+    await this.save();
   }
 
   async save(): Promise<void> {

@@ -27,7 +27,7 @@ export async function projectGetCommand(name: string) {
   infoTable.push(
     ['ID', project.id],
     ['Name', project.name],
-    ['Version', `PostgreSQL ${project.postgresVersion}`],
+    ['Docker Image', project.dockerImage],
     ['Created', new Date(project.createdAt).toLocaleString()],
     ['Branches', project.branches.length.toString()]
   );

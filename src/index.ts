@@ -3,7 +3,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { CLI_NAME } from './config/constants';
-import { initCommand } from './commands/init';
 import { projectCreateCommand } from './commands/project/create';
 import { projectListCommand } from './commands/project/list';
 import { projectGetCommand } from './commands/project/get';
@@ -46,9 +45,14 @@ projectCommand
   .command('create')
   .description('Create a new project with main branch')
   .argument('<name>', 'project name')
-  .action(async (name: string) => {
+  .option('--pool <name>', 'ZFS pool to use (auto-detected if not specified)')
+  .option('--pg-version <version>', 'PostgreSQL version (e.g., 17, 16)')
+  .option('--image <image>', 'Custom Docker image (e.g., ankane/pgvector:17)')
+  .action(async (name: string, options: { pool?: string; pgVersion?: string; image?: string }) => {
     try {
-      await projectCreateCommand(name);
+      // Map pgVersion to version for backwards compat
+      const opts = { ...options, version: options.pgVersion };
+      await projectCreateCommand(name, opts);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -345,18 +349,6 @@ program
 // ============================================================================
 // Global commands
 // ============================================================================
-
-program
-  .command('init')
-  .description('Initialize system with ZFS pool')
-  .action(async () => {
-    try {
-      await initCommand();
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
 
 program
   .command('status')

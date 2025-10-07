@@ -3,16 +3,13 @@ import { BACKUP_LABEL_PREFIX } from '../config/constants';
 
 export interface PostgresConfig {
   name: string;
-  version: string;
+  image: string;  // Full Docker image name (e.g., postgres:17-alpine, ankane/pgvector:17)
   port: number;
   dataPath: string;
   walArchivePath: string;
   password: string;
   username: string;
   database: string;
-  sharedBuffers: string;
-  maxConnections: number;
-  extraConfig?: Record<string, string>;
 }
 
 export interface ContainerStatus {
@@ -33,7 +30,7 @@ export class DockerManager {
   // Container lifecycle
   async createContainer(config: PostgresConfig): Promise<string> {
     const container = await this.docker.createContainer({
-      Image: `postgres:${config.version}-alpine`,
+      Image: config.image,
       name: config.name,
       Env: [
         `POSTGRES_PASSWORD=${config.password}`,

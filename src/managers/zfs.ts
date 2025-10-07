@@ -64,9 +64,9 @@ export class ZFSManager {
 
     if (options) {
       const opts = Object.entries(options).flatMap(([key, value]) => ['-o', `${key}=${value}`]);
-      await $`sudo zfs create ${opts} ${fullName}`;
+      await $`sudo zfs create -p ${opts} ${fullName}`;
     } else {
-      await $`sudo zfs create ${fullName}`;
+      await $`sudo zfs create -p ${fullName}`;
     }
   }
 

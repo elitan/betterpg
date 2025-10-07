@@ -9,6 +9,9 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 - **Instant branching**: Clone 100GB database in 2-5 seconds
 - **Production-safe**: Application-consistent snapshots with zero data loss
 - **Space-efficient**: ZFS copy-on-write (branches are ~100KB until data diverges)
+- **Zero config**: No config files, no init command - just start creating projects
+- **Custom images**: Support for PostgreSQL extensions (pgvector, TimescaleDB, PostGIS, etc.)
+- **Multi-version**: Different projects can use different PostgreSQL versions
 - **Lifecycle management**: Start, stop, restart, sync databases and branches
 - **Full isolation**: Each branch is an independent PostgreSQL instance
 - **WAL archiving**: Continuous archiving of transaction logs
@@ -18,10 +21,7 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 ## Quick Start
 
 ```bash
-# Initialize
-bpg init
-
-# Create project (creates project with main branch and PostgreSQL database)
+# Create project (auto-detects ZFS pool, uses PostgreSQL 17 by default)
 bpg project create prod
 
 # Create application-consistent branch (uses CHECKPOINT)
@@ -32,6 +32,12 @@ bpg branch create prod/test
 
 # View all projects and branches
 bpg status
+
+# Use specific PostgreSQL version
+bpg project create legacy --pg-version 14
+
+# Use custom image with extensions
+bpg project create vectordb --image ankane/pgvector:17
 ```
 
 ## Requirements
@@ -72,7 +78,21 @@ sudo usermod -aG docker $USER
 # Future versions will support ZFS delegation
 ```
 
-### 3. Build and Install BetterPG
+### 3. Setup ZFS Pool
+
+```bash
+# Check if you have a ZFS pool
+zpool list
+
+# If you don't have one, create a pool (example with a file-based pool for testing)
+sudo truncate -s 10G /tmp/zfs-pool.img
+sudo zpool create tank /tmp/zfs-pool.img
+
+# For production, use real disks:
+# sudo zpool create tank /dev/sdb
+```
+
+### 4. Build and Install BetterPG
 
 ```bash
 # Clone repository
@@ -86,8 +106,8 @@ bun run build
 # Install globally
 sudo cp dist/bpg /usr/local/bin/
 
-# Initialize (creates config and state files)
-sudo bpg init
+# That's it! No init needed - just start creating projects
+bpg project create myapp
 ```
 
 ## How It Works
@@ -121,8 +141,18 @@ New branch (prod/dev) - fully isolated
 A **project** is a logical grouping of branches, similar to how a Git repository contains multiple branches. Each branch is a complete, isolated PostgreSQL database instance.
 
 ```bash
-# Create a project (automatically creates <project>/main branch with PostgreSQL database)
+# Create a project (automatically creates <project>/main branch with PostgreSQL 17)
 bpg project create myapp
+
+# Create project with specific PostgreSQL version
+bpg project create legacy --pg-version 14
+
+# Create project with custom image (for extensions)
+bpg project create vectordb --image ankane/pgvector:17
+bpg project create timeseries --image timescale/timescaledb:latest-pg17
+
+# Specify ZFS pool (only needed if you have multiple pools)
+bpg project create myapp --pool tank2
 
 # List all projects
 bpg project list
@@ -135,12 +165,16 @@ bpg project delete myapp --force
 ```
 
 **What happens when you create a project:**
-- Project record: `myapp`
+- Auto-detects ZFS pool (or uses `--pool` if specified)
+- Auto-initializes on first run (creates state.json, base dataset, WAL archive directory)
+- Project record: `myapp` with chosen Docker image
 - Main branch: `myapp/main` (automatically created)
-- PostgreSQL database in Docker: `bpg-myapp-main`
-- ZFS dataset: `tank/betterpg/databases/myapp-main`
-- Docker container: `bpg-myapp-main` on dynamically allocated port
+- PostgreSQL container: `bpg-myapp-main` on dynamically allocated port
+- ZFS dataset: `<pool>/betterpg/databases/myapp-main`
 - Credentials: auto-generated (view with `bpg status`)
+
+**Docker Image Inheritance:**
+All branches in a project inherit the parent project's Docker image. If you create a project with `--image ankane/pgvector:17`, all branches will use that image with pgvector extension.
 
 **Note:** Project and branch rename commands are not yet implemented.
 
@@ -409,16 +443,20 @@ psql -h localhost -p <port> -U <username> -d <database>
 Think of a **project** like a Git repository and **branches** like Git branches. Each branch contains a complete, isolated PostgreSQL database.
 
 ```
-Project: prod
+Project: prod (dockerImage: postgres:17-alpine)
 ├── Branch: prod/main (primary)
-│   ├── PostgreSQL Database: bpg-prod-main (Docker container)
+│   ├── PostgreSQL Database: bpg-prod-main (Docker container with postgres:17-alpine)
 │   ├── ZFS Dataset: tank/betterpg/databases/prod-main
 │   ├── Docker Container: bpg-prod-main (port: dynamic)
 │   ├── WAL Archive: /var/lib/betterpg/wal-archive/prod-main/
 │   ├── Snapshot 1: 2025-01-15T10:30:00 (label: before-migration)
-│   │   └── Branch: prod/dev (cloned from snapshot 1)
+│   │   └── Branch: prod/dev (inherits postgres:17-alpine)
 │   └── Snapshot 2: 2025-01-15T14:45:00 (label: daily-backup)
-│       └── Branch: prod/test (cloned from snapshot 2)
+│       └── Branch: prod/test (inherits postgres:17-alpine)
+
+Project: vectordb (dockerImage: ankane/pgvector:17)
+└── Branch: vectordb/main (primary with pgvector extension)
+    └── All branches inherit ankane/pgvector:17
 ```
 
 ### Branch Characteristics

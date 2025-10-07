@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
-import { ConfigManager } from '../../managers/config';
 import { formatTimestamp } from '../../utils/helpers';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
@@ -39,12 +38,11 @@ export async function branchSyncCommand(name: string) {
   console.log(chalk.dim(`Parent: ${parentBranch.name}`));
   console.log();
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
+  // Get ZFS config from state
+  const stateData = state.getState();
 
   const docker = new DockerManager();
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Stop and remove existing container
   let spinner = ora('Stopping branch container').start();
@@ -103,19 +101,17 @@ export async function branchSyncCommand(name: string) {
   const walArchivePath = `${PATHS.WAL_ARCHIVE}/${datasetName}`;
   await Bun.write(walArchivePath + '/.keep', '');
 
-  // Recreate container with same port
+  // Recreate container with same port (use project's docker image)
   spinner = ora('Recreating container').start();
   const newContainerID = await docker.createContainer({
     name: branch.containerName,
-    version: cfg.postgres.version,
+    image: project.dockerImage,
     port: branch.port,
     dataPath: mountpoint,
     walArchivePath,
     password: project.credentials.password,
     username: project.credentials.username,
     database: project.credentials.database,
-    sharedBuffers: cfg.postgres.config.shared_buffers,
-    maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
   });
 
   await docker.startContainer(newContainerID);

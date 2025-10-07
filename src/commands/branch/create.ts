@@ -5,7 +5,6 @@ import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { WALManager } from '../../managers/wal';
 import { StateManager } from '../../managers/state';
-import { ConfigManager } from '../../managers/config';
 import { generateUUID, sanitizeName, formatTimestamp } from '../../utils/helpers';
 import { Branch } from '../../types/state';
 import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
@@ -56,10 +55,6 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     console.log();
   }
 
-  const config = new ConfigManager(PATHS.CONFIG);
-  await config.load();
-  const cfg = config.getConfig();
-
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
@@ -80,7 +75,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     throw new Error(`Branch '${target.full}' already exists`);
   }
 
-  const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
+  // Get ZFS config from state
+  const stateData = state.getState();
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
   const docker = new DockerManager();
   const wal = new WALManager();
 
@@ -192,12 +189,13 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     // Use port 0 to let Docker dynamically assign an available port
     port = 0;
 
-    // Pull image if needed
-    const imageExists = await docker.imageExists(cfg.postgres.image);
+    // Pull image if needed (use project's docker image)
+    const dockerImage = sourceProject.dockerImage;
+    const imageExists = await docker.imageExists(dockerImage);
     if (!imageExists) {
-      const pullSpinner = ora(`Pulling image: ${cfg.postgres.image}`).start();
-      await docker.pullImage(cfg.postgres.image);
-      pullSpinner.succeed(`Pulled image: ${cfg.postgres.image}`);
+      const pullSpinner = ora(`Pulling image: ${dockerImage}`).start();
+      await docker.pullImage(dockerImage);
+      pullSpinner.succeed(`Pulled image: ${dockerImage}`);
     }
 
     // Create WAL archive directory for target branch
@@ -222,15 +220,13 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     const containerSpinner = ora(`Creating container: ${containerName}`).start();
     containerID = await docker.createContainer({
       name: containerName,
-      version: cfg.postgres.version,
+      image: dockerImage,
       port,
       dataPath: mountpoint,
       walArchivePath: targetWALArchivePath,
       password: sourceProject.credentials.password,
       username: sourceProject.credentials.username,
       database: sourceProject.credentials.database,
-      sharedBuffers: cfg.postgres.config.shared_buffers,
-      maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
     });
 
     // Rollback: remove container
@@ -266,7 +262,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       parentBranchId: sourceBranch.id,
       isPrimary: false,
       snapshotName: fullSnapshotName,
-      zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${targetDatasetName}`,
+      zfsDataset: `${stateData.zfsPool}/${stateData.zfsDatasetBase}/${targetDatasetName}`,
       zfsDatasetName: targetDatasetName,
       containerName,
       port,
