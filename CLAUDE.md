@@ -23,6 +23,8 @@ bun run build
 
 # Run directly (development)
 bun run src/index.ts
+# or
+bun run dev
 
 # Install globally
 sudo cp dist/bpg /usr/local/bin/
@@ -56,11 +58,31 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 
 **Branch commands** (`bpg branch <command>`):
 - `branch create <db>/<branch>` - Creates branch (e.g., `api/dev`)
+  - `--from <db>/<branch>` - Create from specific branch (default: main)
+  - `--fast` - Use crash-consistent snapshot (skip pg_backup_start)
+  - `--pitr <timestamp>` - Create branch from point-in-time
 - `branch list [db]` - Lists branches (all or for specific database)
 - `branch get <db>/<branch>` - Shows branch details
 - `branch delete <db>/<branch>` - Deletes branch
 - `branch rename <old> <new>` - Renames branch
 - `branch sync <db>/<branch>` - Syncs branch with parent's current state
+
+**Snapshot commands** (`bpg snapshot <command>`):
+- `snapshot create <db>/<branch>` - Create manual snapshot
+  - `--label <name>` - Optional label for snapshot
+- `snapshot list [db/branch]` - List snapshots (all or for specific branch)
+- `snapshot delete <snapshot-id>` - Delete snapshot
+
+**WAL commands** (`bpg wal <command>`):
+- `wal info [db/branch]` - Show WAL archive status (all or specific branch)
+- `wal cleanup <db>/<branch>` - Clean up old WAL files
+  - `--days <n>` - Remove WAL files older than n days
+
+**Lifecycle commands** (database and branch level):
+- `start <db>/<branch>` - Start a stopped branch
+- `stop <db>/<branch>` - Stop a running branch
+- `restart <db>/<branch>` - Restart a branch
+- `status` - Show status of all databases and branches
 
 ### Manager Classes
 
@@ -237,10 +259,9 @@ From TODO.md, completed features (v0.3.0):
 - ✅ Point-in-time recovery (PITR)
 
 Next priorities (v0.4.0+):
-- Schema diff between branches
-- Branch promotion (branch → primary)
-- Web UI dashboard
 - Automatic snapshot scheduling via cron
+- Remote storage for WAL archives (S3/B2)
+- CI/CD integration examples
 
 ## Testing Philosophy
 

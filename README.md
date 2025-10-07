@@ -4,11 +4,14 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 
 ## Features
 
-- **Instant branching**: Clone 100GB database in <5 seconds
+- **Instant branching**: Clone 100GB database in 2-5 seconds
 - **Production-safe**: Application-consistent snapshots with zero data loss
 - **Space-efficient**: ZFS copy-on-write (branches are ~100KB until data diverges)
 - **Lifecycle management**: Start, stop, restart, sync databases and branches
 - **Full isolation**: Each branch is an independent PostgreSQL instance
+- **WAL archiving**: Continuous archiving of transaction logs
+- **Point-in-time recovery (PITR)**: Restore to any point in time
+- **Snapshot management**: Create, list, and manage manual snapshots
 
 ## Quick Start
 
@@ -131,6 +134,53 @@ bpg branch sync prod/dev
 bpg branch delete prod/dev
 ```
 
+### Snapshot Management
+
+**Create manual snapshots**:
+```bash
+# Create snapshot with optional label
+bpg snapshot create prod/main --label "before-migration"
+
+# List all snapshots
+bpg snapshot list
+
+# List snapshots for specific branch
+bpg snapshot list prod/main
+
+# Delete snapshot
+bpg snapshot delete <snapshot-id>
+```
+
+### Point-in-Time Recovery (PITR)
+
+**Create branch from specific point in time**:
+```bash
+# Recover to specific timestamp (ISO 8601)
+bpg branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
+
+# Recover using relative time
+bpg branch create prod/recovered --pitr "2 hours ago"
+```
+
+**Requirements for PITR:**
+- Regular snapshots must be created (PITR target must be AFTER snapshot creation)
+- WAL archiving enabled (automatic for all branches)
+- Source branch must have WAL archive available
+
+### WAL Archive Management
+
+**Monitor and manage WAL archives**:
+```bash
+# View WAL archive info for all branches
+bpg wal info
+
+# View WAL archive info for specific branch
+bpg wal info prod/main
+
+# Clean up old WAL files (older than 7 days)
+bpg wal cleanup prod/main --days 7
+```
+
 ### Lifecycle Commands
 
 ```bash
@@ -182,8 +232,11 @@ bpg branch delete prod/migration-test
 # Give developers production data
 bpg branch create prod/dev-alice
 
+# Get connection info
+bpg status
+
 # Anonymize sensitive data
-psql -h localhost -p <port> <<EOF
+psql -h localhost -p <port> -U postgres <<EOF
 UPDATE users SET email = CONCAT('user', id, '@example.com');
 EOF
 ```
@@ -194,11 +247,30 @@ EOF
 # Create exact copy of production
 bpg branch create prod/debug-issue-123
 
+# Get connection info
+bpg status
+
 # Debug with real data, zero risk
-psql -h localhost -p <port>
+psql -h localhost -p <port> -U postgres
 
 # Clean up when done
 bpg branch delete prod/debug-issue-123
+```
+
+### 4. Point-in-Time Recovery
+
+```bash
+# Create regular snapshots for PITR capability
+bpg snapshot create prod/main --label "daily-backup-$(date +%Y%m%d)"
+
+# Recover to specific point after incident
+bpg branch create prod/before-incident --pitr "2025-10-07T14:30:00Z"
+
+# Verify recovered data
+bpg status
+psql -h localhost -p <port> -U postgres
+
+# If good, can sync main branch or promote recovered branch
 ```
 
 ## Architecture
@@ -267,7 +339,7 @@ When you run `bpg branch create prod/dev`:
 
 ## Configuration
 
-Config file: `~/.config/betterpg/config.yaml`
+Config file: `/etc/betterpg/config.yaml`
 
 ```yaml
 zfs:
@@ -282,13 +354,23 @@ postgres:
     max_connections: "100"
 ```
 
-State file: `~/.local/share/betterpg/state.json`
+**File locations:**
+- Config: `/etc/betterpg/config.yaml`
+- State: `/var/lib/betterpg/state.json`
+- WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
+- ZFS datasets: `<pool>/betterpg/databases/<database>-<branch>`
 
 ## Testing
 
 ```bash
-# Run full test suite (21 tests)
+# Run full test suite (25 tests)
 ./scripts/run-extended-tests.sh
+
+# Basic integration tests
+./scripts/integration-test.sh
+
+# Performance benchmarks
+./scripts/performance-test.sh
 ```
 
 Tests cover:
@@ -297,6 +379,9 @@ Tests cover:
 - Data persistence across stop/start
 - Branch sync functionality
 - ZFS copy-on-write efficiency
+- Snapshot management
+- WAL archiving
+- Point-in-time recovery (PITR)
 - Edge cases
 
 ## Development
@@ -308,9 +393,17 @@ Built with:
 - [ZFS](https://openzfs.org/) - Filesystem with snapshots/clones
 
 ```bash
-# Development
+# Install dependencies
 bun install
+
+# Build the CLI
 bun run build
+
+# Run in development mode
+bun run dev
+
+# Install globally
+sudo cp dist/bpg /usr/local/bin/
 
 # Run tests
 ./scripts/run-extended-tests.sh
@@ -367,13 +460,20 @@ sudo zpool create tank /dev/sdb
 
 ## Roadmap
 
-Planned features (see [TODO.md](TODO.md) for details):
+**Completed (v0.3.0):**
+- ✅ Snapshot management (create, list, delete with labels)
+- ✅ WAL archiving & monitoring
+- ✅ Point-in-time recovery (PITR)
+- ✅ Database lifecycle commands (start, stop, restart)
+- ✅ Namespace-based CLI structure
 
-- Snapshot management (create, list, destroy manual snapshots)
-- WAL archiving & point-in-time recovery
+**Planned features (v0.4.0+)** - see [TODO.md](TODO.md) for details:
+- Automatic snapshot scheduling via cron
+- Remote storage for WAL archives (S3/B2)
 - Schema diff between branches
 - Branch promotion (promote branch to main)
 - Web UI dashboard
+- CI/CD integration examples
 
 ## Contributing
 
