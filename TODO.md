@@ -9,19 +9,28 @@
 - [x] StateManager - JSON state persistence with file locking
 - [x] ConfigManager - YAML configuration
 
-### CLI Commands
+### CLI Commands (Namespace-based v0.2.0)
 - [x] `bpg init` - Initialize system with ZFS pool
-- [x] `bpg create <name>` - Create primary PostgreSQL database
-- [x] `bpg branch <source> <target>` - Create instant branch from snapshot
-- [x] `bpg list` - Display all databases and branches
-- [x] `bpg destroy <name>` - Remove database/branch with safety checks
+- [x] `bpg db create <name>` - Create database with main branch
+- [x] `bpg db list` - List all databases
+- [x] `bpg db get <name>` - Get database details
+- [x] `bpg db delete <name>` - Delete database and branches
+- [x] `bpg db rename <old> <new>` - Rename database
+- [x] `bpg branch create <db>/<name>` - Create branch with namespace
+- [x] `bpg branch list [db]` - List branches
+- [x] `bpg branch get <db>/<branch>` - Get branch details
+- [x] `bpg branch delete <db>/<branch>` - Delete branch
+- [x] `bpg branch rename <old> <new>` - Rename branch
+- [x] `bpg start/stop/restart <db>/<branch>` - Lifecycle management
+- [x] `bpg status` - Show all databases and branches
+- [ ] `bpg branch sync <db>/<branch>` - Sync branch with parent's current state
 
 ### Testing & Infrastructure
 - [x] VPS setup script (`scripts/vps-setup.sh`)
 - [x] Integration test suite (`scripts/integration-test.sh`)
 - [x] Extended integration tests (`scripts/extended-integration-test.sh`)
-  - 25 comprehensive tests covering all lifecycle commands
-  - Tests for start, stop, restart, reset, and status
+  - 21 comprehensive tests covering all lifecycle commands
+  - Tests for start, stop, restart, and status
   - Application-consistent and crash-consistent snapshot testing
   - Edge case testing
   - Data persistence verification
@@ -57,12 +66,17 @@
   - Performance impact (2-5s)
   - When to use --fast vs default
 
-### Database Lifecycle Management
-- [x] `bpg start <name>` - Start stopped database/branch
-- [x] `bpg stop <name>` - Stop running database/branch
-- [x] `bpg restart <name>` - Restart database/branch
-- [x] `bpg reset <name>` - Reset branch to parent snapshot
-- [x] `bpg status` - Show detailed status of all instances
+### Namespace-based CLI (v0.2.0) ✅ COMPLETE
+**Goal:** Restructure CLI to use `<database>/<branch>` namespace pattern for clarity
+
+- [x] Update data model to use namespace structure
+- [x] Implement `bpg db` command group (create, list, get, delete, rename)
+- [x] Implement `bpg branch` command group (create, list, get, delete, rename)
+- [x] Update lifecycle commands to use namespaces (start, stop, restart)
+- [x] Update integration tests for namespace syntax
+- [x] Create CLAUDE.md documentation
+- [ ] `bpg branch sync <db>/<branch>` - Sync branch with parent (TODO)
+- [ ] Update README.md with namespace examples
 
 ### Snapshot Management
 - [ ] `bpg snapshot <name>` - Create manual snapshot
@@ -172,7 +186,7 @@ Since ZFS is Linux-only, development requires VPS:
 - Access: `ssh betterpg`
 
 ### Current Test Results
-All 22 extended integration tests passing:
+All 21 extended integration tests passing:
 - ✅ Init system
 - ✅ Create database (9.32 MB)
 - ✅ Database connectivity and test data
@@ -185,14 +199,12 @@ All 22 extended integration tests passing:
 - ✅ Branch data isolation
 - ✅ Stop branch
 - ✅ Start branch
-- ✅ Reset branch to parent snapshot
 - ✅ Idempotent start/stop operations
 - ✅ Mixed running/stopped states in status
 - ✅ Create second branch
 - ✅ List command
 - ✅ ZFS copy-on-write efficiency verification
 - ✅ Destroy operations
-- ✅ Edge case: Reset rejects primary databases
 - ✅ Edge case: Start rejects non-existent databases
 - ✅ Final status check
 
@@ -234,8 +246,8 @@ User → CLI (src/index.ts)
 
 ---
 
-**Last Updated:** 2025-10-05
-**Version:** 0.1.0
-**Status:** All core features working, integration tests passing
+**Last Updated:** 2025-10-06
+**Version:** 0.2.0
+**Status:** Namespace-based CLI complete, all 21 integration tests passing
 
-**Next Milestone (v0.2.0):** Production-safe branching with pg_start_backup/pg_stop_backup
+**Next Milestone (v0.3.0):** Documentation updates and branch sync command

@@ -34,102 +34,103 @@ bpg
 
 ## Implementation Tasks
 
-### Phase 1: Data Model Changes
-- [ ] Update state.ts to use namespace model
-  - [ ] Database contains implicit "main" branch
-  - [ ] All branches use `<database>/<branch>` naming
-  - [ ] Update Branch interface to store full namespaced name
-- [ ] Update StateManager methods to handle namespaced names
-- [ ] Create utility functions for parsing `<database>/<branch>` format
-- [ ] Write tests for data model changes
+### Phase 1: Data Model Changes ✅ COMPLETE
+- [x] Update state.ts to use namespace model
+  - [x] Database contains implicit "main" branch
+  - [x] All branches use `<database>/<branch>` naming
+  - [x] Update Branch interface to store full namespaced name
+- [x] Update StateManager methods to handle namespaced names
+- [x] Create utility functions for parsing `<database>/<branch>` format
+- [x] Write tests for data model changes
 
-### Phase 2: Command Structure Refactor
-- [ ] Update src/index.ts with new Commander.js structure
-  - [ ] Add `db` command group with subcommands
-  - [ ] Add `branch` command group with subcommands
-  - [ ] Update lifecycle commands (start/stop/restart) to require namespace
-  - [ ] Update `status`/`ls` commands
-  - [ ] Remove old flat commands (create, branch, destroy, reset)
-- [ ] Write tests for command parsing
+### Phase 2: Command Structure Refactor ✅ COMPLETE
+- [x] Update src/index.ts with new Commander.js structure
+  - [x] Add `db` command group with subcommands
+  - [x] Add `branch` command group with subcommands
+  - [x] Update lifecycle commands (start/stop/restart) to require namespace
+  - [x] Update `status`/`ls` commands
+  - [x] Remove old flat commands (create, branch, destroy, reset)
+- [x] Write tests for command parsing
 
-### Phase 3: Database Commands
-- [ ] `bpg db create <name>`
-  - [ ] Creates database with implicit main branch
-  - [ ] Update createCommand to use namespace
-  - [ ] Test: Create database, verify main branch exists
-- [ ] `bpg db list`
-  - [ ] List all databases with branch counts
-  - [ ] Update listCommand or create new dbListCommand
-  - [ ] Test: List shows correct database info
-- [ ] `bpg db get <name>`
-  - [ ] Show details for specific database
-  - [ ] Create new dbGetCommand
-  - [ ] Test: Get shows correct database details
-- [ ] `bpg db delete <name>`
-  - [ ] Delete database (require --force if branches exist)
-  - [ ] Update destroyCommand to handle database deletion
-  - [ ] Test: Delete with/without branches
-- [ ] `bpg db rename <old> <new>`
-  - [ ] Rename database and all its branches
-  - [ ] Create new dbRenameCommand
-  - [ ] Test: Rename updates all branch namespaces
+### Phase 3: Database Commands ✅ COMPLETE
+- [x] `bpg db create <name>`
+  - [x] Creates database with implicit main branch
+  - [x] Update createCommand to use namespace
+  - [x] Test: Create database, verify main branch exists
+- [x] `bpg db list`
+  - [x] List all databases with branch counts
+  - [x] Update listCommand or create new dbListCommand
+  - [x] Test: List shows correct database info
+- [x] `bpg db get <name>`
+  - [x] Show details for specific database
+  - [x] Create new dbGetCommand
+  - [x] Test: Get shows correct database details
+- [x] `bpg db delete <name>`
+  - [x] Delete database (require --force if branches exist)
+  - [x] Update destroyCommand to handle database deletion
+  - [x] Test: Delete with/without branches
+- [x] `bpg db rename <old> <new>`
+  - [x] Rename database and all its branches
+  - [x] Create new dbRenameCommand
+  - [x] Test: Rename updates all branch namespaces
 
-### Phase 4: Branch Commands
-- [ ] `bpg branch create <db>/<name> [--from <db>/<parent>]`
-  - [ ] Create branch with namespace
-  - [ ] Default parent is `<db>/main`
-  - [ ] Update branchCommand to parse namespace
-  - [ ] Test: Create branch from main, from other branch
-- [ ] `bpg branch list [<db>]`
-  - [ ] List all branches or branches for specific database
-  - [ ] Update listCommand or create branchListCommand
-  - [ ] Test: List all, list for specific database
-- [ ] `bpg branch get <db>/<branch>`
-  - [ ] Show details for specific branch
-  - [ ] Create new branchGetCommand
-  - [ ] Test: Get shows correct branch details
-- [ ] `bpg branch delete <db>/<branch>`
-  - [ ] Delete specific branch
-  - [ ] Update destroyCommand to handle branch deletion
-  - [ ] Test: Delete branch, cannot delete main
-- [ ] `bpg branch rename <db>/<old> <db>/<new>`
-  - [ ] Rename branch within database
-  - [ ] Create new branchRenameCommand
-  - [ ] Test: Rename updates state correctly
-- [ ] `bpg branch sync <db>/<branch>`
+### Phase 4: Branch Commands ✅ COMPLETE
+- [x] `bpg branch create <db>/<name> [--from <db>/<parent>]`
+  - [x] Create branch with namespace
+  - [x] Default parent is `<db>/main`
+  - [x] Update branchCommand to parse namespace
+  - [x] Test: Create branch from main, from other branch
+- [x] `bpg branch list [<db>]`
+  - [x] List all branches or branches for specific database
+  - [x] Update listCommand or create branchListCommand
+  - [x] Test: List all, list for specific database
+- [x] `bpg branch get <db>/<branch>`
+  - [x] Show details for specific branch
+  - [x] Create new branchGetCommand
+  - [x] Test: Get shows correct branch details
+- [x] `bpg branch delete <db>/<branch>`
+  - [x] Delete specific branch
+  - [x] Update destroyCommand to handle branch deletion
+  - [x] Test: Delete branch, cannot delete main
+- [x] `bpg branch rename <db>/<old> <db>/<new>`
+  - [x] Rename branch within database
+  - [x] Create new branchRenameCommand
+  - [x] Test: Rename updates state correctly
+- [ ] `bpg branch sync <db>/<branch>` **TODO**
   - [ ] Sync branch with parent's current state (replaces reset)
   - [ ] Update resetCommand to syncCommand
   - [ ] Take new snapshot of parent, re-clone branch
   - [ ] Test: Sync updates branch to parent's current data
 
-### Phase 5: Lifecycle Commands
-- [ ] `bpg start <db>/<branch>`
-  - [ ] Update startCommand to parse namespace
-  - [ ] Test: Start database main, start branch
-- [ ] `bpg stop <db>/<branch>`
-  - [ ] Update stopCommand to parse namespace
-  - [ ] Test: Stop database main, stop branch
-- [ ] `bpg restart <db>/<branch>`
-  - [ ] Update restartCommand to parse namespace
-  - [ ] Test: Restart database main, restart branch
+### Phase 5: Lifecycle Commands ✅ COMPLETE
+- [x] `bpg start <db>/<branch>`
+  - [x] Update startCommand to parse namespace
+  - [x] Test: Start database main, start branch
+- [x] `bpg stop <db>/<branch>`
+  - [x] Update stopCommand to parse namespace
+  - [x] Test: Stop database main, stop branch
+- [x] `bpg restart <db>/<branch>`
+  - [x] Update restartCommand to parse namespace
+  - [x] Test: Restart database main, restart branch
 
-### Phase 6: Global Commands
-- [ ] `bpg status` / `bpg ls`
-  - [ ] Show all databases and branches in tree format
-  - [ ] Update statusCommand to show hierarchy
-  - [ ] Test: Status shows correct tree structure
-- [ ] `bpg init`
-  - [ ] Keep as-is (no changes needed)
-  - [ ] Test: Init still works
+### Phase 6: Global Commands ✅ COMPLETE
+- [x] `bpg status` / `bpg ls`
+  - [x] Show all databases and branches in tree format
+  - [x] Update statusCommand to show hierarchy
+  - [x] Test: Status shows correct tree structure
+- [x] `bpg init`
+  - [x] Keep as-is (no changes needed)
+  - [x] Test: Init still works
 
-### Phase 7: Integration Testing
-- [ ] Update scripts/extended-integration-test.sh
-  - [ ] Use new namespace syntax throughout
-  - [ ] Test all workflows end-to-end
-- [ ] Run full test suite
-- [ ] Verify all 25+ tests pass
+### Phase 7: Integration Testing ✅ COMPLETE
+- [x] Update scripts/extended-integration-test.sh
+  - [x] Use new namespace syntax throughout
+  - [x] Test all workflows end-to-end
+- [x] Run full test suite
+- [x] Verify all 21 tests pass
 
-### Phase 8: Documentation
+### Phase 8: Documentation 🚧 IN PROGRESS
+- [x] Create CLAUDE.md with architecture documentation
 - [ ] Update README.md with new CLI structure
 - [ ] Add examples for each command
 - [ ] Document migration guide from old CLI
