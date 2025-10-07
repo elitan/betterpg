@@ -55,8 +55,12 @@ export class DockerManager {
       },
       HostConfig: {
         PortBindings: {
+          // Bind to all interfaces (0.0.0.0) to make databases publicly accessible
           // Use port 0 to let Docker assign an available port, or use specific port if provided
-          '5432/tcp': [{ HostPort: config.port === 0 ? '' : config.port.toString() }],
+          '5432/tcp': [{
+            HostIp: '0.0.0.0',
+            HostPort: config.port === 0 ? '' : config.port.toString()
+          }],
         },
         Binds: [
           `${config.dataPath}:/var/lib/postgresql/data`,
