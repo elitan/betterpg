@@ -72,4 +72,4 @@ jobs:
         docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
         # Clean up ZFS
         sudo zpool destroy tank 2>/dev/null || true
-        rm -f /tmp/zfs-pool.img
+        sudo rm -f /tmp/zfs-pool.img
