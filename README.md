@@ -34,11 +34,43 @@ bpg status
 
 ## Requirements
 
-- Linux with ZFS
+- Linux with ZFS (Ubuntu 20.04+, Debian 11+)
 - Docker
 - Bun runtime
+- User must have:
+  - Docker group membership (`usermod -aG docker $USER`)
+  - ZFS permissions (via sudo or delegated permissions)
 
 ## Installation
+
+### 1. Install Dependencies
+
+```bash
+# Install ZFS (Ubuntu/Debian)
+sudo apt update
+sudo apt install zfsutils-linux
+
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+```
+
+### 2. Configure Permissions
+
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Log out and back in for group changes to take effect
+# Or run: newgrp docker
+
+# Note: ZFS operations currently require sudo
+# Future versions will support ZFS delegation
+```
+
+### 3. Build and Install BetterPG
 
 ```bash
 # Clone repository
@@ -51,6 +83,9 @@ bun run build
 
 # Install globally
 sudo cp dist/bpg /usr/local/bin/
+
+# Initialize (creates config and state files)
+sudo bpg init
 ```
 
 ## How It Works
