@@ -40,9 +40,8 @@ export async function dbCreateCommand(name: string) {
   const docker = new DockerManager();
   const wal = new WALManager();
 
-  // Allocate port for main branch
-  const port = await state.allocatePort();
-  console.log(chalk.dim(`📡 Allocated port: ${port}`));
+  // Use port 0 to let Docker dynamically assign an available port
+  let port = 0;
 
   // Create ZFS dataset for main branch
   const mainBranchName = buildNamespace(sanitizedName, 'main');
@@ -95,6 +94,10 @@ export async function dbCreateCommand(name: string) {
   await docker.startContainer(containerID);
   startSpinner.text = 'Waiting for PostgreSQL to be ready';
   await docker.waitForHealthy(containerID);
+
+  // Get the dynamically assigned port from Docker
+  port = await docker.getContainerPort(containerID);
+
   startSpinner.succeed('PostgreSQL is ready');
 
   // Get dataset size
@@ -109,6 +112,7 @@ export async function dbCreateCommand(name: string) {
     isPrimary: true,
     snapshotName: null, // main has no snapshot
     zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${mainDatasetName}`,
+    zfsDatasetName: mainDatasetName,
     containerName,
     port,
     createdAt: new Date().toISOString(),

@@ -16,8 +16,32 @@ export class StateManager {
       this.state = JSON.parse(content);
 
       // Migrate old state files
+      let needsSave = false;
+
       if (!this.state.snapshots) {
         this.state.snapshots = [];
+        needsSave = true;
+      }
+
+      // Remove deprecated nextPort field if it exists
+      if ('nextPort' in this.state) {
+        delete (this.state as any).nextPort;
+        needsSave = true;
+      }
+
+      // Populate zfsDatasetName for existing branches
+      for (const db of this.state.databases) {
+        for (const branch of db.branches) {
+          if (!branch.zfsDatasetName) {
+            // Extract from full path: "pool/base/name" -> "name"
+            branch.zfsDatasetName = branch.zfsDataset.split('/').pop() || `${db.name}-${branch.name.split('/')[1]}`;
+            needsSave = true;
+          }
+        }
+      }
+
+      // Save if migrations were applied
+      if (needsSave) {
         await this.save();
       }
 
@@ -40,19 +64,30 @@ export class StateManager {
     try {
       const tempFile = `${this.filePath}.tmp`;
       await fs.writeFile(tempFile, JSON.stringify(this.state, null, 2), 'utf-8');
+
+      // Ensure data is written to disk before rename
+      const fd = await fs.open(tempFile, 'r');
+      await fd.sync();
+      await fd.close();
+
+      // Atomically replace old file with new file
       await fs.rename(tempFile, this.filePath);
+
+      // Ensure directory entry is updated
+      const dir = await fs.open(this.filePath.substring(0, this.filePath.lastIndexOf('/')), 'r');
+      await dir.sync();
+      await dir.close();
     } finally {
       await this.releaseLock();
     }
   }
 
-  async initialize(pool: string, datasetBase: string, basePort: number): Promise<void> {
+  async initialize(pool: string, datasetBase: string): Promise<void> {
     this.state = {
       version: '1.0.0',
       initializedAt: new Date().toISOString(),
       zfsPool: pool,
       zfsDatasetBase: `${pool}/${datasetBase}`,
-      nextPort: basePort,
       databases: [],
       backups: [],
       snapshots: [],
@@ -214,27 +249,6 @@ export class StateManager {
     return this.state.databases.flatMap(db => db.branches);
   }
 
-  // Port management
-  async allocatePort(): Promise<number> {
-    if (!this.state) throw new Error('State not loaded');
-
-    const port = this.state.nextPort;
-    this.state.nextPort++;
-    await this.save();
-
-    return port;
-  }
-
-  isPortInUse(port: number): boolean {
-    if (!this.state) throw new Error('State not loaded');
-
-    for (const db of this.state.databases) {
-      if (db.port === port) return true;
-      if (db.branches.some(b => b.port === port)) return true;
-    }
-
-    return false;
-  }
 
   // Backup operations
   async addBackup(backup: Backup): Promise<void> {
@@ -378,8 +392,37 @@ export class StateManager {
         return;
       } catch (error: any) {
         if (error.code === 'EEXIST') {
-          await Bun.sleep(100);
-          attempts++;
+          // Check if lock is stale (process that created it is dead)
+          try {
+            const lockContent = await fs.readFile(this.lockFile, 'utf-8');
+            const lockPid = parseInt(lockContent.trim(), 10);
+
+            if (!isNaN(lockPid)) {
+              try {
+                // Signal 0 doesn't kill, just checks if process exists
+                process.kill(lockPid, 0);
+                // Process exists, wait and retry
+                await Bun.sleep(100);
+                attempts++;
+              } catch (killError: any) {
+                if (killError.code === 'ESRCH') {
+                  // Process doesn't exist, remove stale lock
+                  await fs.unlink(this.lockFile).catch(() => {});
+                  // Try to acquire lock again immediately
+                  continue;
+                }
+                throw killError;
+              }
+            } else {
+              // Invalid PID in lock file, remove it
+              await fs.unlink(this.lockFile).catch(() => {});
+              continue;
+            }
+          } catch (readError) {
+            // Can't read lock file, wait and retry
+            await Bun.sleep(100);
+            attempts++;
+          }
         } else {
           throw error;
         }

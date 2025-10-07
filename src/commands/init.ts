@@ -66,7 +66,7 @@ export async function initCommand(options: { pool?: string; datasetBase?: string
   await fs.mkdir(PATHS.DATA_DIR, { recursive: true });
 
   const state = new StateManager(PATHS.STATE);
-  await state.initialize(pool, datasetBase, DEFAULT_CONFIG.postgres.basePort);
+  await state.initialize(pool, datasetBase);
   stateSpinner.succeed(`State initialized at: ${PATHS.STATE}`);
 
   // Create WAL archive directory

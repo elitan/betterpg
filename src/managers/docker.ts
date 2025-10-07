@@ -54,7 +54,8 @@ export class DockerManager {
       },
       HostConfig: {
         PortBindings: {
-          '5432/tcp': [{ HostPort: config.port.toString() }],
+          // Use port 0 to let Docker assign an available port, or use specific port if provided
+          '5432/tcp': [{ HostPort: config.port === 0 ? '' : config.port.toString() }],
         },
         Binds: [
           `${config.dataPath}:/var/lib/postgresql/data`,
@@ -124,6 +125,18 @@ export class DockerManager {
     const containers = await this.docker.listContainers({ all: true });
     const container = containers.find(c => c.Names.includes(`/${name}`));
     return container ? container.Id : null;
+  }
+
+  async getContainerPort(containerID: string): Promise<number> {
+    const container = this.docker.getContainer(containerID);
+    const info = await container.inspect();
+
+    const portBinding = info.NetworkSettings.Ports['5432/tcp'];
+    if (!portBinding || !portBinding[0]?.HostPort) {
+      throw new Error('Container port binding not found');
+    }
+
+    return parseInt(portBinding[0].HostPort, 10);
   }
 
   async waitForHealthy(containerID: string, timeout = 60000): Promise<void> {

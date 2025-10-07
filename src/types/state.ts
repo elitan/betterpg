@@ -3,7 +3,6 @@ export interface State {
   initializedAt: string;
   zfsPool: string;
   zfsDatasetBase: string;
-  nextPort: number;
   databases: Database[];
   backups: Backup[];
   snapshots: Snapshot[];
@@ -25,7 +24,8 @@ export interface Branch {
   parentBranchId: string | null;             // null for main branch
   isPrimary: boolean;                        // true for main branch, false for others
   snapshotName: string | null;               // null for main branch
-  zfsDataset: string;
+  zfsDataset: string;                        // Full ZFS path: pool/datasetBase/datasetName
+  zfsDatasetName: string;                    // Dataset name only: <database>-<branch>
   containerName: string;
   port: number;
   createdAt: string;

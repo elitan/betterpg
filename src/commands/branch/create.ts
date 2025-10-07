@@ -10,6 +10,7 @@ import { generateUUID, sanitizeName, formatTimestamp } from '../../utils/helpers
 import { Branch } from '../../types/state';
 import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
 import { parseRecoveryTime, formatDate } from '../../utils/time';
+import { Rollback } from '../../utils/rollback';
 
 export interface BranchCreateOptions {
   from?: string;
@@ -84,6 +85,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   const docker = new DockerManager();
   const wal = new WALManager();
 
+  // Setup rollback for cleanup on failure
+  const rollback = new Rollback();
+
   // For PITR, find existing snapshot before recovery target
   let fullSnapshotName: string;
   let snapshotName: string;
@@ -142,9 +146,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
         // Create ZFS snapshot while in backup mode
         const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
-        // Extract dataset name from full path (e.g., "tank/betterpg/databases/dev" -> "dev")
-        const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
-        await zfs.createSnapshot(datasetName, snapshotName);
+        await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
+        createdSnapshot = true;
         snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
 
         // Stop backup mode
@@ -165,95 +168,136 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
         console.log(chalk.dim(`⚠️  Note: Branch will require WAL replay on startup`));
       }
       const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
-      // Extract dataset name from full path
-      const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
-      await zfs.createSnapshot(datasetName, snapshotName);
+      await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
+      createdSnapshot = true;
       spinner.succeed(`Created snapshot: ${snapshotName}`);
     }
   }
 
   // Clone snapshot - use consistent <db>-<branch> naming
   const targetDatasetName = `${target.database}-${target.branch}`;
-  const cloneSpinner = ora(`Cloning snapshot to: ${target.branch}`).start();
-  await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
-  cloneSpinner.succeed(`Cloned snapshot to: ${target.branch}`);
+  let cloneSpinner: any;
+  let mountpoint: string;
+  let port: number;
+  let containerID: string | undefined;
+  let createdSnapshot = false;
 
-  const mountpoint = await zfs.getMountpoint(targetDatasetName);
-  const port = await state.allocatePort();
+  try {
+    cloneSpinner = ora(`Cloning snapshot to: ${target.branch}`).start();
+    await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
+    cloneSpinner.succeed(`Cloned snapshot to: ${target.branch}`);
 
-  // Pull image if needed
-  const imageExists = await docker.imageExists(cfg.postgres.image);
-  if (!imageExists) {
-    const pullSpinner = ora(`Pulling image: ${cfg.postgres.image}`).start();
-    await docker.pullImage(cfg.postgres.image);
-    pullSpinner.succeed(`Pulled image: ${cfg.postgres.image}`);
+    // Rollback: destroy cloned dataset
+    rollback.add(async () => {
+      await zfs.destroyDataset(targetDatasetName, true).catch(() => {});
+    });
+
+    // Rollback: destroy snapshot if we created it (not for PITR which uses existing snapshots)
+    if (createdSnapshot) {
+      rollback.add(async () => {
+        await zfs.destroySnapshot(fullSnapshotName).catch(() => {});
+      });
+    }
+
+    mountpoint = await zfs.getMountpoint(targetDatasetName);
+
+    // Use port 0 to let Docker dynamically assign an available port
+    port = 0;
+
+    // Pull image if needed
+    const imageExists = await docker.imageExists(cfg.postgres.image);
+    if (!imageExists) {
+      const pullSpinner = ora(`Pulling image: ${cfg.postgres.image}`).start();
+      await docker.pullImage(cfg.postgres.image);
+      pullSpinner.succeed(`Pulled image: ${cfg.postgres.image}`);
+    }
+
+    // Create WAL archive directory for target branch
+    await wal.ensureArchiveDir(targetDatasetName);
+    const targetWALArchivePath = wal.getArchivePath(targetDatasetName);
+
+    // If PITR is requested, setup recovery configuration
+    if (recoveryTarget) {
+      const pitrSpinner = ora('Configuring PITR recovery').start();
+
+      // Get source WAL archive path (shared across all branches of same database)
+      const sourceWALArchivePath = wal.getArchivePath(sourceBranch.zfsDatasetName);
+
+      // Setup recovery configuration in the cloned dataset
+      await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
+
+      pitrSpinner.succeed(`Configured PITR recovery to ${chalk.yellow(formatDate(recoveryTarget))}`);
+    }
+
+    // Create container
+    const containerName = `bpg-${target.database}-${target.branch}`;
+    const containerSpinner = ora(`Creating container: ${containerName}`).start();
+    containerID = await docker.createContainer({
+      name: containerName,
+      version: cfg.postgres.version,
+      port,
+      dataPath: mountpoint,
+      walArchivePath: targetWALArchivePath,
+      password: sourceDb.credentials.password,
+      username: sourceDb.credentials.username,
+      database: sourceDb.credentials.database,
+      sharedBuffers: cfg.postgres.config.shared_buffers,
+      maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
+    });
+
+    // Rollback: remove container
+    rollback.add(async () => {
+      if (containerID) {
+        await docker.removeContainer(containerID).catch(() => {});
+      }
+    });
+
+    await docker.startContainer(containerID);
+    if (recoveryTarget) {
+      containerSpinner.text = 'PostgreSQL is replaying WAL logs to recovery target...';
+    } else {
+      containerSpinner.text = 'Waiting for PostgreSQL to be ready';
+    }
+    await docker.waitForHealthy(containerID);
+
+    // Get the dynamically assigned port from Docker
+    port = await docker.getContainerPort(containerID);
+
+    if (recoveryTarget) {
+      containerSpinner.succeed('PITR recovery completed - PostgreSQL is ready');
+    } else {
+      containerSpinner.succeed('PostgreSQL is ready');
+    }
+
+    const sizeBytes = await zfs.getUsedSpace(targetDatasetName);
+
+    const branch: Branch = {
+      id: generateUUID(),
+      name: target.full,
+      databaseName: target.database,
+      parentBranchId: sourceBranch.id,
+      isPrimary: false,
+      snapshotName: fullSnapshotName,
+      zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${targetDatasetName}`,
+      zfsDatasetName: targetDatasetName,
+      containerName,
+      port,
+      createdAt: new Date().toISOString(),
+      sizeBytes,
+      status: 'running',
+    };
+
+    await state.addBranch(sourceDb.id, branch);
+
+    // Success! Clear rollback steps
+    rollback.clear();
+  } catch (error) {
+    // Operation failed, rollback all created resources
+    console.log();
+    console.log(chalk.yellow('⚠️  Operation failed, cleaning up...'));
+    await rollback.execute();
+    throw error;
   }
-
-  // Create WAL archive directory for target branch
-  await wal.ensureArchiveDir(targetDatasetName);
-  const targetWALArchivePath = wal.getArchivePath(targetDatasetName);
-
-  // If PITR is requested, setup recovery configuration
-  if (recoveryTarget) {
-    const pitrSpinner = ora('Configuring PITR recovery').start();
-
-    // Get source WAL archive path (shared across all branches of same database)
-    const sourceDatasetName = sourceBranch.zfsDataset.split('/').pop() || '';
-    const sourceWALArchivePath = wal.getArchivePath(sourceDatasetName);
-
-    // Setup recovery configuration in the cloned dataset
-    await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
-
-    pitrSpinner.succeed(`Configured PITR recovery to ${chalk.yellow(formatDate(recoveryTarget))}`);
-  }
-
-  // Create container
-  const containerName = `bpg-${target.database}-${target.branch}`;
-  const containerSpinner = ora(`Creating container: ${containerName}`).start();
-  const containerID = await docker.createContainer({
-    name: containerName,
-    version: cfg.postgres.version,
-    port,
-    dataPath: mountpoint,
-    walArchivePath: targetWALArchivePath,
-    password: sourceDb.credentials.password,
-    username: sourceDb.credentials.username,
-    database: sourceDb.credentials.database,
-    sharedBuffers: cfg.postgres.config.shared_buffers,
-    maxConnections: parseInt(cfg.postgres.config.max_connections, 10),
-  });
-
-  await docker.startContainer(containerID);
-  if (recoveryTarget) {
-    containerSpinner.text = 'PostgreSQL is replaying WAL logs to recovery target...';
-  } else {
-    containerSpinner.text = 'Waiting for PostgreSQL to be ready';
-  }
-  await docker.waitForHealthy(containerID);
-  if (recoveryTarget) {
-    containerSpinner.succeed('PITR recovery completed - PostgreSQL is ready');
-  } else {
-    containerSpinner.succeed('PostgreSQL is ready');
-  }
-
-  const sizeBytes = await zfs.getUsedSpace(targetDatasetName);
-
-  const branch: Branch = {
-    id: generateUUID(),
-    name: target.full,
-    databaseName: target.database,
-    parentBranchId: sourceBranch.id,
-    isPrimary: false,
-    snapshotName: fullSnapshotName,
-    zfsDataset: `${cfg.zfs.pool}/${cfg.zfs.datasetBase}/${targetDatasetName}`,
-    containerName,
-    port,
-    createdAt: new Date().toISOString(),
-    sizeBytes,
-    status: 'running',
-  };
-
-  await state.addBranch(sourceDb.id, branch);
 
   console.log();
   console.log(chalk.green.bold('✓ Branch created successfully!'));

@@ -78,6 +78,38 @@
 - [x] Delete old unused command files (cleanup)
 - [ ] Update README.md with namespace examples
 
+### Production Hardening (v0.3.1) ✅ COMPLETE
+**Goal:** Fix critical architectural issues for production readiness
+
+- [x] State file corruption prevention with fsync
+  - Added atomic writes with fsync to prevent data loss on crash
+  - Added directory fsync to ensure rename is persisted
+  - Guarantees crash-safe state updates
+- [x] Stale lock detection and recovery
+  - Automatically detects and removes locks from dead processes
+  - Uses process.kill(pid, 0) to check if lock holder is alive
+  - Prevents permanent lockouts from crashed processes
+- [x] Rollback on partial failures
+  - Created Rollback utility class for transaction-like cleanup
+  - Automatically cleans up ZFS datasets, Docker containers, and snapshots on failure
+  - Prevents resource leaks from failed operations
+- [x] Dynamic port allocation via Docker
+  - Removed manual port tracking (nextPort field)
+  - Use port 0 to let Docker assign available ports
+  - Automatically reclaims ports when containers are removed
+  - No more port exhaustion issues
+- [x] ZFS dataset naming consistency
+  - Added zfsDatasetName field to Branch interface
+  - Eliminates fragile string extraction from full paths
+  - Single source of truth for dataset names
+- [x] Automatic state migration
+  - Migrates old state files on first load
+  - Removes deprecated nextPort field
+  - Populates zfsDatasetName for existing branches
+- [x] New test scripts
+  - test-rollback.sh - Verifies resource cleanup on failures
+  - test-stale-lock.sh - Tests lock recovery from dead processes
+
 ### WAL Archiving & Point-in-Time Recovery (v0.3.0) ✅ COMPLETE
 **Goal:** Enable continuous archiving and recovery to any point in time
 
@@ -124,14 +156,9 @@
 ### Future Features (v0.4.0+)
 
 #### Connection & Access
-- [ ] `bpg connect <name>` - Auto-connect to database with psql
 - [ ] `bpg info <name>` - Show connection details
-- [ ] `bpg logs <name>` - Show PostgreSQL logs
 - [ ] Store credentials securely (not in state.json)
 
-#### Branch Operations
-- [ ] `bpg diff <source> <target>` - Show schema differences
-- [ ] `bpg promote <branch>` - Promote branch to primary
 
 #### Remote Storage
 - [ ] S3-compatible storage for WAL archives
@@ -177,30 +204,12 @@
 
 ## 🚀 Advanced Features
 
-### Web UI
-- [ ] Dashboard showing all databases/branches
-- [ ] Visual branch tree
-- [ ] One-click operations
-- [ ] Metrics and monitoring
-- [ ] SQL query interface
-
 ### CI/CD Integration
 - [ ] GitHub Actions workflow examples
 - [ ] GitLab CI examples
 - [ ] Pre-commit hooks
 - [ ] Automated testing with ephemeral branches
 
-### Multi-node Support
-- [ ] Remote ZFS pool support
-- [ ] Database replication between nodes
-- [ ] Load balancing
-- [ ] High availability setup
-
-### Monitoring & Observability
-- [ ] Prometheus metrics export
-- [ ] Grafana dashboard templates
-- [ ] Alert rules for disk space/performance
-- [ ] Query performance tracking
 
 ## 🐛 Known Issues
 
