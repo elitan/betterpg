@@ -49,5 +49,9 @@ export async function branchGetCommand(name: string) {
   console.log(chalk.dim('  Port:    '), branch.port);
   console.log(chalk.dim('  Database:'), project.credentials.database);
   console.log(chalk.dim('  Username:'), project.credentials.username);
+  console.log(chalk.dim('  Password:'), chalk.yellow(project.credentials.password));
+  console.log();
+  console.log(chalk.bold('Connection string:'));
+  console.log(chalk.dim('  ') + chalk.cyan(`postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`));
   console.log();
 }

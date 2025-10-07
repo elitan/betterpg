@@ -13,6 +13,7 @@ import { branchListCommand } from './commands/branch/list';
 import { branchGetCommand } from './commands/branch/get';
 import { branchDeleteCommand } from './commands/branch/delete';
 import { branchSyncCommand } from './commands/branch/sync';
+import { branchPasswordCommand } from './commands/branch/password';
 import { walInfoCommand } from './commands/wal/info';
 import { walCleanupCommand } from './commands/wal/cleanup';
 import { snapshotCreateCommand } from './commands/snapshot/create';
@@ -168,6 +169,20 @@ branchCommand
   .action(async (name: string) => {
     try {
       await branchSyncCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+branchCommand
+  .command('password')
+  .alias('pass')
+  .description('Show connection details and password for a branch')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
+  .action(async (name: string) => {
+    try {
+      await branchPasswordCommand(name);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
