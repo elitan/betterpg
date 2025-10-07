@@ -71,35 +71,24 @@ export async function branchSyncCommand(name: string) {
     const parentContainerID = await docker.getContainerByName(parentBranch.containerName);
     if (parentContainerID) {
       try {
-        // Start backup mode
+        // Use CHECKPOINT instead of pg_backup_start/stop to avoid session issues
         await docker.execSQL(
           parentContainerID,
-          "SELECT pg_backup_start('betterpg-sync', false);",
+          "CHECKPOINT;",
           database.credentials.username
         );
 
-        // Create snapshot
-        await zfs.createSnapshot(namespace.database, snapshotName);
-
-        // Stop backup mode
-        await docker.execSQL(
-          parentContainerID,
-          "SELECT pg_backup_stop();",
-          database.credentials.username
-        );
+        // Create snapshot immediately after checkpoint
+        await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
 
         spinner.succeed(`Created new snapshot: ${snapshotName}`);
       } catch (error) {
-        // Try to clean up
-        try {
-          await docker.execSQL(parentContainerID, "SELECT pg_backup_stop();", database.credentials.username).catch(() => {});
-        } catch {}
         throw error;
       }
     }
   } else {
     // Crash-consistent if parent is stopped
-    await zfs.createSnapshot(namespace.database, snapshotName);
+    await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
     spinner.succeed(`Created new snapshot: ${snapshotName}`);
   }
 
