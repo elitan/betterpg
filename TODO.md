@@ -25,7 +25,7 @@
 - [x] `bpg status` - Show all databases and branches
 - [x] `bpg branch sync <db>/<branch>` - Sync branch with parent's current state
 
-### Testing & Infrastructure
+### Testing & Infrastructure ✅ COMPLETE (v0.3.4)
 - [x] VPS setup script (`scripts/vps-setup.sh`)
 - [x] Integration test suite (`scripts/integration-test.sh`)
 - [x] Extended integration tests (`scripts/extended-integration-test.sh`)
@@ -35,6 +35,21 @@
   - Edge case testing
   - Data persistence verification
   - ZFS copy-on-write efficiency validation
+- [x] V1 integration tests (`scripts/test-v1.sh`)
+  - 36 pragmatic tests for all implemented features
+  - Complete coverage of database, branch, lifecycle, snapshot, WAL commands
+  - Edge cases and error handling
+- [x] Advanced integration tests (`scripts/test-advanced.sh`)
+  - 13 tests for advanced scenarios
+  - Branch sync functionality
+  - State integrity verification
+  - ZFS/Docker integration testing
+  - Complete cleanup verification
+- [x] GitHub Actions CI pipeline
+  - Automated testing on push and pull requests
+  - Ubuntu 22.04 with ZFS, Docker, PostgreSQL client tools
+  - File-based ZFS pool (10GB) for testing
+  - All 70 tests running successfully in CI
 - [x] All tests passing on Ubuntu 24.04 with ZFS
 - [x] VPS environment configured at `ssh betterpg`
 
@@ -211,9 +226,20 @@
 - [ ] Automated testing with ephemeral branches
 
 
-## 🐛 Known Issues
+## 🐛 Known Issues & Fixed Bugs
 
-- None currently tracked
+### Fixed in v0.3.3 & v0.3.4
+- [x] Variable hoisting bug in branch create (createdSnapshot declared after use)
+- [x] PostgreSQL backup mode session issue
+  - pg_backup_start/stop required same session but each execSQL created new session
+  - Fixed by replacing with CHECKPOINT command for crash-consistent snapshots
+  - Applied to both branch create and branch sync commands
+- [x] Test coverage gaps - Added 49 new tests (36 V1 + 13 advanced)
+- [x] GitHub Actions CI cleanup step required sudo for file removal
+
+### Current Known Issues
+- Branch rename and database rename commands not yet implemented (return "not implemented" message)
+- PITR full end-to-end testing not included in CI (too timing-dependent, requires WAL archiving over time)
 
 ## 📝 Notes
 
@@ -230,30 +256,25 @@ Since ZFS is Linux-only, development requires VPS:
 - ZFS pool: `tank` (10GB file-backed)
 - Access: `ssh betterpg`
 
-### Current Test Results
-All 21 extended integration tests passing:
-- ✅ Init system
-- ✅ Create database (9.32 MB)
-- ✅ Database connectivity and test data
-- ✅ Status command
-- ✅ Stop database
-- ✅ Start database with data persistence
-- ✅ Restart database
-- ✅ Create branch (150 KB - 63x smaller!)
-- ✅ Branch data verification
-- ✅ Branch data isolation
-- ✅ Stop branch
-- ✅ Start branch
-- ✅ Idempotent start/stop operations
-- ✅ Mixed running/stopped states in status
-- ✅ Create second branch
-- ✅ List command
-- ✅ ZFS copy-on-write efficiency verification
-- ✅ Destroy operations
-- ✅ Edge case: Start rejects non-existent databases
-- ✅ Final status check
+### Current Test Results (v0.3.4)
+**All 70 tests passing!** ✅
 
-Run tests with: `./scripts/run-extended-tests.sh`
+**Test Suites:**
+1. **Extended tests** (21 tests) - `./scripts/run-extended-tests.sh`
+   - Core functionality and lifecycle commands
+2. **V1 tests** (36 tests) - `./scripts/run-v1-tests.sh`
+   - Comprehensive coverage of all implemented features
+   - Database, branch, snapshot, WAL commands
+   - Edge cases and error handling
+3. **Advanced tests** (13 tests) - `./scripts/run-advanced-tests.sh`
+   - Branch sync functionality
+   - State integrity and ZFS/Docker integration
+   - Complete cleanup verification
+
+**GitHub Actions CI:**
+- Runs all 70 tests automatically on push/PR
+- Ubuntu 22.04 with ZFS, Docker, PostgreSQL
+- View results: https://github.com/elitan/betterpg/actions
 
 ### Production Use Cases
 **Primary workflows:**
@@ -292,7 +313,14 @@ User → CLI (src/index.ts)
 ---
 
 **Last Updated:** 2025-10-07
-**Version:** 0.3.0
-**Status:** WAL archiving + PITR + Snapshots complete
+**Version:** 0.3.4
+**Status:** Production-ready with comprehensive test coverage (70 tests) and CI/CD
+
+**Recent Updates (v0.3.3 & v0.3.4):**
+- Fixed critical bugs (pg_backup session issue, variable hoisting)
+- Added 49 new tests (V1 + Advanced test suites)
+- Implemented GitHub Actions CI pipeline
+- Fixed branch sync command
+- All 70 tests passing in CI
 
 **Next Milestone (v0.4.0):** Branch diff, promote, and web UI dashboard
