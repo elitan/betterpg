@@ -23,7 +23,7 @@
 - [x] `bpg branch rename <old> <new>` - Rename branch
 - [x] `bpg start/stop/restart <db>/<branch>` - Lifecycle management
 - [x] `bpg status` - Show all databases and branches
-- [ ] `bpg branch sync <db>/<branch>` - Sync branch with parent's current state
+- [x] `bpg branch sync <db>/<branch>` - Sync branch with parent's current state
 
 ### Testing & Infrastructure
 - [x] VPS setup script (`scripts/vps-setup.sh`)
@@ -71,11 +71,11 @@
 
 - [x] Update data model to use namespace structure
 - [x] Implement `bpg db` command group (create, list, get, delete, rename)
-- [x] Implement `bpg branch` command group (create, list, get, delete, rename)
+- [x] Implement `bpg branch` command group (create, list, get, delete, rename, sync)
 - [x] Update lifecycle commands to use namespaces (start, stop, restart)
 - [x] Update integration tests for namespace syntax
 - [x] Create CLAUDE.md documentation
-- [ ] `bpg branch sync <db>/<branch>` - Sync branch with parent (TODO)
+- [x] Delete old unused command files (cleanup)
 - [ ] Update README.md with namespace examples
 
 ### Snapshot Management
