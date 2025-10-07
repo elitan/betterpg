@@ -22,13 +22,14 @@ import { startCommand } from './commands/start';
 import { stopCommand } from './commands/stop';
 import { restartCommand } from './commands/restart';
 import { statusCommand } from './commands/status';
+import packageJson from '../package.json';
 
 const program = new Command();
 
 program
   .name('bpg')
   .description('PostgreSQL database branching using ZFS snapshots')
-  .version('0.3.4');
+  .version(packageJson.version);
 
 // ============================================================================
 // Database commands
