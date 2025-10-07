@@ -3,15 +3,18 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
+import { WALManager } from '../../managers/wal';
 import { StateManager } from '../../managers/state';
 import { ConfigManager } from '../../managers/config';
 import { generateUUID, sanitizeName, formatTimestamp } from '../../utils/helpers';
 import { Branch } from '../../types/state';
 import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
+import { parseRecoveryTime, formatDate } from '../../utils/time';
 
 export interface BranchCreateOptions {
   from?: string;
   fast?: boolean;
+  pitr?: string;  // Point-in-time recovery target
 }
 
 export async function branchCreateCommand(targetName: string, options: BranchCreateOptions = {}) {
@@ -36,11 +39,22 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     );
   }
 
-  const snapshotType = options.fast ? chalk.yellow('crash-consistent (fast)') : chalk.green('application-consistent');
-  console.log();
-  console.log(chalk.bold(`🌿 Creating ${snapshotType} branch`));
-  console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
-  console.log();
+  // Parse PITR target if provided
+  let recoveryTarget: Date | undefined;
+  if (options.pitr) {
+    recoveryTarget = parseRecoveryTime(options.pitr);
+    console.log();
+    console.log(chalk.bold(`⏰ Creating PITR branch`));
+    console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
+    console.log(chalk.dim(`   Recovery target: ${chalk.yellow(formatDate(recoveryTarget))}`));
+    console.log();
+  } else {
+    const snapshotType = options.fast ? chalk.yellow('crash-consistent (fast)') : chalk.green('application-consistent');
+    console.log();
+    console.log(chalk.bold(`🌿 Creating ${snapshotType} branch`));
+    console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
+    console.log();
+  }
 
   const config = new ConfigManager(PATHS.CONFIG);
   await config.load();
@@ -68,62 +82,94 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
   const docker = new DockerManager();
+  const wal = new WALManager();
 
-  // Create snapshot with appropriate consistency level
-  const snapshotName = formatTimestamp(new Date());
-  const fullSnapshotName = `${sourceBranch.zfsDataset}@${snapshotName}`;
+  // For PITR, find existing snapshot before recovery target
+  let fullSnapshotName: string;
+  let snapshotName: string;
 
-  if (!options.fast && sourceBranch.status === 'running') {
-    // Application-consistent snapshot using pg_backup_start
-    const spinner = ora('Starting PostgreSQL backup mode').start();
-    const containerID = await docker.getContainerByName(sourceBranch.containerName);
-    if (!containerID) {
-      throw new Error(`Container ${sourceBranch.containerName} not found`);
+  if (options.pitr && recoveryTarget) {
+    // Find snapshots for source branch
+    const snapshots = await state.getSnapshotsForBranch(source.full);
+
+    // Filter snapshots created BEFORE recovery target
+    const validSnapshots = snapshots.filter(s =>
+      new Date(s.createdAt) < recoveryTarget
+    );
+
+    if (validSnapshots.length === 0) {
+      throw new Error(
+        `No snapshots found before recovery target ${formatDate(recoveryTarget)}.\n` +
+        `Create a snapshot with: bpg snapshot create ${source.full} --label <name>`
+      );
     }
 
-    try {
-      // Start backup mode
-      const startOutput = await docker.execSQL(
-        containerID,
-        "SELECT pg_backup_start('betterpg-snapshot', false);",
-        sourceDb.credentials.username
-      );
-      const startLSN = startOutput.trim();
-      spinner.succeed(`Backup mode started ${chalk.dim(`(LSN: ${startLSN})`)}`);
+    // Sort by creation time (newest first) and take the closest one before target
+    validSnapshots.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const selectedSnapshot = validSnapshots[0];
 
-      // Create ZFS snapshot while in backup mode
-      const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
-      // Extract dataset name from full path (e.g., "tank/betterpg/databases/dev" -> "dev")
+    fullSnapshotName = selectedSnapshot.zfsSnapshot;
+    snapshotName = fullSnapshotName.split('@')[1];
+
+    console.log(chalk.dim(`   Using snapshot: ${chalk.cyan(selectedSnapshot.label || snapshotName)}`));
+    console.log(chalk.dim(`   Snapshot created: ${chalk.yellow(formatDate(new Date(selectedSnapshot.createdAt)))}`));
+    console.log();
+  } else {
+    // Create new snapshot with appropriate consistency level
+    snapshotName = formatTimestamp(new Date());
+    fullSnapshotName = `${sourceBranch.zfsDataset}@${snapshotName}`;
+  }
+
+  // Only create a NEW snapshot if not using PITR (PITR uses existing snapshots)
+  if (!options.pitr) {
+    // For PITR branches, always use crash-consistent snapshots since WAL replay provides consistency
+    const useFastSnapshot = options.fast;
+
+    if (!useFastSnapshot && sourceBranch.status === 'running') {
+      // Application-consistent snapshot using pg_backup_start
+      const spinner = ora('Starting PostgreSQL backup mode').start();
+      const containerID = await docker.getContainerByName(sourceBranch.containerName);
+      if (!containerID) {
+        throw new Error(`Container ${sourceBranch.containerName} not found`);
+      }
+
+      try {
+        // Start backup mode
+        const startLSN = await docker.startBackupMode(containerID, sourceDb.credentials.username);
+        spinner.succeed(`Backup mode started ${chalk.dim(`(LSN: ${startLSN})`)}`);
+
+        // Create ZFS snapshot while in backup mode
+        const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
+        // Extract dataset name from full path (e.g., "tank/betterpg/databases/dev" -> "dev")
+        const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
+        await zfs.createSnapshot(datasetName, snapshotName);
+        snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
+
+        // Stop backup mode
+        const stopSpinner = ora('Stopping backup mode').start();
+        const stopLSN = await docker.stopBackupMode(containerID, sourceDb.credentials.username);
+        stopSpinner.succeed(`Backup mode stopped ${chalk.dim(`(LSN: ${stopLSN})`)}`);
+      } catch (error: any) {
+        // Try to clean up backup mode
+        try {
+          await docker.stopBackupMode(containerID, sourceDb.credentials.username).catch(() => {});
+        } catch {}
+        throw error;
+      }
+    } else {
+      // Crash-consistent snapshot (fast mode or database is stopped)
+      if (options.fast && sourceBranch.status === 'running') {
+        console.log(chalk.yellow(`⚡ Using crash-consistent snapshot (--fast mode)`));
+        console.log(chalk.dim(`⚠️  Note: Branch will require WAL replay on startup`));
+      }
+      const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
+      // Extract dataset name from full path
       const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
       await zfs.createSnapshot(datasetName, snapshotName);
-      snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
-
-      // Stop backup mode
-      const stopSpinner = ora('Stopping backup mode').start();
-      const combinedSQL = "SELECT pg_backup_start('betterpg-snapshot', false); SELECT lsn FROM pg_backup_stop();";
-      const fullOutput = await docker.execSQL(containerID, combinedSQL, sourceDb.credentials.username);
-      const lines = fullOutput.split('\n').filter(l => l.trim());
-      const stopLSN = lines[lines.length - 1];
-      stopSpinner.succeed(`Backup mode stopped ${chalk.dim(`(LSN: ${stopLSN})`)}`);
-    } catch (error: any) {
-      // Try to clean up backup mode
-      try {
-        const cleanupSQL = "SELECT pg_backup_start('cleanup', false); SELECT pg_backup_stop();";
-        await docker.execSQL(containerID, cleanupSQL, sourceDb.credentials.username).catch(() => {});
-      } catch {}
-      throw error;
+      spinner.succeed(`Created snapshot: ${snapshotName}`);
     }
-  } else {
-    // Crash-consistent snapshot (fast mode or database is stopped)
-    if (options.fast && sourceBranch.status === 'running') {
-      console.log(chalk.yellow(`⚡ Using crash-consistent snapshot (--fast mode)`));
-      console.log(chalk.dim(`⚠️  Note: Branch will require WAL replay on startup`));
-    }
-    const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
-    // Extract dataset name from full path
-    const datasetName = sourceBranch.zfsDataset.split('/').pop() || source.branch;
-    await zfs.createSnapshot(datasetName, snapshotName);
-    spinner.succeed(`Created snapshot: ${snapshotName}`);
   }
 
   // Clone snapshot - use consistent <db>-<branch> naming
@@ -143,9 +189,23 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     pullSpinner.succeed(`Pulled image: ${cfg.postgres.image}`);
   }
 
-  // Create WAL archive directory
-  const walArchivePath = `${PATHS.WAL_ARCHIVE}/${targetDatasetName}`;
-  await Bun.write(walArchivePath + '/.keep', '');
+  // Create WAL archive directory for target branch
+  await wal.ensureArchiveDir(targetDatasetName);
+  const targetWALArchivePath = wal.getArchivePath(targetDatasetName);
+
+  // If PITR is requested, setup recovery configuration
+  if (recoveryTarget) {
+    const pitrSpinner = ora('Configuring PITR recovery').start();
+
+    // Get source WAL archive path (shared across all branches of same database)
+    const sourceDatasetName = sourceBranch.zfsDataset.split('/').pop() || '';
+    const sourceWALArchivePath = wal.getArchivePath(sourceDatasetName);
+
+    // Setup recovery configuration in the cloned dataset
+    await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
+
+    pitrSpinner.succeed(`Configured PITR recovery to ${chalk.yellow(formatDate(recoveryTarget))}`);
+  }
 
   // Create container
   const containerName = `bpg-${target.database}-${target.branch}`;
@@ -155,7 +215,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     version: cfg.postgres.version,
     port,
     dataPath: mountpoint,
-    walArchivePath,
+    walArchivePath: targetWALArchivePath,
     password: sourceDb.credentials.password,
     username: sourceDb.credentials.username,
     database: sourceDb.credentials.database,
@@ -164,9 +224,17 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   });
 
   await docker.startContainer(containerID);
-  containerSpinner.text = 'Waiting for PostgreSQL to be ready';
+  if (recoveryTarget) {
+    containerSpinner.text = 'PostgreSQL is replaying WAL logs to recovery target...';
+  } else {
+    containerSpinner.text = 'Waiting for PostgreSQL to be ready';
+  }
   await docker.waitForHealthy(containerID);
-  containerSpinner.succeed('PostgreSQL is ready');
+  if (recoveryTarget) {
+    containerSpinner.succeed('PITR recovery completed - PostgreSQL is ready');
+  } else {
+    containerSpinner.succeed('PostgreSQL is ready');
+  }
 
   const sizeBytes = await zfs.getUsedSpace(targetDatasetName);
 

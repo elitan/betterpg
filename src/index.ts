@@ -14,6 +14,11 @@ import { branchGetCommand } from './commands/branch/get';
 import { branchDeleteCommand } from './commands/branch/delete';
 import { branchSyncCommand } from './commands/branch/sync';
 import { branchRenameCommand } from './commands/branch/rename';
+import { walInfoCommand } from './commands/wal/info';
+import { walCleanupCommand } from './commands/wal/cleanup';
+import { snapshotCreateCommand } from './commands/snapshot/create';
+import { snapshotListCommand } from './commands/snapshot/list';
+import { snapshotDeleteCommand } from './commands/snapshot/delete';
 import { startCommand } from './commands/start';
 import { stopCommand } from './commands/stop';
 import { restartCommand } from './commands/restart';
@@ -118,7 +123,8 @@ branchCommand
   .argument('<name>', 'branch name in format: <database>/<branch>')
   .option('--from <parent>', 'parent branch (defaults to <database>/main)')
   .option('--fast', 'use crash-consistent snapshot (faster, dev/test only)')
-  .action(async (name: string, options: { from?: string; fast?: boolean }) => {
+  .option('--pitr <time>', 'recover to point in time (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
+  .action(async (name: string, options: { from?: string; fast?: boolean; pitr?: string }) => {
     try {
       await branchCreateCommand(name, options);
     } catch (error: any) {
@@ -189,6 +195,97 @@ branchCommand
   .action(async (name: string) => {
     try {
       await branchSyncCommand(name);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// WAL commands
+// ============================================================================
+
+const walCommand = program
+  .command('wal')
+  .description('Manage WAL archives');
+
+walCommand
+  .command('info')
+  .description('Show WAL archive status')
+  .argument('[branch]', 'branch name in format: <database>/<branch> (optional, shows all if not specified)')
+  .action(async (branch?: string) => {
+    try {
+      await walInfoCommand(branch);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+walCommand
+  .command('cleanup')
+  .description('Clean up old WAL files')
+  .argument('<branch>', 'branch name in format: <database>/<branch>')
+  .option('--days <days>', 'retention period in days (default: 7)', '7')
+  .option('--dry-run', 'show what would be deleted without actually deleting')
+  .action(async (branch: string, options: { days?: string; dryRun?: boolean }) => {
+    try {
+      await walCleanupCommand(branch, {
+        days: options.days ? parseInt(options.days, 10) : 7,
+        dryRun: options.dryRun,
+      });
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// Snapshot commands
+// ============================================================================
+
+const snapshotCommand = program
+  .command('snapshot')
+  .alias('snap')
+  .description('Manage snapshots for point-in-time recovery');
+
+snapshotCommand
+  .command('create')
+  .description('Create a snapshot of a branch')
+  .argument('<branch>', 'branch name in format: <database>/<branch>')
+  .option('--label <label>', 'optional label for the snapshot')
+  .option('--auto-cleanup <days>', 'delete snapshots older than N days', parseInt)
+  .action(async (branch: string, options: { label?: string; autoCleanup?: number }) => {
+    try {
+      await snapshotCreateCommand(branch, options);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+snapshotCommand
+  .command('list')
+  .alias('ls')
+  .description('List snapshots')
+  .argument('[branch]', 'branch name in format: <database>/<branch> (optional, lists all if not specified)')
+  .action(async (branch?: string) => {
+    try {
+      await snapshotListCommand(branch);
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+snapshotCommand
+  .command('delete')
+  .alias('rm')
+  .description('Delete a snapshot')
+  .argument('<snapshot-id>', 'snapshot ID')
+  .action(async (snapshotId: string) => {
+    try {
+      await snapshotDeleteCommand(snapshotId);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);

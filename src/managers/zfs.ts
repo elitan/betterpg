@@ -156,6 +156,11 @@ export class ZFSManager {
     await $`sudo zfs destroy ${snapshot}`;
   }
 
+  async getSnapshotSize(fullSnapshotName: string): Promise<number> {
+    const result = await $`zfs list -H -o used -p ${fullSnapshotName}`.text();
+    return parseInt(result.trim(), 10);
+  }
+
   async listSnapshots(dataset?: string): Promise<Snapshot[]> {
     try {
       const basePath = dataset

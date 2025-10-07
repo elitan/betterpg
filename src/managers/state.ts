@@ -14,6 +14,13 @@ export class StateManager {
     try {
       const content = await fs.readFile(this.filePath, 'utf-8');
       this.state = JSON.parse(content);
+
+      // Migrate old state files
+      if (!this.state.snapshots) {
+        this.state.snapshots = [];
+        await this.save();
+      }
+
       this.validate();
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -48,6 +55,7 @@ export class StateManager {
       nextPort: basePort,
       databases: [],
       backups: [],
+      snapshots: [],
     };
 
     await this.save();
@@ -256,6 +264,61 @@ export class StateManager {
 
     await this.save();
     return toDelete;
+  }
+
+  // Snapshot operations
+  async addSnapshot(snapshot: Snapshot): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+    this.state.snapshots.push(snapshot);
+    await this.save();
+  }
+
+  async getSnapshotsForBranch(branchName: string): Promise<Snapshot[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.snapshots.filter(s => s.branchName === branchName);
+  }
+
+  async getSnapshotsForDatabase(databaseName: string): Promise<Snapshot[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.snapshots.filter(s => s.databaseName === databaseName);
+  }
+
+  async getSnapshotById(id: string): Promise<Snapshot | undefined> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.snapshots.find(s => s.id === id);
+  }
+
+  async deleteSnapshot(id: string): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+    const index = this.state.snapshots.findIndex(s => s.id === id);
+    if (index === -1) {
+      throw new Error(`Snapshot not found: ${id}`);
+    }
+    this.state.snapshots.splice(index, 1);
+    await this.save();
+  }
+
+  async deleteOldSnapshots(branchName: string, retentionDays: number): Promise<Snapshot[]> {
+    if (!this.state) throw new Error('State not loaded');
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - retentionDays);
+
+    const toDelete = this.state.snapshots.filter(s =>
+      s.branchName === branchName && new Date(s.createdAt) < cutoff
+    );
+
+    this.state.snapshots = this.state.snapshots.filter(s =>
+      s.branchName !== branchName || new Date(s.createdAt) >= cutoff
+    );
+
+    await this.save();
+    return toDelete;
+  }
+
+  async getAllSnapshots(): Promise<Snapshot[]> {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.snapshots;
   }
 
   // Utility

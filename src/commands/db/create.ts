@@ -4,6 +4,7 @@ import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { ConfigManager } from '../../managers/config';
+import { WALManager } from '../../managers/wal';
 import { generateUUID, generatePassword, sanitizeName } from '../../utils/helpers';
 import { Database, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
@@ -37,6 +38,7 @@ export async function dbCreateCommand(name: string) {
   // Initialize managers
   const zfs = new ZFSManager(cfg.zfs.pool, cfg.zfs.datasetBase);
   const docker = new DockerManager();
+  const wal = new WALManager();
 
   // Allocate port for main branch
   const port = await state.allocatePort();
@@ -68,8 +70,8 @@ export async function dbCreateCommand(name: string) {
   }
 
   // Create WAL archive directory
-  const walArchivePath = `${PATHS.WAL_ARCHIVE}/${mainDatasetName}`;
-  await Bun.write(walArchivePath + '/.keep', '');
+  await wal.ensureArchiveDir(mainDatasetName);
+  const walArchivePath = wal.getArchivePath(mainDatasetName);
 
   // Create Docker container for main branch
   const createSpinner = ora('Creating PostgreSQL container').start();

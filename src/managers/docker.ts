@@ -40,6 +40,15 @@ export class DockerManager {
         `POSTGRES_DB=${config.database}`,
         'PGDATA=/var/lib/postgresql/data/pgdata',
       ],
+      Cmd: [
+        'postgres',
+        '-c', 'wal_level=replica',
+        '-c', 'archive_mode=on',
+        '-c', "archive_command=test ! -f /wal-archive/%f && cp %p /wal-archive/%f",
+        '-c', 'max_wal_senders=3',
+        '-c', 'wal_keep_size=1GB',
+        '-c', 'restore_command=cp /wal-archive/%f %p',
+      ],
       ExposedPorts: {
         '5432/tcp': {},
       },

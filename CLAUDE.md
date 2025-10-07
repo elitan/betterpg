@@ -88,24 +88,69 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - Loads YAML config from `/etc/betterpg/config.yaml`
 - Contains ZFS pool, PostgreSQL image version, port range, etc.
 
+**WALManager** (`src/managers/wal.ts`):
+- Manages Write-Ahead Log (WAL) archiving and monitoring
+- WAL archive location: `/var/lib/betterpg/wal-archive/<dataset>/`
+- Key methods:
+  - `ensureArchiveDir()` - Creates WAL archive directory with correct permissions
+  - `getArchiveInfo()` - Returns file count, total size, oldest/newest timestamps
+  - `cleanupWALsBefore()` / `cleanupOldWALs()` - Remove WAL files by date
+  - `verifyArchiveIntegrity()` - Check for gaps in WAL sequence
+  - `setupPITRecovery()` - Configure recovery.signal and postgresql.auto.conf
+
+### WAL Archiving & Point-in-Time Recovery (PITR)
+
+**WAL Archiving Configuration:**
+- Enabled on all PostgreSQL containers via archive_command
+- WAL files archived to `/var/lib/betterpg/wal-archive/<dataset>/`
+- Each branch has its own isolated WAL archive directory
+- Commands: `bpg wal info [branch]`, `bpg wal cleanup <branch> --days <n>`
+
+**Snapshot Management:**
+- Manual snapshots: `bpg snapshot create <db>/<branch> --label <name>`
+- List snapshots: `bpg snapshot list [branch]`
+- Delete snapshots: `bpg snapshot delete <snapshot-id>`
+- Snapshots stored in state.json with metadata (id, timestamp, label, size)
+- Snapshots are application-consistent (use pg_backup_start/stop)
+
+**Point-in-Time Recovery (PITR):**
+- Create branch from specific time: `bpg branch create <db>/<name> --pitr <timestamp>`
+- Auto-finds best snapshot BEFORE recovery target time
+- Replays WAL logs from snapshot to target
+- Timestamp formats: ISO 8601 ("2025-10-07T14:30:00Z") or relative ("2 hours ago")
+- **Limitation:** Cannot recover to time before latest snapshot (must create snapshots regularly)
+
+**PITR Implementation Flow:**
+1. Parse recovery target timestamp
+2. Find snapshots for source branch created BEFORE target
+3. Select closest snapshot before target
+4. Clone ZFS snapshot to new dataset
+5. Write recovery.signal and postgresql.auto.conf with recovery_target_time
+6. Start container - PostgreSQL replays WAL to target time
+7. Database becomes available at recovered state
+
 ### Snapshot Consistency Modes
 
-**Application-consistent (default)**: Uses `pg_backup_start`/`pg_backup_stop`
+**Application-consistent (default for manual snapshots)**: Uses `pg_backup_start`/`pg_backup_stop`
 - Zero data loss, all committed transactions included
 - 2-5 second operation
 - Safe for production, migration testing, compliance
+- Used by: `bpg snapshot create`, regular branch creation
 
-**Crash-consistent (`--fast` flag)**: Direct ZFS snapshot
+**Crash-consistent (`--fast` flag or PITR)**: Direct ZFS snapshot
 - <1 second operation
 - Requires WAL replay on startup
-- Only for dev/test/CI environments, NEVER production
+- For dev/test/CI or when WAL replay provides consistency (PITR)
+- Used by: `bpg branch create --fast`, `bpg branch create --pitr`
 
 Implementation in `src/commands/branch/create.ts`:
-1. If not `--fast` and container running: call `pg_backup_start`
-2. Create ZFS snapshot
-3. If backup mode active: call `pg_backup_stop`
-4. Clone snapshot to new dataset
-5. Create and start PostgreSQL container
+1. If `--pitr`: find existing snapshot, skip creating new one
+2. If creating new snapshot and not `--fast`: call `pg_backup_start`
+3. Create ZFS snapshot (or use existing for PITR)
+4. If backup mode active: call `pg_backup_stop`
+5. Clone snapshot to new dataset
+6. If PITR: setup recovery configuration
+7. Create and start PostgreSQL container
 
 ### State Validation Rules
 
@@ -183,17 +228,19 @@ When modifying branching logic:
 
 ## Roadmap Context
 
-From TODO.md, completed features:
+From TODO.md, completed features (v0.3.0):
 - ✅ Database lifecycle (create, start, stop, restart, reset)
 - ✅ Application-consistent snapshots (pg_backup_start/stop)
 - ✅ Namespace-based CLI structure
+- ✅ Snapshot management (create, list, delete with labels)
+- ✅ WAL archiving & monitoring
+- ✅ Point-in-time recovery (PITR)
 
-In progress / next priorities:
-- Snapshot management (create, list, destroy manual snapshots)
-- WAL archiving & point-in-time recovery
+Next priorities (v0.4.0+):
 - Schema diff between branches
 - Branch promotion (branch → primary)
 - Web UI dashboard
+- Automatic snapshot scheduling via cron
 
 ## Testing Philosophy
 

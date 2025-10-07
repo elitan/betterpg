@@ -78,29 +78,65 @@
 - [x] Delete old unused command files (cleanup)
 - [ ] Update README.md with namespace examples
 
-### Snapshot Management
-- [ ] `bpg snapshot <name>` - Create manual snapshot
-- [ ] `bpg snapshots <name>` - List all snapshots for database
-- [ ] `bpg snapshot-destroy <snapshot>` - Delete snapshot
-- [ ] Automatic snapshot scheduling (configurable)
+### WAL Archiving & Point-in-Time Recovery (v0.3.0) ✅ COMPLETE
+**Goal:** Enable continuous archiving and recovery to any point in time
 
-### Connection & Access
+- [x] WAL archiving setup and configuration
+  - Configured PostgreSQL archive_mode and archive_command in DockerManager
+  - Local WAL archive directory structure at `/var/lib/betterpg/wal-archive/<dataset>/`
+  - Per-branch WAL archive isolation
+- [x] WAL archive monitoring and management
+  - WALManager tracks archive size, file count, and age
+  - `bpg wal info [branch]` - Show WAL archive status
+  - `bpg wal cleanup <branch> --days <n>` - Clean up old WAL files
+  - Verify WAL archive integrity with gap detection
+- [x] Snapshot management for PITR
+  - `bpg snapshot create <db>/<branch> --label <name>` - Create manual snapshot
+  - `bpg snapshot list [branch]` - List all snapshots
+  - `bpg snapshot delete <snapshot-id>` - Delete snapshot
+  - Snapshots stored in state with metadata (timestamp, label, size)
+- [x] Point-in-time recovery (PITR) implementation
+  - `bpg branch create <db>/<name> --pitr <timestamp>` - Branch from specific point in time
+  - Automatically finds best snapshot before recovery target
+  - Replays WAL logs from snapshot to target time
+  - Support timestamp formats (ISO 8601, relative like "2 hours ago")
+- [x] Recovery configuration
+  - Creates recovery.signal and postgresql.auto.conf
+  - Configures restore_command and recovery_target_time
+  - Uses source branch's WAL archive for replay
+- [x] Testing and validation
+  - Snapshot commands working (create, list, delete)
+  - PITR auto-find snapshot logic implemented
+  - Known limitation: Recovery target must be AFTER snapshot creation time
+
+**Architecture Notes:**
+- Uses ZFS snapshots as base backups (instant, space-efficient)
+- WAL archiving enables replay from snapshot time to recovery target
+- Each branch has its own WAL archive directory
+- Snapshots are application-consistent (uses pg_backup_start/stop)
+- PITR branches use crash-consistent snapshots + WAL replay for consistency
+
+**Known Limitations:**
+- Cannot recover to a time BEFORE the latest snapshot
+- Users must create snapshots regularly (via cron) to enable fine-grained PITR
+- Similar to Neon's approach: regular snapshots define recovery window
+
+### Future Features (v0.4.0+)
+
+#### Connection & Access
 - [ ] `bpg connect <name>` - Auto-connect to database with psql
 - [ ] `bpg info <name>` - Show connection details
 - [ ] `bpg logs <name>` - Show PostgreSQL logs
 - [ ] Store credentials securely (not in state.json)
 
-### Backup & Recovery (MEDIUM PRIORITY - For PITR)
-- [ ] WAL archiving to local/S3/B2
-- [ ] `bpg backup <name>` - Create base backup
-- [ ] `bpg restore <name> <backup>` - Restore from backup
-- [ ] Point-in-time recovery (PITR)
-- [ ] Automated backup retention policies
-- [ ] Branch from specific timestamp using PITR
-
-### Branch Operations
+#### Branch Operations
 - [ ] `bpg diff <source> <target>` - Show schema differences
 - [ ] `bpg promote <branch>` - Promote branch to primary
+
+#### Remote Storage
+- [ ] S3-compatible storage for WAL archives
+- [ ] Backblaze B2 integration
+- [ ] Automated offsite backup
 
 ## 🔧 Improvements & Refactoring
 
@@ -246,8 +282,8 @@ User → CLI (src/index.ts)
 
 ---
 
-**Last Updated:** 2025-10-06
-**Version:** 0.2.0
-**Status:** Namespace-based CLI complete, all 21 integration tests passing
+**Last Updated:** 2025-10-07
+**Version:** 0.3.0
+**Status:** WAL archiving + PITR + Snapshots complete
 
-**Next Milestone (v0.3.0):** Documentation updates and branch sync command
+**Next Milestone (v0.4.0):** Branch diff, promote, and web UI dashboard

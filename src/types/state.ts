@@ -6,6 +6,7 @@ export interface State {
   nextPort: number;
   databases: Database[];
   backups: Backup[];
+  snapshots: Snapshot[];
 }
 
 export interface Database {
@@ -46,4 +47,15 @@ export interface Backup {
   location: string;
   sizeBytes: number;
   walPosition: string;
+}
+
+export interface Snapshot {
+  id: string;
+  branchId: string;
+  branchName: string;  // Namespaced: <database>/<branch>
+  databaseName: string;
+  zfsSnapshot: string; // Full ZFS snapshot name with @
+  createdAt: string;
+  label?: string;      // Optional user label
+  sizeBytes: number;
 }
