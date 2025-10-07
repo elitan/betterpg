@@ -7,7 +7,7 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 - **Instant branching**: Clone 100GB database in <5 seconds
 - **Production-safe**: Application-consistent snapshots with zero data loss
 - **Space-efficient**: ZFS copy-on-write (branches are ~100KB until data diverges)
-- **Lifecycle management**: Start, stop, restart, reset databases and branches
+- **Lifecycle management**: Start, stop, restart, sync databases and branches
 - **Full isolation**: Each branch is an independent PostgreSQL instance
 
 ## Quick Start
@@ -16,14 +16,14 @@ Instant PostgreSQL database branching using ZFS snapshots. Create production-saf
 # Initialize
 bpg init
 
-# Create primary database
-bpg create prod
+# Create database (creates database with main branch)
+bpg db create prod
 
 # Create production-safe branch (uses pg_backup_start)
-bpg branch prod dev
+bpg branch create prod/dev
 
 # Create fast branch (for dev/test)
-bpg branch prod test --fast
+bpg branch create prod/test --fast
 
 # View all databases
 bpg status
@@ -60,54 +60,101 @@ BetterPG combines three technologies:
 
 ## Usage
 
-### Create Database
+### Database Management
 
 ```bash
-bpg create myapp-prod
+# Create a database (automatically creates <database>/main branch)
+bpg db create myapp
+
+# List all databases
+bpg db list
+
+# Get database details
+bpg db get myapp
+
+# Rename database
+bpg db rename myapp myapp-v2
+
+# Delete database and all branches
+bpg db delete myapp --force
 ```
 
 Creates:
-- ZFS dataset: `tank/betterpg/databases/myapp-prod`
-- PostgreSQL container on random port
-- Full read-write access
+- Database: `myapp`
+- Main branch: `myapp/main`
+- ZFS dataset: `tank/betterpg/databases/myapp-main`
+- PostgreSQL container on allocated port
 
-### Branch Database
+### Branch Management
 
 **Production-safe (default)**:
 ```bash
-bpg branch prod dev
+bpg branch create prod/dev
 ```
 - Uses `pg_backup_start`/`pg_backup_stop`
 - Zero data loss guaranteed
 - 2-5 seconds total time
+- Safe for production data
 
 **Fast mode (dev/test)**:
 ```bash
-bpg branch prod test --fast
+bpg branch create prod/test --fast
 ```
 - Skips backup mode
 - <1 second
 - Requires WAL replay on startup
+- Only for dev/test environments
+
+**Branch from another branch**:
+```bash
+bpg branch create prod/feature --from prod/dev
+```
+
+**Other branch operations**:
+```bash
+# List all branches
+bpg branch list
+
+# List branches for specific database
+bpg branch list prod
+
+# Get branch details
+bpg branch get prod/dev
+
+# Rename branch
+bpg branch rename prod/dev prod/development
+
+# Sync branch with parent's current state
+bpg branch sync prod/dev
+
+# Delete branch
+bpg branch delete prod/dev
+```
 
 ### Lifecycle Commands
 
 ```bash
-bpg list          # List all databases and branches
-bpg status        # Detailed status with sizes and uptime
-bpg stop dev      # Stop database/branch
-bpg start dev     # Start database/branch
-bpg restart dev   # Restart database/branch
-bpg reset dev     # Reset branch to parent snapshot
-bpg destroy dev   # Delete database/branch
+# Start a branch
+bpg start prod/main
+bpg start prod/dev
+
+# Stop a branch
+bpg stop prod/dev
+
+# Restart a branch
+bpg restart prod/dev
+
+# View status of all databases and branches
+bpg status
 ```
 
 ### Connection
 
 ```bash
-# Get connection details
-bpg status myapp-dev
+# Get connection details from status
+bpg status
 
-# Connect
+# Connect to a branch
 psql -h localhost -p <port> -U postgres
 ```
 
@@ -117,20 +164,23 @@ psql -h localhost -p <port> -U postgres
 
 ```bash
 # Create branch of production
-bpg branch prod migration-test
+bpg branch create prod/migration-test
+
+# Get port from status
+bpg status
 
 # Test migration
 psql -h localhost -p <port> -f migration.sql
 
 # If successful, apply to prod. If failed, destroy and retry
-bpg destroy migration-test
+bpg branch delete prod/migration-test
 ```
 
 ### 2. Developer Databases
 
 ```bash
 # Give developers production data
-bpg branch prod dev-alice
+bpg branch create prod/dev-alice
 
 # Anonymize sensitive data
 psql -h localhost -p <port> <<EOF
@@ -142,25 +192,26 @@ EOF
 
 ```bash
 # Create exact copy of production
-bpg branch prod debug-issue-123
+bpg branch create prod/debug-issue-123
 
 # Debug with real data, zero risk
 psql -h localhost -p <port>
 
 # Clean up when done
-bpg destroy debug-issue-123
+bpg branch delete prod/debug-issue-123
 ```
 
 ## Architecture
 
 ```
-Primary Database
-├── ZFS Dataset: tank/betterpg/databases/prod
-├── PostgreSQL Container (port 5432)
-├── Snapshot 1: 2025-01-15T10:30:00
-│   └── Branch: dev (clone, port 5433)
-└── Snapshot 2: 2025-01-15T14:45:00
-    └── Branch: test (clone, port 5434)
+Database: prod
+├── Branch: prod/main (primary)
+│   ├── ZFS Dataset: tank/betterpg/databases/prod-main
+│   ├── PostgreSQL Container (port 5432)
+│   ├── Snapshot 1: 2025-01-15T10:30:00
+│   │   └── Branch: prod/dev (clone, port 5433)
+│   └── Snapshot 2: 2025-01-15T14:45:00
+│       └── Branch: prod/test (clone, port 5434)
 ```
 
 Each branch:
@@ -176,8 +227,8 @@ Each branch:
 | Create database | 5-10s | Pull image + container start |
 | Application-consistent branch | 2-5s | Uses pg_backup_start |
 | Fast branch (--fast) | <1s | No backup mode |
-| Reset branch | 2-3s | Destroy + re-clone |
-| Destroy | <1s | Remove container + dataset |
+| Sync branch | 2-3s | Re-clone from parent |
+| Delete branch | <1s | Remove container + dataset |
 
 **Space efficiency**:
 - 10GB database → 100KB branch (initially)
@@ -188,7 +239,7 @@ Each branch:
 
 ### Application-Consistent Snapshots (Default)
 
-When you run `bpg branch prod dev`:
+When you run `bpg branch create prod/dev`:
 
 1. Executes `pg_backup_start()` - puts PostgreSQL in backup mode
 2. Creates ZFS snapshot (~100ms)
@@ -216,12 +267,12 @@ When you run `bpg branch prod dev`:
 
 ## Configuration
 
-Config file: `/etc/betterpg/config.yaml`
+Config file: `~/.config/betterpg/config.yaml`
 
 ```yaml
 zfs:
   pool: tank
-  datasetBase: tank/betterpg/databases
+  datasetBase: betterpg/databases
 
 postgres:
   image: postgres:16-alpine
@@ -231,12 +282,12 @@ postgres:
     max_connections: "100"
 ```
 
-State file: `/var/lib/betterpg/state.json`
+State file: `~/.local/share/betterpg/state.json`
 
 ## Testing
 
 ```bash
-# Run full test suite (25 tests)
+# Run full test suite (21 tests)
 ./scripts/run-extended-tests.sh
 ```
 
@@ -244,13 +295,9 @@ Tests cover:
 - Database lifecycle (create, start, stop, restart)
 - Branch creation (application-consistent & crash-consistent)
 - Data persistence across stop/start
-- Branch reset functionality
+- Branch sync functionality
 - ZFS copy-on-write efficiency
 - Edge cases
-
-## Documentation
-
-- [Production Branching Guide](docs/PRODUCTION_BRANCHING.md) - Detailed usage, best practices, troubleshooting
 
 ## Development
 
@@ -267,9 +314,6 @@ bun run build
 
 # Run tests
 ./scripts/run-extended-tests.sh
-
-# Lint
-bun run lint
 ```
 
 ## Requirements
@@ -321,17 +365,15 @@ sudo zpool create tank /dev/sdb
 - Scale-to-zero compute
 - Managed infrastructure
 
-See [detailed comparison](docs/COMPARISON.md) for architecture analysis and trade-offs.
-
 ## Roadmap
 
-See [TODO.md](TODO.md) for planned features:
+Planned features (see [TODO.md](TODO.md) for details):
 
-- [ ] Snapshot management (create, list, destroy)
-- [ ] WAL archiving & point-in-time recovery
-- [ ] Schema diff between branches
-- [ ] Branch promotion (branch → primary)
-- [ ] Web UI dashboard
+- Snapshot management (create, list, destroy manual snapshots)
+- WAL archiving & point-in-time recovery
+- Schema diff between branches
+- Branch promotion (promote branch to main)
+- Web UI dashboard
 
 ## Contributing
 
