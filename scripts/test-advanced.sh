@@ -134,7 +134,7 @@ echo -e "\n${BLUE}=== Section 3: State Integrity ===${NC}"
 # Test 4: Create multiple branches and verify state consistency
 echo -e "\n${BLUE}Test 4: State consistency with multiple branches${NC}"
 for i in {1..3}; do
-    $BPG branch create test-db/branch-$i --fast >/dev/null 2>&1
+    $BPG branch create test-db/branch-$i >/dev/null 2>&1
     sleep 2
 done
 

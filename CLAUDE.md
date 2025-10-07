@@ -56,17 +56,14 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - `db list` - Lists all databases
 - `db get <name>` - Shows database details
 - `db delete <name>` - Deletes database and all branches
-- `db rename <old> <new>` - Renames database (NOT IMPLEMENTED YET)
 
 **Branch commands** (`bpg branch <command>`):
 - `branch create <db>/<branch>` - Creates branch (e.g., `api/dev`)
   - `--from <db>/<branch>` - Create from specific branch (default: main)
-  - `--fast` - Use crash-consistent snapshot (skip pg_backup_start)
   - `--pitr <timestamp>` - Create branch from point-in-time
 - `branch list [db]` - Lists branches (all or for specific database)
 - `branch get <db>/<branch>` - Shows branch details
 - `branch delete <db>/<branch>` - Deletes branch
-- `branch rename <old> <new>` - Renames branch (NOT IMPLEMENTED YET)
 - `branch sync <db>/<branch>` - Syncs branch with parent's current state
 
 **Snapshot commands** (`bpg snapshot <command>`):
@@ -74,6 +71,10 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
   - `--label <name>` - Optional label for snapshot
 - `snapshot list [db/branch]` - List snapshots (all or for specific branch)
 - `snapshot delete <snapshot-id>` - Delete snapshot
+- `snapshot cleanup [db/branch]` - Clean up old snapshots
+  - `--days <n>` - Retention period in days (default: 30)
+  - `--dry-run` - Preview without deleting
+  - `--all` - Cleanup across all branches
 
 **WAL commands** (`bpg wal <command>`):
 - `wal info [db/branch]` - Show WAL archive status (all or specific branch)
@@ -154,28 +155,28 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 6. Start container - PostgreSQL replays WAL to target time
 7. Database becomes available at recovered state
 
-### Snapshot Consistency Modes
+### Snapshot Consistency
 
-**Application-consistent (default for manual snapshots)**: Uses `pg_backup_start`/`pg_backup_stop`
+**Application-consistent snapshots (default)**: Uses CHECKPOINT
 - Zero data loss, all committed transactions included
 - 2-5 second operation
 - Safe for production, migration testing, compliance
-- Used by: `bpg snapshot create`, regular branch creation
+- Uses PostgreSQL CHECKPOINT to flush all data to disk before snapshot
+- Used by: `bpg snapshot create`, `bpg branch create`
 
-**Crash-consistent (`--fast` flag or PITR)**: Direct ZFS snapshot
-- <1 second operation
-- Requires WAL replay on startup
-- For dev/test/CI or when WAL replay provides consistency (PITR)
-- Used by: `bpg branch create --fast`, `bpg branch create --pitr`
+**PITR recovery**: Uses existing snapshots + WAL replay
+- Recovers to specific point in time
+- Uses crash-consistent snapshots (WAL replay provides consistency)
+- Replays WAL logs from snapshot to target time
+- Used by: `bpg branch create --pitr <timestamp>`
 
 Implementation in `src/commands/branch/create.ts`:
-1. If `--pitr`: find existing snapshot, skip creating new one
-2. If creating new snapshot and not `--fast`: call `pg_backup_start`
+1. If `--pitr`: find existing snapshot before recovery target, skip creating new one
+2. If creating new snapshot and database is running: call `CHECKPOINT`
 3. Create ZFS snapshot (or use existing for PITR)
-4. If backup mode active: call `pg_backup_stop`
-5. Clone snapshot to new dataset
-6. If PITR: setup recovery configuration
-7. Create and start PostgreSQL container
+4. Clone snapshot to new dataset
+5. If PITR: setup recovery configuration (recovery.signal + postgresql.auto.conf)
+6. Create and start PostgreSQL container (WAL replay happens automatically for PITR)
 
 ### State Validation Rules
 
@@ -236,11 +237,10 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for database/branch names
 ## Production Safety Requirements
 
 When modifying branching logic:
-1. Application-consistent snapshots MUST be the default
-2. `--fast` flag should warn users about crash-consistency
-3. Never skip backup mode for production/migration scenarios
-4. Backup mode must be cleaned up even on error
-5. Document LSN positions for debugging
+1. Application-consistent snapshots (via CHECKPOINT) are always used
+2. Never skip CHECKPOINT for running databases
+3. All snapshots are safe for production use
+4. Document snapshot creation timestamps for debugging
 
 ## Known Constraints
 
@@ -250,13 +250,12 @@ When modifying branching logic:
 - ZFS pool must exist before `bpg init`
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
-- Branch rename and database rename commands not yet implemented
 
 ## Roadmap Context
 
 From TODO.md, completed features (v0.3.4):
 - ✅ Database lifecycle (create, start, stop, restart)
-- ✅ Application-consistent snapshots (pg_backup_start/stop)
+- ✅ Application-consistent snapshots (CHECKPOINT)
 - ✅ Namespace-based CLI structure
 - ✅ Snapshot management (create, list, delete with labels)
 - ✅ WAL archiving & monitoring

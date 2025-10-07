@@ -198,29 +198,29 @@ else
     exit 1
 fi
 
-# Test 8a: Create branch with crash-consistent snapshot (--fast)
-echo -e "\n${BLUE}=== Test 8a: Create branch with crash-consistent snapshot (--fast) ===${NC}"
-if $BPG branch create test-prod/fast --fast 2>&1 | tee /tmp/branch_fast_output.txt | grep -q "crash-consistent"; then
-    echo -e "${GREEN}✓ Crash-consistent snapshot used (--fast mode)${NC}"
+# Test 8a: Create another branch (removed --fast flag tests)
+echo -e "\n${BLUE}=== Test 8a: Create second branch ===${NC}"
+if $BPG branch create test-prod/dev 2>&1 | tee /tmp/branch_dev_output.txt | grep -q "application-consistent"; then
+    echo -e "${GREEN}✓ Second branch created with application-consistent snapshot${NC}"
 else
-    echo -e "${RED}✗ Crash-consistent snapshot verification failed${NC}"
+    echo -e "${RED}✗ Second branch creation failed${NC}"
     exit 1
 fi
 
-if sudo zfs list tank/betterpg/databases/test-prod-fast >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Fast branch created${NC}"
+if sudo zfs list tank/betterpg/databases/test-prod-dev >/dev/null 2>&1; then
+    echo -e "${GREEN}✓ Dev branch created${NC}"
 else
-    echo -e "${RED}✗ Fast branch creation failed${NC}"
+    echo -e "${RED}✗ Dev branch creation failed${NC}"
     exit 1
 fi
 
-# Test 8b: Verify neither checkpoint used with --fast
-echo -e "\n${BLUE}=== Test 8b: Verify --fast skips checkpoint ===${NC}"
-if grep -q "Checkpointing\|checkpointed" /tmp/branch_fast_output.txt; then
-    echo -e "${RED}✗ Fast mode should not use checkpoint${NC}"
-    exit 1
+# Test 8b: Verify checkpoint was used
+echo -e "\n${BLUE}=== Test 8b: Verify checkpoint was used ===${NC}"
+if grep -q "Checkpointing\|checkpointed" /tmp/branch_dev_output.txt; then
+    echo -e "${GREEN}✓ Application-consistent snapshot used checkpoint${NC}"
 else
-    echo -e "${GREEN}✓ Fast mode correctly skipped checkpoint${NC}"
+    echo -e "${RED}✗ Checkpoint should have been used${NC}"
+    exit 1
 fi
 
 # Test 9: Verify branch has same data

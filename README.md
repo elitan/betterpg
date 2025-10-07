@@ -22,11 +22,11 @@ bpg init
 # Create database (creates database with main branch)
 bpg db create prod
 
-# Create production-safe branch (uses pg_backup_start)
+# Create application-consistent branch (uses CHECKPOINT)
 bpg branch create prod/dev
 
-# Create fast branch (for dev/test)
-bpg branch create prod/test --fast
+# Create another branch
+bpg branch create prod/test
 
 # View all databases
 bpg status
@@ -123,23 +123,14 @@ Creates:
 
 ### Branch Management
 
-**Production-safe (default)**:
+**Create branch (application-consistent)**:
 ```bash
 bpg branch create prod/dev
 ```
-- Uses `pg_backup_start`/`pg_backup_stop`
+- Uses CHECKPOINT to flush data to disk
 - Zero data loss guaranteed
 - 2-5 seconds total time
 - Safe for production data
-
-**Fast mode (dev/test)**:
-```bash
-bpg branch create prod/test --fast
-```
-- Skips backup mode
-- <1 second
-- Requires WAL replay on startup
-- Only for dev/test environments
 
 **Branch from another branch**:
 ```bash
@@ -328,8 +319,7 @@ Each branch:
 | Operation | Time | Notes |
 |-----------|------|-------|
 | Create database | 5-10s | Pull image + container start |
-| Application-consistent branch | 2-5s | Uses pg_backup_start |
-| Fast branch (--fast) | <1s | No backup mode |
+| Create branch | 2-5s | Uses CHECKPOINT |
 | Sync branch | 2-3s | Re-clone from parent |
 | Delete branch | <1s | Remove container + dataset |
 
@@ -340,33 +330,19 @@ Each branch:
 
 ## Production Safety
 
-### Application-Consistent Snapshots (Default)
+### Application-Consistent Snapshots
 
 When you run `bpg branch create prod/dev`:
 
-1. Executes `pg_backup_start()` - puts PostgreSQL in backup mode
+1. Executes `CHECKPOINT` - flushes all data to disk
 2. Creates ZFS snapshot (~100ms)
-3. Executes `pg_backup_stop()` - ends backup mode
-4. Clones snapshot and starts container
+3. Clones snapshot and starts container
 
 **Guarantees**:
 - Zero data loss
 - All committed transactions included
 - Database in consistent state
-- No crash recovery needed
-
-### When to Use --fast
-
-✅ **Use for**:
-- Dev/test environments
-- CI/CD pipelines
-- Ephemeral branches
-- When speed > consistency
-
-❌ **Never use for**:
-- Production branches
-- Migration testing
-- Compliance scenarios
+- Safe for production use
 
 ## Configuration
 

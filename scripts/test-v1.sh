@@ -113,10 +113,10 @@ echo -e "\n${BLUE}Test 7: Create branch from main${NC}"
 $BPG branch create test-prod/dev >/dev/null 2>&1 && sleep 3
 check_test "Create branch 'test-prod/dev'"
 
-# Test 8: Create branch with --fast flag
-echo -e "\n${BLUE}Test 8: Create fast branch${NC}"
-$BPG branch create test-prod/fast --fast >/dev/null 2>&1 && sleep 3
-check_test "Create fast branch 'test-prod/fast'"
+# Test 8: Create second branch (removed --fast flag)
+echo -e "\n${BLUE}Test 8: Create staging branch${NC}"
+$BPG branch create test-prod/staging >/dev/null 2>&1 && sleep 3
+check_test "Create staging branch 'test-prod/staging'"
 
 # Test 9: Create branch with --from flag
 echo -e "\n${BLUE}Test 9: Create branch from non-main parent${NC}"

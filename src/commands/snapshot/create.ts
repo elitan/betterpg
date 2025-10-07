@@ -10,7 +10,6 @@ import { Snapshot } from '../../types/state';
 
 export interface SnapshotCreateOptions {
   label?: string;
-  autoCleanup?: number; // retention days
 }
 
 export async function snapshotCreateCommand(branchName: string, options: SnapshotCreateOptions = {}) {
@@ -20,9 +19,6 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   console.log(chalk.bold(`📸 Creating snapshot of ${chalk.cyan(target.full)}`));
   if (options.label) {
     console.log(chalk.dim(`Label: ${options.label}`));
-  }
-  if (options.autoCleanup) {
-    console.log(chalk.dim(`Auto-cleanup: ${options.autoCleanup} days`));
   }
   console.log();
 
@@ -74,22 +70,6 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   };
 
   await state.addSnapshot(snapshot);
-
-  // Auto-cleanup if requested
-  if (options.autoCleanup) {
-    const cleanupSpinner = ora(`Cleaning up snapshots older than ${options.autoCleanup} days`).start();
-    const deleted = await state.deleteOldSnapshots(branch.name, options.autoCleanup);
-
-    if (deleted.length > 0) {
-      // Delete the actual ZFS snapshots
-      for (const snap of deleted) {
-        await zfs.destroySnapshot(snap.zfsSnapshot);
-      }
-      cleanupSpinner.succeed(`Cleaned up ${deleted.length} old snapshot(s)`);
-    } else {
-      cleanupSpinner.succeed('No old snapshots to clean up');
-    }
-  }
 
   console.log();
   console.log(chalk.green.bold('✓ Snapshot created successfully!'));

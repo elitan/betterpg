@@ -72,13 +72,13 @@ END=$(date +%s%N)
 DURATION=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
 echo -e "${GREEN}✓ Branch created in ${DURATION}s${NC}"
 
-# Benchmark fast branching
-echo "Benchmarking crash-consistent branch (--fast)..."
+# Benchmark second branch
+echo "Benchmarking second branch creation..."
 START=$(date +%s%N)
-$BPG branch test-small test-small-fast --fast > /dev/null
+$BPG branch test-small test-small-second > /dev/null
 END=$(date +%s%N)
-DURATION_FAST=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
-echo -e "${GREEN}✓ Fast branch created in ${DURATION_FAST}s${NC}"
+DURATION_SECOND=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
+echo -e "${GREEN}✓ Second branch created in ${DURATION_SECOND}s${NC}"
 echo ""
 
 # Test 2: Medium database (5GB)
@@ -122,12 +122,12 @@ END=$(date +%s%N)
 DURATION=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
 echo -e "${GREEN}✓ Branch created in ${DURATION}s${NC}"
 
-echo "Benchmarking crash-consistent branch (--fast)..."
+echo "Benchmarking second branch creation..."
 START=$(date +%s%N)
-$BPG branch test-medium test-medium-fast --fast > /dev/null
+$BPG branch test-medium test-medium-second > /dev/null
 END=$(date +%s%N)
-DURATION_FAST=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
-echo -e "${GREEN}✓ Fast branch created in ${DURATION_FAST}s${NC}"
+DURATION_SECOND=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
+echo -e "${GREEN}✓ Second branch created in ${DURATION_SECOND}s${NC}"
 echo ""
 
 # Test 3: High write load scenario
@@ -204,7 +204,7 @@ echo "Creating 5 branches simultaneously..."
 
 START=$(date +%s%N)
 for i in {1..5}; do
-    $BPG branch test-medium test-concurrent-$i --fast > /dev/null &
+    $BPG branch test-medium test-concurrent-$i > /dev/null &
 done
 wait
 END=$(date +%s%N)

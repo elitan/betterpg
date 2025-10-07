@@ -312,21 +312,32 @@ export class StateManager {
     await this.save();
   }
 
-  async deleteOldSnapshots(branchName: string, retentionDays: number): Promise<Snapshot[]> {
+  async deleteOldSnapshots(branchName: string | undefined, retentionDays: number, dryRun: boolean = false): Promise<Snapshot[]> {
     if (!this.state) throw new Error('State not loaded');
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - retentionDays);
 
-    const toDelete = this.state.snapshots.filter(s =>
-      s.branchName === branchName && new Date(s.createdAt) < cutoff
-    );
+    const toDelete = this.state.snapshots.filter(s => {
+      const isOld = new Date(s.createdAt) < cutoff;
+      if (branchName) {
+        return s.branchName === branchName && isOld;
+      }
+      return isOld;
+    });
 
-    this.state.snapshots = this.state.snapshots.filter(s =>
-      s.branchName !== branchName || new Date(s.createdAt) >= cutoff
-    );
+    if (!dryRun) {
+      this.state.snapshots = this.state.snapshots.filter(s => {
+        const isOld = new Date(s.createdAt) < cutoff;
+        if (branchName) {
+          return s.branchName !== branchName || !isOld;
+        }
+        return !isOld;
+      });
 
-    await this.save();
+      await this.save();
+    }
+
     return toDelete;
   }
 

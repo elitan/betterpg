@@ -120,7 +120,7 @@ INSERT INTO order_items (order_id, amount) VALUES
     (3, 100.00), (3, 100.00), (3, 100.00);
 EOF
 
-$BPG branch test-db test-fk --fast > /dev/null
+$BPG branch test-db test-fk > /dev/null
 FK_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-fk") | .port')
 
 # Verify foreign keys are intact
@@ -175,7 +175,7 @@ EOF
 sleep 1
 
 # Create branch while transaction is open
-$BPG branch test-db test-uncommitted --fast > /dev/null
+$BPG branch test-db test-uncommitted > /dev/null
 UNCOMMIT_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-uncommitted") | .port')
 
 UNCOMMIT_BALANCE=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $UNCOMMIT_PORT -U postgres -d postgres -t -A -c \
@@ -196,8 +196,8 @@ INSERT INTO isolation_test (value) VALUES (1), (2), (3);
 EOF
 
 # Create two branches
-$BPG branch test-db test-iso-1 --fast > /dev/null
-$BPG branch test-db test-iso-2 --fast > /dev/null
+$BPG branch test-db test-iso-1 > /dev/null
+$BPG branch test-db test-iso-2 > /dev/null
 
 ISO1_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-1") | .port')
 ISO2_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-iso-2") | .port')
@@ -267,7 +267,7 @@ EOF
 PARENT_SEQ=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PORT -U postgres -d postgres -t -A -c \
     "SELECT last_value FROM seq_test_id_seq;")
 
-$BPG branch test-db test-seq --fast > /dev/null
+$BPG branch test-db test-seq > /dev/null
 SEQ_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-seq") | .port')
 
 # Verify sequence starts at same value in branch
@@ -350,7 +350,7 @@ SELECT
 FROM generate_series(1, 1000);
 EOF
 
-$BPG branch test-db test-corrupt --fast > /dev/null
+$BPG branch test-db test-corrupt > /dev/null
 CORRUPT_PORT=$(cat /var/lib/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name=="test-corrupt") | .port')
 
 # Verify all checksums match
@@ -374,7 +374,7 @@ CONCURRENT_CHECKSUM=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PORT -U postg
 
 # Create 5 branches concurrently
 for i in {1..5}; do
-    $BPG branch test-db test-concurrent-$i --fast > /dev/null &
+    $BPG branch test-db test-concurrent-$i > /dev/null &
 done
 wait
 

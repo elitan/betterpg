@@ -98,10 +98,10 @@ describe('Namespace CLI Tests', () => {
     expect(result.stdout.toString()).toContain('test-db2/main');
   }, 30000);
 
-  test('10: Create branch with --fast flag', async () => {
-    const result = await $`${BPG} branch create test-db2/staging --fast`;
+  test('10: Create staging branch', async () => {
+    const result = await $`${BPG} branch create test-db2/staging`;
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString()).toContain('crash-consistent');
+    expect(result.stdout.toString()).toContain('application-consistent');
   }, 30000);
 
   test('11: Create branch with --from option', async () => {

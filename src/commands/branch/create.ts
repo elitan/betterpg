@@ -14,7 +14,6 @@ import { Rollback } from '../../utils/rollback';
 
 export interface BranchCreateOptions {
   from?: string;
-  fast?: boolean;
   pitr?: string;  // Point-in-time recovery target
 }
 
@@ -50,9 +49,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     console.log(chalk.dim(`   Recovery target: ${chalk.yellow(formatDate(recoveryTarget))}`));
     console.log();
   } else {
-    const snapshotType = options.fast ? chalk.yellow('crash-consistent (fast)') : chalk.green('application-consistent');
     console.log();
-    console.log(chalk.bold(`🌿 Creating ${snapshotType} branch`));
+    console.log(chalk.bold(`🌿 Creating application-consistent branch`));
     console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
     console.log();
   }
@@ -129,15 +127,12 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   // Only create a NEW snapshot if not using PITR (PITR uses existing snapshots)
   if (!options.pitr) {
-    // For PITR branches, always use crash-consistent snapshots since WAL replay provides consistency
-    const useFastSnapshot = options.fast;
-
-    if (!useFastSnapshot && sourceBranch.status === 'running') {
-      // Application-consistent snapshot using CHECKPOINT
+    // Application-consistent snapshot using CHECKPOINT
+    if (sourceBranch.status === 'running') {
       // We use CHECKPOINT instead of pg_backup_start because:
       // 1. ZFS snapshots are atomic and instantaneous
       // 2. CHECKPOINT ensures all data is flushed to disk
-      // 3. This provides crash-consistent snapshots which are safe for PostgreSQL
+      // 3. This provides application-consistent snapshots which are safe for PostgreSQL
       // 4. No need for WAL replay on recovery
       const spinner = ora('Checkpointing database').start();
       const containerID = await docker.getContainerByName(sourceBranch.containerName);
@@ -159,11 +154,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
         throw error;
       }
     } else {
-      // Crash-consistent snapshot (fast mode or database is stopped)
-      if (options.fast && sourceBranch.status === 'running') {
-        console.log(chalk.yellow(`⚡ Using crash-consistent snapshot (--fast mode)`));
-        console.log(chalk.dim(`⚠️  Note: Branch will require WAL replay on startup`));
-      }
+      // Database is stopped - direct snapshot
       const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
       await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
       createdSnapshot = true;

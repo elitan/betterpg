@@ -381,7 +381,7 @@ echo -e "\n${BLUE}=== Section 6: Multi-Branch Operations ===${NC}"
 # Test 31: Create multiple branches
 echo -e "\n${BLUE}Test 31: Create 5 branches from same parent${NC}"
 for i in {1..5}; do
-    $BPG branch create test-prod/test-branch-$i --fast >/dev/null 2>&1 &
+    $BPG branch create test-prod/test-branch-$i >/dev/null 2>&1 &
 done
 wait
 sleep 5
