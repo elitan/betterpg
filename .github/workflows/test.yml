@@ -44,7 +44,7 @@ jobs:
         sudo usermod -aG docker $USER
         # Docker should already be running in GitHub Actions
 
-    - name: Build betterpg
+    - name: Build pgd
       run: bun run build
 
     - name: Run V1 test suite
@@ -69,7 +69,7 @@ jobs:
       if: always()
       run: |
         # Clean up containers
-        docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+        docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
         # Clean up ZFS
         sudo zpool destroy tank 2>/dev/null || true
         sudo rm -f /tmp/zfs-pool.img
