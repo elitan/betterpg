@@ -6,6 +6,7 @@ import { ZFSManager } from '../managers/zfs';
 import { ConfigManager } from '../managers/config';
 import { formatBytes } from '../utils/helpers';
 import { PATHS } from '../utils/paths';
+import { TOOL_NAME } from '../config/constants';
 
 function formatUptime(startedAt: Date | null): string {
   if (!startedAt) return 'N/A';
@@ -26,7 +27,7 @@ function formatUptime(startedAt: Date | null): string {
 
 export async function statusCommand() {
   console.log();
-  console.log(chalk.bold('📊 BetterPG Status'));
+  console.log(chalk.bold(`📊 ${TOOL_NAME} Status`));
   console.log();
 
   const config = new ConfigManager(PATHS.CONFIG);

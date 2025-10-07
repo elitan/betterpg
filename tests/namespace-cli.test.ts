@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { $ } from 'bun';
+import { CLI_NAME, CONTAINER_PREFIX } from '../src/config/constants';
+import { PATHS } from '../src/utils/paths';
+import { DEFAULT_CONFIG } from '../src/managers/config';
 
 const BPG = './dist/bpg';
 
@@ -7,34 +10,38 @@ describe('Namespace CLI Tests', () => {
   beforeAll(async () => {
     console.log('🧹 Cleaning up before tests...');
     // Clean up any existing state
-    await $`rm -rf ~/.config/betterpg ~/.local/share/betterpg`.quiet();
+    await $`rm -rf ${PATHS.CONFIG_DIR} ${PATHS.DATA_DIR}`.quiet();
 
     // Clean up Docker containers
-    await $`docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
+    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
 
     // Clean up ZFS datasets
-    await $`sudo zfs destroy -r tank/betterpg/databases`.quiet();
-    await $`sudo zfs create tank/betterpg/databases`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
+    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
 
     console.log('✓ Cleanup complete\n');
   });
 
   afterAll(async () => {
     console.log('\n🧹 Cleaning up after tests...');
-    await $`docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
-    await $`sudo zfs destroy -r tank/betterpg/databases`.quiet();
-    await $`sudo zfs create tank/betterpg/databases`.quiet();
-    await $`rm -rf ~/.config/betterpg ~/.local/share/betterpg`.quiet();
+    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
+    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
+    await $`rm -rf ${PATHS.CONFIG_DIR} ${PATHS.DATA_DIR}`.quiet();
     console.log('✓ Cleanup complete');
   });
 
-  test('01: Initialize betterpg', async () => {
+  test('01: Initialize system', async () => {
     const result = await $`${BPG} init`;
     expect(result.exitCode).toBe(0);
 
     // Check files exist
-    const stateExists = await Bun.file(`${process.env.HOME}/.local/share/betterpg/state.json`).exists();
-    const configExists = await Bun.file(`${process.env.HOME}/.config/betterpg/config.yaml`).exists();
+    const stateExists = await Bun.file(PATHS.STATE).exists();
+    const configExists = await Bun.file(PATHS.CONFIG).exists();
 
     expect(stateExists).toBe(true);
     expect(configExists).toBe(true);

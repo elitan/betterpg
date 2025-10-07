@@ -1,5 +1,6 @@
 {
   "name": "betterpg",
+  "displayName": "BetterPG",
   "version": "0.3.4",
   "description": "PostgreSQL database branching using ZFS snapshots",
   "module": "src/index.ts",

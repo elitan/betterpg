@@ -1,4 +1,5 @@
 import Dockerode from 'dockerode';
+import { BACKUP_LABEL_PREFIX } from '../config/constants';
 
 export interface PostgresConfig {
   name: string;
@@ -302,13 +303,13 @@ export class DockerManager {
     // PostgreSQL 15+ renamed to pg_backup_start, older versions use pg_start_backup
     // Try modern naming first, fall back to legacy
     try {
-      const sql = "SELECT pg_backup_start('betterpg-snapshot', false);";
+      const sql = `SELECT pg_backup_start('${BACKUP_LABEL_PREFIX}-snapshot', false);`;
       const lsn = await this.execSQL(containerID, sql, username);
       return lsn.trim();
     } catch (error: any) {
       if (error.message.includes('does not exist')) {
         // Try legacy pg_start_backup for PostgreSQL < 15
-        const sql = "SELECT pg_start_backup('betterpg-snapshot', false, false);";
+        const sql = `SELECT pg_start_backup('${BACKUP_LABEL_PREFIX}-snapshot', false, false);`;
         const lsn = await this.execSQL(containerID, sql, username);
         return lsn.trim();
       }

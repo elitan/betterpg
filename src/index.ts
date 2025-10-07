@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { CLI_NAME } from './config/constants';
 import { initCommand } from './commands/init';
 import { dbCreateCommand } from './commands/db/create';
 import { dbListCommand } from './commands/db/list';
@@ -27,7 +28,7 @@ import packageJson from '../package.json';
 const program = new Command();
 
 program
-  .name('bpg')
+  .name(CLI_NAME)
   .description('PostgreSQL database branching using ZFS snapshots')
   .version(packageJson.version);
 
@@ -331,7 +332,7 @@ program
 
 program
   .command('init')
-  .description('Initialize betterpg system with ZFS pool')
+  .description('Initialize system with ZFS pool')
   .action(async () => {
     try {
       await initCommand();

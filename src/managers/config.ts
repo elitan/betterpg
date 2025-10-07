@@ -1,12 +1,13 @@
 import * as fs from 'fs/promises';
 import * as yaml from 'yaml';
 import { Config } from '../types/config';
+import { CLI_NAME } from '../config/constants';
 
 export const DEFAULT_CONFIG: Config = {
   version: 1,
   zfs: {
     pool: 'tank',
-    datasetBase: 'betterpg/databases',
+    datasetBase: `${CLI_NAME}/databases`,
     compression: 'lz4',
     recordsize: '8k',
   },
@@ -28,12 +29,12 @@ export const DEFAULT_CONFIG: Config = {
     provider: 'local',
     retentionDays: 30,
     local: {
-      path: '/var/lib/betterpg/backups',
+      path: `/var/lib/${CLI_NAME}/backups`,
     },
   },
   system: {
     logLevel: 'info',
-    logFile: '/var/log/betterpg.log',
+    logFile: `/var/log/${CLI_NAME}.log`,
   },
 };
 

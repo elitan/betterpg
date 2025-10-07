@@ -5,6 +5,9 @@
  */
 
 import { $ } from 'bun';
+import { CLI_NAME, CONTAINER_PREFIX } from '../src/config/constants';
+import { PATHS } from '../src/utils/paths';
+import { DEFAULT_CONFIG } from '../src/managers/config';
 
 // Colors
 const RED = '\x1b[0;31m';
@@ -23,20 +26,23 @@ function log(message: string, color = NC) {
 async function cleanup() {
   log('\n🧹 Cleaning up...', YELLOW);
 
+  const pool = DEFAULT_CONFIG.zfs.pool;
+  const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
   // Stop and remove containers
   try {
-    await $`docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
+    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
   } catch {}
 
   // Clean up ZFS datasets
   try {
-    await $`sudo zfs destroy -r tank/betterpg/databases`.quiet();
-    await $`sudo zfs create tank/betterpg/databases`.quiet();
+    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
+    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
   } catch {}
 
   // Remove state and config
   try {
-    await $`sudo rm -rf /var/lib/betterpg/* /etc/betterpg/*`.quiet();
+    await $`sudo rm -rf ${PATHS.DATA_DIR}/* ${PATHS.CONFIG_DIR}/*`.quiet();
   } catch {}
 
   log('✓ Cleanup complete', GREEN);
@@ -51,6 +57,8 @@ async function checkContainerStopped(name: string): Promise<boolean> {
   const result = await $`docker ps -a | grep ${name} | grep Exited`.quiet();
   return result.exitCode === 0;
 }
+
+const BPG = 'sudo ./dist/bpg';
 
 async function test(name: string, fn: () => Promise<void>) {
   try {
@@ -72,17 +80,17 @@ async function assert(condition: boolean, message: string) {
 }
 
 async function bpg(...args: string[]) {
-  return await $`sudo ./dist/bpg ${args}`;
+  return await $`${BPG} ${args}`;
 }
 
 async function main() {
-  log('🧪 Running betterpg integration tests\n', YELLOW);
+  log('🧪 Running integration tests\n', YELLOW);
 
   // Initial cleanup
   await cleanup();
 
   // Build first
-  log('📦 Building betterpg...', YELLOW);
+  log('📦 Building...', YELLOW);
   await $`bun run build`;
   log('✓ Build complete\n', GREEN);
 
@@ -90,11 +98,11 @@ async function main() {
   let dbPort = '';
   let devPort = '';
 
-  await test('Test 1: Initialize betterpg', async () => {
+  await test('Test 1: Initialize system', async () => {
     await bpg('init');
 
-    const stateExists = await Bun.file('/var/lib/betterpg/state.json').exists();
-    const configExists = await Bun.file('/etc/betterpg/config.yaml').exists();
+    const stateExists = await Bun.file(PATHS.STATE).exists();
+    const configExists = await Bun.file(PATHS.CONFIG).exists();
 
     assert(stateExists && configExists, 'Init successful');
   });
@@ -102,14 +110,17 @@ async function main() {
   await test('Test 2: Create primary database', async () => {
     await bpg('create', 'test-prod');
 
-    const zfsResult = await $`sudo zfs list tank/betterpg/databases/test-prod`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-prod`.quiet();
     assert(zfsResult.exitCode === 0, 'Database created');
 
-    const isRunning = await checkContainerRunning('bpg-test-prod');
+    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
     assert(isRunning, 'Container is running');
 
     // Get credentials from state
-    const state = await Bun.file('/var/lib/betterpg/state.json').json();
+    const state = await Bun.file(PATHS.STATE).json();
     dbPassword = state.databases[0].credentials.password;
     dbPort = state.databases[0].port;
   });
@@ -135,10 +146,10 @@ async function main() {
     await $`${BPG} stop test-prod`;
     await Bun.sleep(2000);
 
-    const isStopped = await checkContainerStopped('bpg-test-prod');
+    const isStopped = await checkContainerStopped(`${CONTAINER_PREFIX}-test-prod`);
     assert(isStopped, 'Database stopped successfully');
 
-    const state = await Bun.file('/var/lib/betterpg/state.json').json();
+    const state = await Bun.file(PATHS.STATE).json();
     assert(state.databases[0].status === 'stopped', 'State updated correctly');
   });
 
@@ -146,7 +157,7 @@ async function main() {
     await $`${BPG} start test-prod`;
     await Bun.sleep(3000);
 
-    const isRunning = await checkContainerRunning('bpg-test-prod');
+    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
     assert(isRunning, 'Database started successfully');
 
     const result = await $`PGPASSWORD=${dbPassword} psql -h localhost -p ${dbPort} -U postgres -d postgres -t -c "SELECT COUNT(*) FROM test_table;"`.text();
@@ -158,20 +169,23 @@ async function main() {
     await $`${BPG} restart test-prod`;
     await Bun.sleep(3000);
 
-    const isRunning = await checkContainerRunning('bpg-test-prod');
+    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
     assert(isRunning, 'Database restarted successfully');
   });
 
   await test('Test 8: Create branch', async () => {
     await $`${BPG} branch test-prod test-dev`;
 
-    const zfsResult = await $`sudo zfs list tank/betterpg/databases/test-dev`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-dev`.quiet();
     assert(zfsResult.exitCode === 0, 'Branch created');
 
-    const snapshotResult = await $`sudo zfs list -t snapshot | grep tank/betterpg/databases/test-prod@`.quiet();
+    const snapshotResult = await $`sudo zfs list -t snapshot | grep ${pool}/${datasetBase}/test-prod@`.quiet();
     assert(snapshotResult.exitCode === 0, 'Snapshot created');
 
-    const state = await Bun.file('/var/lib/betterpg/state.json').json();
+    const state = await Bun.file(PATHS.STATE).json();
     devPort = state.databases[0].branches[0].port;
   });
 
@@ -199,7 +213,7 @@ async function main() {
     await $`${BPG} stop test-dev`;
     await Bun.sleep(2000);
 
-    const isStopped = await checkContainerStopped('bpg-test-dev');
+    const isStopped = await checkContainerStopped(`${CONTAINER_PREFIX}-test-dev`);
     assert(isStopped, 'Branch stopped successfully');
   });
 
@@ -207,7 +221,7 @@ async function main() {
     await $`${BPG} start test-dev`;
     await Bun.sleep(3000);
 
-    const isRunning = await checkContainerRunning('bpg-test-dev');
+    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-dev`);
     assert(isRunning, 'Branch started successfully');
   });
 
@@ -215,7 +229,7 @@ async function main() {
     await $`${BPG} reset test-dev`;
     await Bun.sleep(3000);
 
-    const isRunning = await checkContainerRunning('bpg-test-dev');
+    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-dev`);
     assert(isRunning, 'Branch running after reset');
 
     const result = await $`PGPASSWORD=${dbPassword} psql -h localhost -p ${devPort} -U postgres -d postgres -t -c "SELECT COUNT(*) FROM test_table;"`.text();
@@ -250,7 +264,10 @@ async function main() {
   await test('Test 16: Create second branch', async () => {
     await $`${BPG} branch test-prod test-staging`;
 
-    const zfsResult = await $`sudo zfs list tank/betterpg/databases/test-staging`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-staging`.quiet();
     assert(zfsResult.exitCode === 0, 'Second branch created');
   });
 
@@ -260,9 +277,12 @@ async function main() {
   });
 
   await test('Test 18: Verify ZFS space efficiency', async () => {
-    const prodSizeResult = await $`sudo zfs get -H -p -o value used tank/betterpg/databases/test-prod`.text();
-    const devSizeResult = await $`sudo zfs get -H -p -o value used tank/betterpg/databases/test-dev`.text();
-    const stagingSizeResult = await $`sudo zfs get -H -p -o value used tank/betterpg/databases/test-staging`.text();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const prodSizeResult = await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-prod`.text();
+    const devSizeResult = await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-dev`.text();
+    const stagingSizeResult = await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-staging`.text();
 
     const prodSize = parseInt(prodSizeResult.trim());
     const devSize = parseInt(devSizeResult.trim());
@@ -279,8 +299,11 @@ async function main() {
     await $`${BPG} destroy test-staging`;
     await $`${BPG} destroy test-dev`;
 
-    const stagingExists = await $`sudo zfs list tank/betterpg/databases/test-staging`.quiet();
-    const devExists = await $`sudo zfs list tank/betterpg/databases/test-dev`.quiet();
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const stagingExists = await $`sudo zfs list ${pool}/${datasetBase}/test-staging`.quiet();
+    const devExists = await $`sudo zfs list ${pool}/${datasetBase}/test-dev`.quiet();
 
     assert(stagingExists.exitCode !== 0 && devExists.exitCode !== 0, 'Branches destroyed');
   });

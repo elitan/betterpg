@@ -5,18 +5,19 @@ import { ZFSManager } from '../managers/zfs';
 import { StateManager } from '../managers/state';
 import { ConfigManager, DEFAULT_CONFIG } from '../managers/config';
 import { PATHS } from '../utils/paths';
+import { TOOL_NAME } from '../config/constants';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export async function initCommand(options: { pool?: string; datasetBase?: string } = {}) {
   console.log();
-  console.log(chalk.bold('🚀 Initializing betterpg'));
+  console.log(chalk.bold(`🚀 Initializing ${TOOL_NAME}`));
   console.log();
 
   // Check if already initialized
   try {
     await fs.access(PATHS.STATE);
-    console.log(chalk.yellow('⚠️  betterpg is already initialized'));
+    console.log(chalk.yellow(`⚠️  ${TOOL_NAME} is already initialized`));
     console.log(chalk.dim(`   State file exists at: ${PATHS.STATE}`));
     console.log();
     return;
@@ -73,7 +74,7 @@ export async function initCommand(options: { pool?: string; datasetBase?: string
   await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
 
   console.log();
-  console.log(chalk.green.bold('✓ betterpg initialized successfully!'));
+  console.log(chalk.green.bold(`✓ ${TOOL_NAME} initialized successfully!`));
   console.log();
   console.log(chalk.bold('Next steps:'));
   console.log(chalk.dim('  1. Create a database:'), chalk.cyan('bpg create myapp-prod'));

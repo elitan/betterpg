@@ -11,6 +11,7 @@ import { Branch } from '../../types/state';
 import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
 import { parseRecoveryTime, formatDate } from '../../utils/time';
 import { Rollback } from '../../utils/rollback';
+import { CONTAINER_PREFIX } from '../../config/constants';
 
 export interface BranchCreateOptions {
   from?: string;
@@ -217,7 +218,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     }
 
     // Create container
-    const containerName = `bpg-${target.database}-${target.branch}`;
+    const containerName = `${CONTAINER_PREFIX}-${target.database}-${target.branch}`;
     const containerSpinner = ora(`Creating container: ${containerName}`).start();
     containerID = await docker.createContainer({
       name: containerName,

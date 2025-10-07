@@ -1,5 +1,6 @@
 import { PATHS } from '../utils/paths';
 import { $ } from 'bun';
+import { CLI_NAME } from '../config/constants';
 
 export interface WALArchiveInfo {
   datasetName: string;
@@ -205,7 +206,7 @@ export class WALManager {
     recoveryConf += `recovery_target_action = 'promote'\n`;
 
     // For PostgreSQL 12+, write to postgresql.auto.conf using sudo
-    const tempFile = `/tmp/betterpg-recovery-${Date.now()}.conf`;
+    const tempFile = `/tmp/${CLI_NAME}-recovery-${Date.now()}.conf`;
     await Bun.write(tempFile, recoveryConf);
     await $`sudo mv ${tempFile} ${pgdataPath}/postgresql.auto.conf`.quiet();
     await $`sudo chmod 600 ${pgdataPath}/postgresql.auto.conf`.quiet();

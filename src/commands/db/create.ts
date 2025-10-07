@@ -9,6 +9,7 @@ import { generateUUID, generatePassword, sanitizeName } from '../../utils/helper
 import { Database, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace } from '../../utils/namespace';
+import { CONTAINER_PREFIX } from '../../config/constants';
 
 export async function dbCreateCommand(name: string) {
   console.log();
@@ -58,7 +59,7 @@ export async function dbCreateCommand(name: string) {
 
   // Generate credentials
   const password = generatePassword();
-  const containerName = `bpg-${sanitizedName}-main`;
+  const containerName = `${CONTAINER_PREFIX}-${sanitizedName}-main`;
 
   // Pull PostgreSQL image if needed
   const imageExists = await docker.imageExists(cfg.postgres.image);

@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { $ } from 'bun';
+import { CLI_NAME, CONTAINER_PREFIX } from '../src/config/constants';
+import { PATHS } from '../src/utils/paths';
+import { DEFAULT_CONFIG } from '../src/managers/config';
 
 const BPG = 'sudo ./dist/bpg';
 
@@ -7,39 +10,45 @@ const BPG = 'sudo ./dist/bpg';
 beforeAll(async () => {
   console.log('🧹 Cleaning up before performance tests...');
 
+  const pool = DEFAULT_CONFIG.zfs.pool;
+  const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
   try {
-    await $`docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
+    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
   } catch {}
 
   try {
-    await $`sudo zfs destroy -r tank/betterpg/databases`.quiet();
-    await $`sudo zfs create tank/betterpg/databases`.quiet();
+    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
+    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
   } catch {}
 
   try {
-    await $`sudo rm -rf /var/lib/betterpg/* /etc/betterpg/*`.quiet();
+    await $`sudo rm -rf ${PATHS.DATA_DIR}/* ${PATHS.CONFIG_DIR}/*`.quiet();
   } catch {}
 
   console.log('✓ Cleanup complete');
 
-  // Initialize betterpg
+  // Initialize system
   await $`${BPG} init`;
 });
 
 afterAll(async () => {
   console.log('🧹 Cleaning up after performance tests...');
 
+  const pool = DEFAULT_CONFIG.zfs.pool;
+  const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
   try {
-    await $`docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
+    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
   } catch {}
 
   try {
-    await $`sudo zfs destroy -r tank/betterpg/databases`.quiet();
-    await $`sudo zfs create tank/betterpg/databases`.quiet();
+    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
+    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
   } catch {}
 
   try {
-    await $`sudo rm -rf /var/lib/betterpg/* /etc/betterpg/*`.quiet();
+    await $`sudo rm -rf ${PATHS.DATA_DIR}/* ${PATHS.CONFIG_DIR}/*`.quiet();
   } catch {}
 
   console.log('✓ Cleanup complete');
@@ -155,8 +164,11 @@ describe('BetterPG Performance Tests', () => {
   });
 
   test('Performance: Space efficiency check', async () => {
-    const prodSize = parseInt(await $`sudo zfs get -H -p -o value used tank/betterpg/databases/perf-test`.text());
-    const branch1Size = parseInt(await $`sudo zfs get -H -p -o value used tank/betterpg/databases/perf-branch-1`.text());
+    const pool = DEFAULT_CONFIG.zfs.pool;
+    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+
+    const prodSize = parseInt(await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/perf-test`.text());
+    const branch1Size = parseInt(await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/perf-branch-1`.text());
 
     const ratio = branch1Size / prodSize;
     console.log(`   💾 Primary size: ${(prodSize / 1024 / 1024).toFixed(2)} MB`);
