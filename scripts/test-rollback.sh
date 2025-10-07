@@ -20,7 +20,7 @@ echo "  (This should fail and clean up resources)"
 
 # Capture state before
 DATASETS_BEFORE=$(sudo zfs list -H -o name | grep betterpg || true)
-CONTAINERS_BEFORE=$(docker ps -a --filter "name=bpg-" --format "{{.Names}}" | sort)
+CONTAINERS_BEFORE=$(docker ps -a --filter "name=betterpg-" --format "{{.Names}}" | sort)
 
 # Try to create branch with a name that will cause issues
 # We'll force a failure by creating a ZFS dataset with same name first
@@ -44,7 +44,7 @@ else
 fi
 
 # Check that no container was left behind
-CONTAINERS_AFTER=$(docker ps -a --filter "name=bpg-$TEST_DB-fail-test" --format "{{.Names}}")
+CONTAINERS_AFTER=$(docker ps -a --filter "name=betterpg-$TEST_DB-fail-test" --format "{{.Names}}")
 if [ -z "$CONTAINERS_AFTER" ]; then
     echo "  ✓ No orphaned containers (rollback succeeded)"
 else
@@ -75,7 +75,7 @@ else
 fi
 
 # Check container exists
-if docker ps -a --filter "name=bpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "bpg-$TEST_DB-dev"; then
+if docker ps -a --filter "name=betterpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "betterpg-$TEST_DB-dev"; then
     echo "  ✓ Container exists"
 else
     echo "  ✗ Container missing"
@@ -83,7 +83,7 @@ else
 fi
 
 # Check container is running
-if docker ps --filter "name=bpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "bpg-$TEST_DB-dev"; then
+if docker ps --filter "name=betterpg-$TEST_DB-dev" --format "{{.Names}}" | grep -q "betterpg-$TEST_DB-dev"; then
     echo "  ✓ Container is running"
 else
     echo "  ✗ Container not running"

@@ -99,7 +99,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 ### Manager Classes
 
 **StateManager** (`src/managers/state.ts`):
-- Manages JSON state file at `/var/lib/betterpg/state.json`
+- Manages JSON state file at `~/.local/share/betterpg/state.json`
 - Implements file locking to prevent concurrent modifications
 - Validates state integrity (unique names, namespaced branches, main branch exists)
 - State structure: projects[] with nested branches[]
@@ -114,7 +114,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **DockerManager** (`src/managers/docker.ts`):
 - Uses dockerode library for Docker API
-- Container naming: `bpg-<project>-<branch>` (e.g., `bpg-api-dev`)
+- Container naming: `betterpg-<project>-<branch>` (e.g., `betterpg-api-dev`)
 - Each container is a complete PostgreSQL database instance
 - Implements PostgreSQL backup mode: `startBackupMode()`, `stopBackupMode()`
 - Compatible with PostgreSQL 15+ (`pg_backup_*`) and <15 (`pg_start_backup`)
@@ -122,7 +122,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
-- WAL archive location: `/var/lib/betterpg/wal-archive/<dataset>/`
+- WAL archive location: `~/.local/share/betterpg/wal-archive/<dataset>/`
 - Key methods:
   - `ensureArchiveDir()` - Creates WAL archive directory with correct permissions
   - `getArchiveInfo()` - Returns file count, total size, oldest/newest timestamps
@@ -134,7 +134,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WAL Archiving Configuration:**
 - Enabled on all PostgreSQL containers via archive_command
-- WAL files archived to `/var/lib/betterpg/wal-archive/<dataset>/`
+- WAL files archived to `~/.local/share/betterpg/wal-archive/<dataset>/`
 - Each branch has its own isolated WAL archive directory
 - Commands: `bpg wal info [branch]`, `bpg wal cleanup <branch> --days <n>`
 
@@ -220,11 +220,11 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 ## File Locations
 
-- State: `/var/lib/betterpg/state.json` (stores pool, dataset base, projects, branches, snapshots)
-- State lock: `/var/lib/betterpg/state.json.lock`
-- WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
+- State: `~/.local/share/betterpg/state.json` (stores pool, dataset base, projects, branches, snapshots)
+- State lock: `~/.local/share/betterpg/state.json.lock`
+- WAL archive: `~/.local/share/betterpg/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>` (pool auto-detected)
-- Docker containers: `bpg-<project>-<branch>` (PostgreSQL databases)
+- Docker containers: `betterpg-<project>-<branch>` (PostgreSQL databases)
 
 ## Common Development Patterns
 
@@ -252,7 +252,7 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 - Always extract dataset name from branch.zfsDataset when needed
 
 **Working with Docker:**
-- Container names use `-` separator: `bpg-<project>-<branch>`
+- Container names use `-` separator: `betterpg-<project>-<branch>`
 - Each container is a complete PostgreSQL database instance
 - Use `project.dockerImage` when creating containers (branches inherit from parent project)
 - Always use `docker.getContainerByName()` to get container ID

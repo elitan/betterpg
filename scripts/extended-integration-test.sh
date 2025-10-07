@@ -26,7 +26,7 @@ cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
 
     # Stop and remove containers
-    docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
     sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
@@ -63,18 +63,8 @@ check_container_state() {
     return 1
 }
 
-# Test 1: Initialize
-echo -e "\n${BLUE}=== Test 1: Initialize betterpg ===${NC}"
-$BPG init
-if [ -f ~/.local/share/betterpg/state.json ] && [ -f ~/.config/betterpg/config.yaml ]; then
-    echo -e "${GREEN}✓ Init successful${NC}"
-else
-    echo -e "${RED}✗ Init failed${NC}"
-    exit 1
-fi
-
-# Test 2: Create project
-echo -e "\n${BLUE}=== Test 2: Create primary project ===${NC}"
+# Test 1: Create project (auto-initialization happens here)
+echo -e "\n${BLUE}=== Test 1: Create project (auto-initializes) ===${NC}"
 $BPG project create test-prod
 if sudo zfs list tank/betterpg/databases/test-prod-main >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Project created${NC}"
@@ -84,7 +74,7 @@ else
 fi
 
 # Verify container is running
-if check_container_state "bpg-test-prod-main" "running"; then
+if check_container_state "betterpg-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Container is running${NC}"
 else
     echo -e "${RED}✗ Container not running${NC}"
@@ -94,8 +84,8 @@ fi
 # Test 3: Create test data
 echo -e "\n${BLUE}=== Test 3: Create test data ===${NC}"
 sleep 3  # Give PostgreSQL a moment
-PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].credentials.password')
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+PGPASSWORD=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].credentials.password')
+PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres <<EOF
 CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -119,7 +109,7 @@ echo -e "\n${BLUE}=== Test 5: Stop branch ===${NC}"
 $BPG stop test-prod/main
 sleep 2
 
-if check_container_state "bpg-test-prod-main" "stopped"; then
+if check_container_state "betterpg-test-prod-main" "stopped"; then
     echo -e "${GREEN}✓ Branch stopped successfully${NC}"
 else
     echo -e "${RED}✗ Branch stop failed${NC}"
@@ -127,7 +117,7 @@ else
 fi
 
 # Verify state was updated
-STATE_STATUS=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].status')
+STATE_STATUS=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].status')
 if [ "$STATE_STATUS" = "stopped" ]; then
     echo -e "${GREEN}✓ State updated correctly${NC}"
 else
@@ -139,7 +129,7 @@ fi
 echo -e "\n${BLUE}=== Test 6: Start branch ===${NC}"
 $BPG start test-prod/main
 
-if check_container_state "bpg-test-prod-main" "running"; then
+if check_container_state "betterpg-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Branch started successfully${NC}"
 else
     echo -e "${RED}✗ Branch start failed${NC}"
@@ -147,7 +137,7 @@ else
 fi
 
 # Re-read port from state (Docker may have reassigned it)
-PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[0].port')
+PGPORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[0].port')
 
 # Wait for PostgreSQL to be ready to accept connections
 echo -n "  Waiting for PostgreSQL to accept connections (port: $PGPORT)"
@@ -172,7 +162,7 @@ fi
 echo -e "\n${BLUE}=== Test 7: Restart branch ===${NC}"
 $BPG restart test-prod/main
 
-if check_container_state "bpg-test-prod-main" "running"; then
+if check_container_state "betterpg-test-prod-main" "running"; then
     echo -e "${GREEN}✓ Branch restarted successfully${NC}"
 else
     echo -e "${RED}✗ Branch restart failed${NC}"
@@ -198,25 +188,9 @@ else
     exit 1
 fi
 
-# Test 8a: Create another branch (removed --fast flag tests)
-echo -e "\n${BLUE}=== Test 8a: Create second branch ===${NC}"
-if $BPG branch create test-prod/dev 2>&1 | tee /tmp/branch_dev_output.txt | grep -q "application-consistent"; then
-    echo -e "${GREEN}✓ Second branch created with application-consistent snapshot${NC}"
-else
-    echo -e "${RED}✗ Second branch creation failed${NC}"
-    exit 1
-fi
-
-if sudo zfs list tank/betterpg/databases/test-prod-dev >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Dev branch created${NC}"
-else
-    echo -e "${RED}✗ Dev branch creation failed${NC}"
-    exit 1
-fi
-
-# Test 8b: Verify checkpoint was used
-echo -e "\n${BLUE}=== Test 8b: Verify checkpoint was used ===${NC}"
-if grep -q "Checkpointing\|checkpointed" /tmp/branch_dev_output.txt; then
+# Test 8a: Verify checkpoint was used
+echo -e "\n${BLUE}=== Test 8a: Verify checkpoint was used ===${NC}"
+if grep -q "Checkpointing\|checkpointed" /tmp/branch_output.txt; then
     echo -e "${GREEN}✓ Application-consistent snapshot used checkpoint${NC}"
 else
     echo -e "${RED}✗ Checkpoint should have been used${NC}"
@@ -226,7 +200,7 @@ fi
 # Test 9: Verify branch has same data
 echo -e "\n${BLUE}=== Test 9: Verify branch data ===${NC}"
 sleep 3
-DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.databases[0].branches[] | select(.name == "test-prod/dev") | .port')
+DEV_PORT=$(cat ~/.local/share/betterpg/state.json | jq -r '.projects[0].branches[] | select(.name == "test-prod/dev") | .port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
     echo -e "${GREEN}✓ Branch has same data as primary${NC}"
@@ -253,7 +227,7 @@ echo -e "\n${BLUE}=== Test 11: Stop branch ===${NC}"
 $BPG stop test-prod/dev
 sleep 2
 
-if check_container_state "bpg-test-prod-dev" "stopped"; then
+if check_container_state "betterpg-test-prod-dev" "stopped"; then
     echo -e "${GREEN}✓ Branch stopped successfully${NC}"
 else
     echo -e "${RED}✗ Branch stop failed${NC}"
@@ -265,7 +239,7 @@ echo -e "\n${BLUE}=== Test 12: Start branch ===${NC}"
 $BPG start test-prod/dev
 sleep 3
 
-if check_container_state "bpg-test-prod-dev" "running"; then
+if check_container_state "betterpg-test-prod-dev" "running"; then
     echo -e "${GREEN}✓ Branch started successfully${NC}"
 else
     echo -e "${RED}✗ Branch start failed${NC}"
@@ -355,15 +329,6 @@ else
     exit 1
 fi
 
-$BPG branch delete test-prod/fast
-
-if ! sudo zfs list tank/betterpg/databases/test-prod-fast >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Fast branch destroyed${NC}"
-else
-    echo -e "${RED}✗ Fast branch destroy failed${NC}"
-    exit 1
-fi
-
 # Test 20: Edge case - Try to start non-existent branch
 echo -e "\n${BLUE}=== Test 20: Edge case - Start non-existent branch ===${NC}"
 if $BPG start non-existent/main 2>&1 | grep -q "not found"; then
@@ -379,5 +344,5 @@ $BPG status
 echo -e "${GREEN}✓ Final status check complete${NC}"
 
 echo -e "\n${GREEN}🎉 All extended tests passed!${NC}"
-echo -e "${GREEN}   Total tests: 21${NC}"
+echo -e "${GREEN}   Total tests: 20${NC}"
 echo -e "${GREEN}   All passed ✓${NC}\n"

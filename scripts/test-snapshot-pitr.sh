@@ -24,9 +24,9 @@ cleanup() {
     sleep 2
     # Clean up any leftover resources
     sudo zfs destroy -r tank/betterpg/databases/$TESTDB-main 2>/dev/null || true
-    docker rm -f bpg-$TESTDB-main 2>/dev/null || true
-    docker rm -f bpg-$TESTDB-pitr-test 2>/dev/null || true
-    docker rm -f bpg-$TESTDB-pitr-snapshot1 2>/dev/null || true
+    docker rm -f betterpg-$TESTDB-main 2>/dev/null || true
+    docker rm -f betterpg-$TESTDB-pitr-test 2>/dev/null || true
+    docker rm -f betterpg-$TESTDB-pitr-snapshot1 2>/dev/null || true
 }
 
 trap cleanup EXIT

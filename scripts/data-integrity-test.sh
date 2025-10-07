@@ -39,7 +39,7 @@ test_result() {
 # Cleanup
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
     zfs destroy -r tank/betterpg/databases 2>/dev/null || true
     zfs create tank/betterpg/databases 2>/dev/null || true
     rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
@@ -184,7 +184,7 @@ UNCOMMIT_BALANCE=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $UNCOMMIT_PORT -U
 test_result "Uncommitted transactions NOT in snapshot (balance still 900)" $([ "$UNCOMMIT_BALANCE" = "900.00" ] && echo 0 || echo 1)
 
 # Rollback the open transaction
-sudo docker exec bpg-test-db psql -U postgres -c "ROLLBACK;" 2>/dev/null || true
+sudo docker exec betterpg-test-db psql -U postgres -c "ROLLBACK;" 2>/dev/null || true
 
 echo ""
 

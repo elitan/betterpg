@@ -169,7 +169,7 @@ bpg project delete myapp --force
 - Auto-initializes on first run (creates state.json, base dataset, WAL archive directory)
 - Project record: `myapp` with chosen Docker image
 - Main branch: `myapp/main` (automatically created)
-- PostgreSQL container: `bpg-myapp-main` on dynamically allocated port
+- PostgreSQL container: `betterpg-myapp-main` on dynamically allocated port
 - ZFS dataset: `<pool>/betterpg/databases/myapp-main`
 - Credentials: auto-generated (view with `bpg status`)
 
@@ -288,7 +288,7 @@ bpg wal cleanup prod/main --days 7
 bpg wal cleanup prod/main --days 7 --dry-run
 ```
 
-**Note:** WAL files are stored at `/var/lib/betterpg/wal-archive/<dataset>/`
+**Note:** WAL files are stored at `~/.local/share/betterpg/wal-archive/<dataset>/`
 
 ### Lifecycle Commands
 
@@ -445,10 +445,10 @@ Think of a **project** like a Git repository and **branches** like Git branches.
 ```
 Project: prod (dockerImage: postgres:17-alpine)
 ├── Branch: prod/main (primary)
-│   ├── PostgreSQL Database: bpg-prod-main (Docker container with postgres:17-alpine)
+│   ├── PostgreSQL Database: betterpg-prod-main (Docker container with postgres:17-alpine)
 │   ├── ZFS Dataset: tank/betterpg/databases/prod-main
-│   ├── Docker Container: bpg-prod-main (port: dynamic)
-│   ├── WAL Archive: /var/lib/betterpg/wal-archive/prod-main/
+│   ├── Docker Container: betterpg-prod-main (port: dynamic)
+│   ├── WAL Archive: ~/.local/share/betterpg/wal-archive/prod-main/
 │   ├── Snapshot 1: 2025-01-15T10:30:00 (label: before-migration)
 │   │   └── Branch: prod/dev (inherits postgres:17-alpine)
 │   └── Snapshot 2: 2025-01-15T14:45:00 (label: daily-backup)
@@ -473,8 +473,8 @@ Each branch is a complete, isolated PostgreSQL database with:
 All resources use `<project>/<branch>` namespace format:
 - Branch names: `prod/main`, `prod/dev`, `api/staging`
 - ZFS datasets: `prod-main`, `prod-dev` (using `-` separator)
-- Docker containers: `bpg-prod-main`, `bpg-prod-dev` (PostgreSQL databases)
-- WAL archives: `/var/lib/betterpg/wal-archive/prod-main/`
+- Docker containers: `betterpg-prod-main`, `betterpg-prod-dev` (PostgreSQL databases)
+- WAL archives: `~/.local/share/betterpg/wal-archive/prod-main/`
 
 ## Performance
 
@@ -569,55 +569,34 @@ crontab -e
 
 ## Configuration
 
-Config file: `/etc/betterpg/config.yaml` (created by `bpg init`)
+**Zero-config design** - No configuration file needed! BetterPG uses sensible hardcoded defaults:
 
-```yaml
-version: 1
+- **PostgreSQL image**: `postgres:17-alpine` (override with `--pg-version` or `--image`)
+- **ZFS compression**: `lz4` (fast, good for databases)
+- **ZFS recordsize**: `8k` (PostgreSQL page size)
+- **ZFS pool**: Auto-detected (or use `--pool` if you have multiple pools)
+- **Ports**: Dynamically allocated by Docker
+- **Credentials**: Auto-generated passwords (view with `bpg branch get`)
 
-zfs:
-  pool: tank
-  datasetBase: betterpg/databases
-  compression: lz4
-  recordsize: 8k
-
-postgres:
-  version: "16"
-  image: postgres:16-alpine
-  basePort: 5432  # Starting port (Docker assigns dynamically)
-  config:
-    shared_buffers: 256MB
-    max_connections: "100"
-    wal_level: replica
-    archive_mode: on
-    archive_timeout: "300"
-    max_wal_size: 1GB
-
-backups:
-  enabled: true
-  provider: local
-  retentionDays: 30
-  local:
-    path: /var/lib/betterpg/backups
-
-system:
-  logLevel: info
-  logFile: /var/log/betterpg.log
-```
+Auto-initialization happens on first `bpg project create`:
+1. Detects ZFS pool (or prompts if multiple exist)
+2. Creates base dataset (`<pool>/betterpg/databases`)
+3. Initializes state.json with pool/dataset info
+4. Creates WAL archive directory
 
 **File locations:**
-- Config: `/etc/betterpg/config.yaml`
-- State: `/var/lib/betterpg/state.json` (tracks projects, branches, snapshots)
-- State lock: `/var/lib/betterpg/state.json.lock` (prevents concurrent modifications)
-- WAL archive: `/var/lib/betterpg/wal-archive/<dataset>/`
+- State: `~/.local/share/betterpg/state.json` (tracks projects, branches, snapshots)
+- State lock: `~/.local/share/betterpg/state.json.lock` (prevents concurrent modifications)
+- WAL archive: `~/.local/share/betterpg/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/betterpg/databases/<project>-<branch>`
-- Docker containers: `bpg-<project>-<branch>` (PostgreSQL databases)
+- Docker containers: `betterpg-<project>-<branch>` (PostgreSQL databases)
 
 ## Testing
 
 ```bash
-# Run all test suites (70 tests total)
-./scripts/run-extended-tests.sh     # Extended tests (21 tests)
-./scripts/run-v1-tests.sh           # V1 comprehensive tests (36 tests)
+# Run all test suites (68 tests total)
+./scripts/run-extended-tests.sh     # Extended tests (20 tests)
+./scripts/run-v1-tests.sh           # V1 comprehensive tests (35 tests)
 ./scripts/run-advanced-tests.sh     # Advanced tests (13 tests)
 
 # Individual test suites

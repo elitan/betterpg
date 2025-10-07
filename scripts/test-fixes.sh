@@ -12,16 +12,16 @@ echo ""
 # Test 1: Dynamic port allocation
 echo "Test 1: Dynamic Port Allocation"
 echo "  Creating project..."
-$BPG project create "$TEST_DB" > /tmp/bpg-create.log 2>&1
+$BPG project create "$TEST_DB" > /tmp/betterpg-create.log 2>&1
 
-PORT1=$(grep "Port:" /tmp/bpg-create.log | awk '{print $2}')
+PORT1=$(grep "Port:" /tmp/betterpg-create.log | awk '{print $2}')
 echo "  ✓ Project created with dynamic port: $PORT1"
 
 # Create a branch
 echo "  Creating branch..."
-$BPG branch create "$TEST_DB/dev" > /tmp/bpg-branch.log 2>&1
+$BPG branch create "$TEST_DB/dev" > /tmp/betterpg-branch.log 2>&1
 
-PORT2=$(grep "Port:" /tmp/bpg-branch.log | awk '{print $2}')
+PORT2=$(grep "Port:" /tmp/betterpg-branch.log | awk '{print $2}')
 echo "  ✓ Branch created with dynamic port: $PORT2"
 
 if [ "$PORT1" != "$PORT2" ]; then

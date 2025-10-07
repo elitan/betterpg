@@ -23,7 +23,7 @@ cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
 
     # Stop and remove containers
-    docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up ZFS datasets
     sudo zfs destroy -r tank/betterpg/databases 2>/dev/null || true
@@ -59,7 +59,7 @@ else
 fi
 
 # Verify container is running
-if docker ps | grep -q bpg-test-prod; then
+if docker ps | grep -q betterpg-test-prod; then
     echo -e "${GREEN}✓ Container is running${NC}"
 else
     echo -e "${RED}✗ Container not running${NC}"
@@ -168,7 +168,7 @@ else
     exit 1
 fi
 
-if ! docker ps -a | grep -q bpg-test-dev; then
+if ! docker ps -a | grep -q betterpg-test-dev; then
     echo -e "${GREEN}✓ Branch container removed${NC}"
 else
     echo -e "${RED}✗ Branch container still exists${NC}"

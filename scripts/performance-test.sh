@@ -22,7 +22,7 @@ BPG="sudo ./dist/bpg"
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    docker ps -a | grep bpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -a | grep betterpg- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
     zfs destroy -r tank/betterpg/databases 2>/dev/null || true
     zfs create tank/betterpg/databases 2>/dev/null || true
     rm -rf /var/lib/betterpg/* /etc/betterpg/* 2>/dev/null || true
@@ -158,7 +158,7 @@ DURATION=$(echo "scale=3; ($END - $START) / 1000000000" | bc)
 echo -e "${GREEN}✓ Branch created during write load in ${DURATION}s${NC}"
 
 # Stop background writes
-sudo docker exec bpg-test-medium pkill -9 postgres 2>/dev/null || true
+sudo docker exec betterpg-test-medium pkill -9 postgres 2>/dev/null || true
 $BPG restart test-medium > /dev/null 2>&1
 echo ""
 

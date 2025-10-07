@@ -74,7 +74,7 @@ pass "Got connection details (port: $PORT)"
 
 # Test 4: Insert initial data and wait for checkpoint
 print_test "Insert initial data and create checkpoint"
-docker exec bpg-${TEST_DB}-main psql -U postgres -d postgres -c "
+docker exec betterpg-${TEST_DB}-main psql -U postgres -d postgres -c "
 CREATE TABLE wal_test (
     id SERIAL PRIMARY KEY,
     value TEXT,
@@ -89,7 +89,7 @@ pass "Initial data inserted and checkpoint created"
 # Test 5: Wait and generate more transactions to ensure consistent state
 print_test "Generate transactions and wait for consistent state"
 sleep 5
-docker exec bpg-${TEST_DB}-main psql -U postgres -d postgres -c "
+docker exec betterpg-${TEST_DB}-main psql -U postgres -d postgres -c "
 INSERT INTO wal_test (value) VALUES ('before_recovery_point_1');
 INSERT INTO wal_test (value) VALUES ('before_recovery_point_2');
 SELECT pg_switch_wal();
@@ -105,7 +105,7 @@ RECOVERY_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "Recovery timestamp: $RECOVERY_TIME"
 # Wait and generate more WAL activity to ensure timestamp is in consistent state
 sleep 3
-docker exec bpg-${TEST_DB}-main psql -U postgres -d postgres -c "
+docker exec betterpg-${TEST_DB}-main psql -U postgres -d postgres -c "
 SELECT pg_switch_wal();
 CHECKPOINT;
 " > /dev/null
@@ -114,7 +114,7 @@ pass "Timestamp recorded: $RECOVERY_TIME"
 
 # Test 7: Insert more data (AFTER timestamp and checkpoint)
 print_test "Insert data AFTER recovery timestamp"
-docker exec bpg-${TEST_DB}-main psql -U postgres -d postgres -c "
+docker exec betterpg-${TEST_DB}-main psql -U postgres -d postgres -c "
 INSERT INTO wal_test (value) VALUES ('after_recovery_point');
 INSERT INTO wal_test (value) VALUES ('should_not_exist_in_pitr');
 SELECT pg_switch_wal();
@@ -124,7 +124,7 @@ pass "Post-recovery data inserted"
 
 # Test 8: Verify all 5 rows exist in main branch
 print_test "Verify all 5 rows exist in main branch"
-ROW_COUNT=$(docker exec bpg-${TEST_DB}-main psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;")
+ROW_COUNT=$(docker exec betterpg-${TEST_DB}-main psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;")
 if [ "$ROW_COUNT" != "5" ]; then
     fail "Expected 5 rows in main, got $ROW_COUNT"
 fi
@@ -154,17 +154,17 @@ if [ -z "$PITR_PORT" ] || [ "$PITR_PORT" == "null" ]; then
 fi
 
 # Check total row count in PITR branch
-PITR_TOTAL=$(docker exec bpg-${TEST_DB}-pitr psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;" 2>/dev/null || echo "0")
+PITR_TOTAL=$(docker exec betterpg-${TEST_DB}-pitr psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;" 2>/dev/null || echo "0")
 
 if [ "$PITR_TOTAL" != "3" ]; then
     echo "Debug: Expected 3 rows in PITR branch, got $PITR_TOTAL"
     echo "Debug: Rows in PITR branch:"
-    docker exec bpg-${TEST_DB}-pitr psql -U postgres -d postgres -c "SELECT * FROM wal_test ORDER BY id;"
+    docker exec betterpg-${TEST_DB}-pitr psql -U postgres -d postgres -c "SELECT * FROM wal_test ORDER BY id;"
     fail "Expected 3 rows in PITR branch (before recovery), got $PITR_TOTAL"
 fi
 
 # Verify that post-recovery data does NOT exist
-POST_RECOVERY_COUNT=$(docker exec bpg-${TEST_DB}-pitr psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test WHERE value LIKE 'after_%';" 2>/dev/null || echo "0")
+POST_RECOVERY_COUNT=$(docker exec betterpg-${TEST_DB}-pitr psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test WHERE value LIKE 'after_%';" 2>/dev/null || echo "0")
 
 if [ "$POST_RECOVERY_COUNT" != "0" ]; then
     fail "PITR branch should not have post-recovery data, but found $POST_RECOVERY_COUNT rows"
@@ -184,7 +184,7 @@ pass "Regular branch created"
 
 # Test 15: Verify regular branch has all 5 rows
 print_test "Verify regular branch has all 5 rows"
-REGULAR_ROW_COUNT=$(docker exec bpg-${TEST_DB}-regular psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;" || echo "0")
+REGULAR_ROW_COUNT=$(docker exec betterpg-${TEST_DB}-regular psql -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM wal_test;" || echo "0")
 
 if [ "$REGULAR_ROW_COUNT" != "5" ]; then
     fail "Expected 5 rows in regular branch, got $REGULAR_ROW_COUNT"
