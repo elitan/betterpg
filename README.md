@@ -110,10 +110,8 @@ bpg db list
 # Get database details
 bpg db get myapp
 
-# Rename database
-bpg db rename myapp myapp-v2
-
 # Delete database and all branches
+# Note: db rename not yet implemented
 bpg db delete myapp --force
 ```
 
@@ -159,10 +157,8 @@ bpg branch list prod
 # Get branch details
 bpg branch get prod/dev
 
-# Rename branch
-bpg branch rename prod/dev prod/development
-
 # Sync branch with parent's current state
+# Note: branch rename not yet implemented
 bpg branch sync prod/dev
 
 # Delete branch
@@ -384,9 +380,7 @@ zfs:
 postgres:
   image: postgres:16-alpine
   version: "16"
-  config:
-    shared_buffers: 256MB
-    max_connections: "100"
+  # PostgreSQL config options can be customized here
 ```
 
 **File locations:**
@@ -398,26 +392,31 @@ postgres:
 ## Testing
 
 ```bash
-# Run full test suite (25 tests)
-./scripts/run-extended-tests.sh
+# Run all test suites (70 tests total)
+./scripts/run-extended-tests.sh     # Extended tests (21 tests)
+./scripts/run-v1-tests.sh           # V1 comprehensive tests (36 tests)
+./scripts/run-advanced-tests.sh     # Advanced tests (13 tests)
 
-# Basic integration tests
-./scripts/integration-test.sh
-
-# Performance benchmarks
-./scripts/performance-test.sh
+# Individual test suites
+./scripts/integration-test.sh       # Basic integration tests
+./scripts/performance-test.sh       # Performance benchmarks
 ```
 
-Tests cover:
+**Test Coverage (70 tests):**
 - Database lifecycle (create, start, stop, restart)
 - Branch creation (application-consistent & crash-consistent)
 - Data persistence across stop/start
 - Branch sync functionality
 - ZFS copy-on-write efficiency
-- Snapshot management
-- WAL archiving
+- Snapshot management (create, list, delete)
+- WAL archiving and cleanup
 - Point-in-time recovery (PITR)
-- Edge cases
+- Edge cases and error handling
+- State integrity verification
+
+**CI/CD:**
+- GitHub Actions runs all 70 tests automatically on push/PR
+- Ubuntu 22.04 with ZFS, Docker, PostgreSQL client tools
 
 ## Development
 
@@ -495,14 +494,18 @@ sudo zpool create tank /dev/sdb
 
 ## Roadmap
 
-**Completed (v0.3.0):**
+**Completed (v0.3.4):**
 - ✅ Snapshot management (create, list, delete with labels)
 - ✅ WAL archiving & monitoring
 - ✅ Point-in-time recovery (PITR)
 - ✅ Database lifecycle commands (start, stop, restart)
 - ✅ Namespace-based CLI structure
+- ✅ Branch sync functionality
+- ✅ Comprehensive test coverage (70 tests)
+- ✅ GitHub Actions CI pipeline
 
 **Planned features (v0.4.0+)** - see [TODO.md](TODO.md) for details:
+- Database and branch rename commands
 - Automatic snapshot scheduling via cron
 - Remote storage for WAL archives (S3/B2)
 - Schema diff between branches

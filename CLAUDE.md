@@ -30,7 +30,9 @@ bun run dev
 sudo cp dist/bpg /usr/local/bin/
 
 # Run tests
-./scripts/run-extended-tests.sh     # Full integration test suite (25 tests)
+./scripts/run-extended-tests.sh     # Extended integration tests (21 tests)
+./scripts/run-v1-tests.sh           # V1 comprehensive tests (36 tests)
+./scripts/run-advanced-tests.sh     # Advanced tests (13 tests)
 ./scripts/integration-test.sh       # Basic integration tests
 ./scripts/performance-test.sh       # Performance benchmarks
 ```
@@ -54,7 +56,7 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - `db list` - Lists all databases
 - `db get <name>` - Shows database details
 - `db delete <name>` - Deletes database and all branches
-- `db rename <old> <new>` - Renames database
+- `db rename <old> <new>` - Renames database (NOT IMPLEMENTED YET)
 
 **Branch commands** (`bpg branch <command>`):
 - `branch create <db>/<branch>` - Creates branch (e.g., `api/dev`)
@@ -64,7 +66,7 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 - `branch list [db]` - Lists branches (all or for specific database)
 - `branch get <db>/<branch>` - Shows branch details
 - `branch delete <db>/<branch>` - Deletes branch
-- `branch rename <old> <new>` - Renames branch
+- `branch rename <old> <new>` - Renames branch (NOT IMPLEMENTED YET)
 - `branch sync <db>/<branch>` - Syncs branch with parent's current state
 
 **Snapshot commands** (`bpg snapshot <command>`):
@@ -108,7 +110,8 @@ Commands follow a hierarchical namespace pattern: `<database>/<branch>`
 
 **ConfigManager** (`src/managers/config.ts`):
 - Loads YAML config from `/etc/betterpg/config.yaml`
-- Contains ZFS pool, PostgreSQL image version, port range, etc.
+- Contains ZFS pool, PostgreSQL image version, etc.
+- Note: Port allocation is handled dynamically by Docker (no port range config needed)
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
@@ -245,18 +248,22 @@ When modifying branching logic:
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
 - ZFS pool must exist before `bpg init`
-- Port allocation is sequential (no port reuse)
+- Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
+- Branch rename and database rename commands not yet implemented
 
 ## Roadmap Context
 
-From TODO.md, completed features (v0.3.0):
-- ✅ Database lifecycle (create, start, stop, restart, reset)
+From TODO.md, completed features (v0.3.4):
+- ✅ Database lifecycle (create, start, stop, restart)
 - ✅ Application-consistent snapshots (pg_backup_start/stop)
 - ✅ Namespace-based CLI structure
 - ✅ Snapshot management (create, list, delete with labels)
 - ✅ WAL archiving & monitoring
 - ✅ Point-in-time recovery (PITR)
+- ✅ Branch sync functionality
+- ✅ Comprehensive test coverage (70 tests total)
+- ✅ GitHub Actions CI pipeline
 
 Next priorities (v0.4.0+):
 - Automatic snapshot scheduling via cron
@@ -265,13 +272,28 @@ Next priorities (v0.4.0+):
 
 ## Testing Philosophy
 
-Integration tests (`scripts/extended-integration-test.sh`) verify:
-- Database lifecycle (create → stop → start → restart)
-- Data persistence across stop/start cycles
-- Branch creation (both snapshot types)
-- Branch data verification and isolation
-- ZFS copy-on-write efficiency (branch << parent size)
-- Reset branch to parent snapshot
-- Edge cases (e.g., reset rejects primary databases)
+**Test Suites (70 tests total):**
+1. **Extended tests** (`scripts/run-extended-tests.sh`) - 21 tests
+   - Database lifecycle (create → stop → start → restart)
+   - Data persistence across stop/start cycles
+   - Branch creation (both snapshot types)
+   - Branch data verification and isolation
+   - ZFS copy-on-write efficiency validation
+
+2. **V1 tests** (`scripts/run-v1-tests.sh`) - 36 tests
+   - Comprehensive coverage of all implemented features
+   - Database, branch, snapshot, WAL commands
+   - Edge cases and error handling
+
+3. **Advanced tests** (`scripts/run-advanced-tests.sh`) - 13 tests
+   - Branch sync functionality
+   - State integrity verification
+   - ZFS/Docker integration testing
+   - Complete cleanup verification
+
+**CI/CD:**
+- GitHub Actions runs all 70 tests automatically
+- Ubuntu 22.04 with ZFS, Docker, PostgreSQL client tools
+- File-based ZFS pool for testing
 
 Always run full test suite before committing changes to core managers.
