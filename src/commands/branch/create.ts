@@ -41,18 +41,14 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   // Parse PITR target if provided
   let recoveryTarget: Date | undefined;
+
+  console.log();
+  console.log(`Creating ${chalk.cyan(target.full)} from ${chalk.cyan(source.full)}...`);
+
   if (options.pitr) {
     recoveryTarget = parseRecoveryTime(options.pitr);
     console.log();
-    console.log(chalk.bold(`⏰ Creating PITR branch`));
-    console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
-    console.log(chalk.dim(`   Recovery target: ${chalk.yellow(formatDate(recoveryTarget))}`));
-    console.log();
-  } else {
-    console.log();
-    console.log(chalk.bold(`🌿 Creating application-consistent branch`));
-    console.log(chalk.dim(`   From: ${chalk.cyan(source.full)} → To: ${chalk.cyan(target.full)}`));
-    console.log();
+    console.log(chalk.dim(`  Recovery target: ${formatDate(recoveryTarget)}`));
   }
 
   const state = new StateManager(PATHS.STATE);
@@ -202,6 +198,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     await wal.ensureArchiveDir(targetDatasetName);
     const targetWALArchivePath = wal.getArchivePath(targetDatasetName);
 
+    // Determine which WAL archive to mount
+    let walArchivePath = targetWALArchivePath;
+
     // If PITR is requested, setup recovery configuration
     if (recoveryTarget) {
       const pitrSpinner = ora('Configuring PITR recovery').start();
@@ -211,6 +210,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
       // Setup recovery configuration in the cloned dataset
       await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
+
+      // For PITR recovery, mount the SOURCE WAL archive so PostgreSQL can read archived WAL files
+      walArchivePath = sourceWALArchivePath;
 
       pitrSpinner.succeed(`Configured PITR recovery to ${chalk.yellow(formatDate(recoveryTarget))}`);
     }
@@ -223,7 +225,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       image: dockerImage,
       port,
       dataPath: mountpoint,
-      walArchivePath: targetWALArchivePath,
+      walArchivePath,
       password: sourceProject.credentials.password,
       username: sourceProject.credentials.username,
       database: sourceProject.credentials.database,

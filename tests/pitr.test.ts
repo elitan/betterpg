@@ -45,10 +45,24 @@ describe('Point-in-Time Recovery (PITR)', () => {
 
     // Add more data after snapshot
     await query(mainPort, creds.password, "INSERT INTO pitr_data (value) VALUES ('after-snapshot-1');");
+
+    // Wait to ensure a clear timestamp boundary
+    await Bun.sleep(1000);
+
+    // Capture recovery timestamp AFTER the first insert
+    const dbTimestamp = await query(mainPort, creds.password, "SELECT NOW()::TEXT;");
+    const recoveryTimestamp = dbTimestamp.trim();
+
+    // Wait to ensure next insert is clearly after our recovery target
+    await Bun.sleep(1000);
+
     await query(mainPort, creds.password, "INSERT INTO pitr_data (value) VALUES ('after-snapshot-2');");
 
     // Force WAL archiving of the new changes
     await ensureWALArchived(mainPort, creds.password, 'pitr-test-main', 2);
+
+    // Store the recovery timestamp for the test
+    (globalThis as any).__pitrRecoveryTimestamp = recoveryTimestamp;
   }
 
   afterAll(async () => {
@@ -59,11 +73,8 @@ describe('Point-in-Time Recovery (PITR)', () => {
     test('should create branch with PITR to recent timestamp', async () => {
       await ensureSetup();
 
-      // Wait a bit to ensure we have a timestamp AFTER the snapshot and WAL archiving
-      await Bun.sleep(2000);
-
-      // Get current timestamp (after the snapshot was created and WAL was archived)
-      const pitrTime = new Date().toISOString();
+      // Use the timestamp we captured during setup (between the two inserts)
+      const pitrTime = (globalThis as any).__pitrRecoveryTimestamp;
 
       await branchCreateCommand('pitr-test/recovery', { pitr: pitrTime });
 
@@ -71,9 +82,11 @@ describe('Point-in-Time Recovery (PITR)', () => {
       const recoveryPort = await getBranchPort('pitr-test/recovery');
       await waitForReady(recoveryPort, creds.password, 120000); // PITR recovery may need extra time
 
-      // Verify recovered branch has data
+      // Verify recovered branch has data up to recovery point
+      // Should have: 'initial' and 'after-snapshot-1' (2 rows)
+      // Should NOT have: 'after-snapshot-2' (inserted after recovery target)
       const count = await query(recoveryPort, creds.password, 'SELECT COUNT(*) FROM pitr_data;');
-      expect(parseInt(count)).toBeGreaterThan(0);
+      expect(parseInt(count)).toBe(2);
     }, { timeout: 180000 }); // PITR recovery needs extra time for WAL replay
 
     test('should fail with PITR before any snapshots', async () => {
