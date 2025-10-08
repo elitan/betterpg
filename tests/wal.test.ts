@@ -38,12 +38,12 @@ describe('WAL Operations', () => {
     test('should show WAL info for all branches', async () => {
       await ensureSetup();
       await walInfoCommand(undefined);
-    });
+    }, { timeout: 60000 }); // PostgreSQL startup + WAL archiving can take time
 
     test('should show WAL info for specific branch', async () => {
       await ensureSetup();
       await walInfoCommand('wal-test/main');
-    });
+    }, { timeout: 60000 });
 
     test('should fail for non-existent branch', async () => {
       await expect(walInfoCommand('wal-test/non-existent')).rejects.toThrow();
@@ -54,7 +54,7 @@ describe('WAL Operations', () => {
     test('should cleanup old WAL files', async () => {
       await ensureSetup();
       await walCleanupCommand('wal-test/main', { days: 30 });
-    });
+    }, { timeout: 60000 });
 
     test('should fail to cleanup non-existent branch', async () => {
       await expect(walCleanupCommand('wal-test/non-existent', { days: 30 })).rejects.toThrow();

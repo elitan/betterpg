@@ -136,3 +136,59 @@ export async function waitForReady(
 
   throw new Error(`PostgreSQL did not become ready within ${timeoutMs}ms`);
 }
+
+/**
+ * Force WAL switch and wait for archiving to complete
+ * This ensures WAL files are archived without relying on timing
+ */
+export async function forceWALArchive(
+  port: string,
+  password: string
+): Promise<void> {
+  // Force PostgreSQL to switch to a new WAL file and archive the old one
+  await query(port, password, 'SELECT pg_switch_wal();');
+
+  // Force checkpoint to ensure archiving completes
+  await query(port, password, 'CHECKPOINT;');
+}
+
+/**
+ * Wait for WAL files to be archived
+ * Polls the WAL archive directory until expected number of files appear
+ */
+export async function waitForWALArchive(
+  datasetName: string,
+  minFiles: number = 1,
+  timeoutMs = 30000
+): Promise<void> {
+  const { WALManager } = await import('../../src/managers/wal');
+  const wal = new WALManager();
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const info = await wal.getArchiveInfo(datasetName);
+    if (info.fileCount >= minFiles) {
+      return; // Success
+    }
+    await Bun.sleep(500);
+  }
+
+  throw new Error(`WAL files not archived after ${timeoutMs}ms`);
+}
+
+/**
+ * Ensure WAL archiving has happened
+ * Combines forced WAL switch with verification
+ */
+export async function ensureWALArchived(
+  port: string,
+  password: string,
+  datasetName: string,
+  minFiles: number = 1
+): Promise<void> {
+  // Force WAL switch and checkpoint
+  await forceWALArchive(port, password);
+
+  // Wait for files to appear in archive
+  await waitForWALArchive(datasetName, minFiles);
+}
