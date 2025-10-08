@@ -47,23 +47,9 @@ jobs:
     - name: Build pgd
       run: bun run build
 
-    - name: Run V1 test suite
-      run: |
-        sudo -E bash scripts/test-v1.sh
-      env:
-        HOME: ${{ github.workspace }}
-
-    - name: Run extended test suite
-      run: |
-        sudo -E bash scripts/extended-integration-test.sh
-      env:
-        HOME: ${{ github.workspace }}
-
-    - name: Run advanced test suite
-      run: |
-        sudo -E bash scripts/test-advanced.sh
-      env:
-        HOME: ${{ github.workspace }}
+    - name: Run test suite
+      run: ./scripts/test.sh
+      timeout-minutes: 15
 
     - name: Cleanup
       if: always()

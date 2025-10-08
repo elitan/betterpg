@@ -62,7 +62,7 @@ export async function walInfoCommand(branchName?: string) {
     console.log();
   } else {
     // Show info for all projects
-    const projects = state.getAllProjects();
+    const projects = state.getState().projects || [];
 
     if (projects.length === 0) {
       console.log(chalk.dim('No projects found'));

@@ -8,7 +8,7 @@ import { WALManager } from '../../managers/wal';
 import { generateUUID, generatePassword, sanitizeName } from '../../utils/helpers';
 import { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
-import { buildNamespace } from '../../utils/namespace';
+import { buildNamespace, validateName } from '../../utils/namespace';
 import { CONTAINER_PREFIX } from '../../config/constants';
 import { DEFAULTS } from '../../config/defaults';
 import { getZFSPool } from '../../utils/zfs-pool';
@@ -40,7 +40,10 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     dockerImage = DEFAULTS.postgres.defaultImage;
   }
 
-  // Sanitize and validate name
+  // Validate name before processing
+  validateName(name, 'project');
+
+  // Sanitize name
   const sanitizedName = sanitizeName(name);
   if (sanitizedName !== name) {
     console.log(chalk.yellow(`📝 Sanitized name: ${name} → ${sanitizedName}`));

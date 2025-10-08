@@ -9,6 +9,27 @@ export interface ParsedNamespace {
   full: string;
 }
 
+// Validation regex for project/branch names (alphanumeric, hyphens, underscores)
+const VALID_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Validate a name (project or branch)
+ * @param name - The name to validate
+ * @param type - Type of name ('project' or 'branch')
+ * @throws Error if name is invalid
+ */
+export function validateName(name: string, type: 'project' | 'branch' = 'project'): void {
+  if (!name || name.trim() === '') {
+    throw new Error(`${type} name cannot be empty`);
+  }
+
+  if (!VALID_NAME_REGEX.test(name)) {
+    throw new Error(
+      `Invalid ${type} name: '${name}'. Only alphanumeric characters, hyphens, and underscores are allowed`
+    );
+  }
+}
+
 /**
  * Parse a namespaced name into project and branch components
  * @param name - The namespaced name (e.g., "api/dev")
@@ -33,19 +54,8 @@ export function parseNamespace(name: string): ParsedNamespace {
   }
 
   // Validate names (alphanumeric, hyphens, underscores)
-  const validNameRegex = /^[a-zA-Z0-9_-]+$/;
-
-  if (!validNameRegex.test(project)) {
-    throw new Error(
-      `Invalid project name: '${project}'. Only alphanumeric characters, hyphens, and underscores are allowed`
-    );
-  }
-
-  if (!validNameRegex.test(branch)) {
-    throw new Error(
-      `Invalid branch name: '${branch}'. Only alphanumeric characters, hyphens, and underscores are allowed`
-    );
-  }
+  validateName(project, 'project');
+  validateName(branch, 'branch');
 
   return {
     project,

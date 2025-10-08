@@ -141,7 +141,7 @@ export class DockerManager {
     return parseInt(portBinding[0].HostPort, 10);
   }
 
-  async waitForHealthy(containerID: string, timeout = 60000): Promise<void> {
+  async waitForHealthy(containerID: string, timeout = 120000): Promise<void> {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {

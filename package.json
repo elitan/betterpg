@@ -11,7 +11,8 @@
     "pgd": "./dist/pgd"
   },
   "scripts": {
-    "test": "bun scripts/test.ts",
+    "test": "./scripts/test.sh",
+    "test:watch": "sudo $(which bun) test --watch",
     "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/pgd",
     "dev": "bun run src/index.ts"
   },

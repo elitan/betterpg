@@ -1,0 +1,10 @@
+[test]
+# Set default test timeout to 120 seconds
+# PostgreSQL container startup can take 10-30 seconds
+# on smaller machines (3-4GB RAM) with sequential test execution
+timeout = 120000
+
+# Run tests sequentially to avoid resource contention
+# Multiple tests creating containers + ZFS datasets in parallel
+# causes memory pressure and state.json locking issues
+parallel = false

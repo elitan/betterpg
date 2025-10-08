@@ -1,328 +1,133 @@
+/**
+ * Integration tests for ZFS, Docker, and state management
+ * Using direct command imports
+ */
+
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { spawn } from 'bun';
-import { $ } from 'bun';
-import { CLI_NAME, CONTAINER_PREFIX } from '../src/config/constants';
-import { PATHS } from '../src/utils/paths';
-import { DEFAULT_CONFIG } from '../src/managers/config';
+import * as cleanup from './helpers/cleanup';
+import { getDatasetSize, getDatasetName } from './helpers/zfs';
+import { getProjectCredentials, getBranchPort, query, waitForReady, getState } from './helpers/database';
+import { isContainerRunning } from './helpers/docker';
+import {
+  silenceConsole,
+  projectCreateCommand,
+  branchCreateCommand,
+} from './helpers/commands';
 
-async function runBPG(...args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const proc = spawn(['sudo', './dist/bpg', ...args], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+describe('Integration Tests', () => {
+  beforeAll(async () => {
+    silenceConsole();
+    await cleanup.beforeAll();
   });
 
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
-
-  return { exitCode: proc.exitCode ?? 1, stdout, stderr };
-}
-
-let DB_PASSWORD = '';
-let DB_PORT = '';
-let DEV_PORT = '';
-
-// Helper functions
-async function getStateValue(jsonPath: string): Promise<string> {
-  const file = Bun.file(PATHS.STATE);
-  const json = await file.json();
-  const keys = jsonPath.replace(/^\./,  '').split(/[\.\[]/).map(k => k.replace(/\]$/, ''));
-  let value: any = json;
-  for (const key of keys) {
-    if (key === '') continue;
-    value = value?.[key];
-  }
-  return String(value || '');
-}
-
-async function checkContainerRunning(name: string): Promise<boolean> {
-  const proc = spawn(['docker', 'ps'], { stdout: 'pipe' });
-  const stdout = await new Response(proc.stdout).text();
-  return stdout.includes(name);
-}
-
-async function checkContainerStopped(name: string): Promise<boolean> {
-  const proc = spawn(['docker', 'ps', '-a'], { stdout: 'pipe' });
-  const stdout = await new Response(proc.stdout).text();
-  return stdout.includes(name) && stdout.includes('Exited');
-}
-
-async function queryDatabase(port: string, password: string, query: string): Promise<string> {
-  const proc = spawn(['psql', '-h', 'localhost', '-p', port, '-U', 'postgres', '-d', 'postgres', '-t', '-c', query], {
-    env: { ...process.env, PGPASSWORD: password },
-    stdout: 'pipe',
+  afterAll(async () => {
+    await cleanup.afterAll();
   });
 
-  const stdout = await new Response(proc.stdout).text();
-  return stdout.trim();
-}
+  describe('ZFS Copy-on-Write Efficiency', () => {
+    test('branches should use less space than parent due to CoW', async () => {
+      // Create project with some data
+      await projectCreateCommand('cow-test', {});
+      await Bun.sleep(3000);
 
-// Cleanup before and after tests
-beforeAll(async () => {
-  console.log('🧹 Cleaning up before tests...');
+      const creds = await getProjectCredentials('cow-test');
+      const mainPort = await getBranchPort('cow-test/main');
+      await waitForReady(mainPort, creds.password);
 
-  const pool = DEFAULT_CONFIG.zfs.pool;
-  const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+      // Add significant data to parent
+      await query(mainPort, creds.password, 'CREATE TABLE large_data (id SERIAL PRIMARY KEY, data TEXT);');
+      for (let i = 0; i < 100; i++) {
+        await query(mainPort, creds.password, `INSERT INTO large_data (data) VALUES ('${'x'.repeat(1000)}');`);
+      }
 
-  // Stop and remove containers
-  try {
-    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
-  } catch {}
+      // Get parent size
+      const parentSize = await getDatasetSize(getDatasetName('cow-test', 'main'));
 
-  // Clean up ZFS datasets
-  try {
-    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
-    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
-  } catch {}
+      // Create branches
+      await branchCreateCommand('cow-test/dev', {});
+      await Bun.sleep(3000);
+      await branchCreateCommand('cow-test/staging', {});
+      await Bun.sleep(3000);
 
-  // Remove state and config
-  try {
-    await $`sudo rm -rf ${PATHS.DATA_DIR}/* ${PATHS.CONFIG_DIR}/*`.quiet();
-  } catch {}
+      // Get branch sizes
+      const devSize = await getDatasetSize(getDatasetName('cow-test', 'dev'));
+      const stagingSize = await getDatasetSize(getDatasetName('cow-test', 'staging'));
 
-  console.log('✓ Cleanup complete');
-});
-
-afterAll(async () => {
-  console.log('🧹 Cleaning up after tests...');
-
-  const pool = DEFAULT_CONFIG.zfs.pool;
-  const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
-
-  // Stop and remove containers
-  try {
-    await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
-  } catch {}
-
-  // Clean up ZFS datasets
-  try {
-    await $`sudo zfs destroy -r ${pool}/${datasetBase}`.quiet();
-    await $`sudo zfs create ${pool}/${datasetBase}`.quiet();
-  } catch {}
-
-  // Remove state and config
-  try {
-    await $`sudo rm -rf ${PATHS.DATA_DIR}/* ${PATHS.CONFIG_DIR}/*`.quiet();
-  } catch {}
-
-  console.log('✓ Cleanup complete');
-});
-
-describe('pgd Integration Tests', () => {
-
-  test('01: Initialize system', async () => {
-    await runBPG('init');
-
-    const stateExists = await Bun.file(PATHS.STATE).exists();
-    const configExists = await Bun.file(PATHS.CONFIG).exists();
-
-    expect(stateExists).toBe(true);
-    expect(configExists).toBe(true);
+      // Branches should be much smaller due to CoW
+      expect(devSize).toBeLessThan(parentSize);
+      expect(stagingSize).toBeLessThan(parentSize);
+    }, { timeout: 60000 });
   });
 
-  test('02: Create primary database', async () => {
-    await $`${BPG} create test-prod`;
+  describe('State Integrity', () => {
+    test('state should track all projects and branches', async () => {
+      await projectCreateCommand('state-test-1', {});
+      await Bun.sleep(3000);
+      await projectCreateCommand('state-test-2', {});
+      await Bun.sleep(3000);
+      await branchCreateCommand('state-test-1/dev', {});
+      await Bun.sleep(3000);
+      await branchCreateCommand('state-test-1/staging', {});
+      await Bun.sleep(3000);
 
-    const pool = DEFAULT_CONFIG.zfs.pool;
-    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
+      const state = await getState();
 
-    // Check ZFS dataset exists
-    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-prod`.quiet();
-    expect(zfsResult.exitCode).toBe(0);
+      // Verify projects exist
+      const project1 = state.projects?.find((p: any) => p.name === 'state-test-1');
+      const project2 = state.projects?.find((p: any) => p.name === 'state-test-2');
+      expect(project1).toBeDefined();
+      expect(project2).toBeDefined();
 
-    // Check container is running
-    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
-    expect(isRunning).toBe(true);
+      // Verify branches exist
+      expect(project1?.branches?.length).toBe(3); // main, dev, staging
+      expect(project2?.branches?.length).toBe(1); // main
+    }, { timeout: 90000 });
 
-    // Store password and port for later tests
-    DB_PASSWORD = await getStateValue('.databases[0].credentials.password');
-    DB_PORT = await getStateValue('.databases[0].port');
+    test('state should have valid connection credentials', async () => {
+      const state = await getState();
+
+      for (const project of state.projects || []) {
+        expect(project.credentials).toBeDefined();
+        expect(project.credentials.username).toBe('postgres');
+        expect(project.credentials.password).toBeDefined();
+        expect(project.credentials.password.length).toBeGreaterThan(0);
+        expect(project.credentials.database).toBe('postgres');
+      }
+    });
   });
 
-  test('03: Create test data', async () => {
-    // Wait for PostgreSQL to be ready
-    await Bun.sleep(2000);
+  describe('Docker Integration', () => {
+    test('all running branches should have containers', async () => {
+      const state = await getState();
 
-    await $`PGPASSWORD=${DB_PASSWORD} psql -h localhost -p ${DB_PORT} -U postgres -d postgres -c "CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());"`;
-    await $`PGPASSWORD=${DB_PASSWORD} psql -h localhost -p ${DB_PORT} -U postgres -d postgres -c "INSERT INTO test_table (name) VALUES ('test-data-1'), ('test-data-2'), ('test-data-3');"`;
-
-    const count = await queryDatabase(DB_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-    expect(count).toBe('3');
+      for (const project of state.projects || []) {
+        for (const branch of project.branches || []) {
+          if (branch.status === 'running') {
+            const containerName = `${project.name}-${branch.name.split('/')[1]}`;
+            expect(await isContainerRunning(containerName)).toBe(true);
+          }
+        }
+      }
+    });
   });
 
-  test('04: Status command works', async () => {
-    const result = await $`${BPG} status`;
-    expect(result.exitCode).toBe(0);
-  });
+  describe('Multi-Branch Scenarios', () => {
+    test('should handle multiple branches from different parents', async () => {
+      await projectCreateCommand('multi-test', {});
+      await Bun.sleep(3000);
 
-  test('05: Stop database', async () => {
-    await $`${BPG} stop test-prod`;
-    await Bun.sleep(2000);
+      // Create branch from main
+      await branchCreateCommand('multi-test/dev', {});
+      await Bun.sleep(3000);
 
-    const isStopped = await checkContainerStopped(`${CONTAINER_PREFIX}-test-prod`);
-    expect(isStopped).toBe(true);
+      // Create branch from dev
+      await branchCreateCommand('multi-test/feature', { from: 'multi-test/dev' });
+      await Bun.sleep(3000);
 
-    const stateStatus = await getStateValue('.databases[0].status');
-    expect(stateStatus).toBe('stopped');
-  });
+      const state = await getState();
+      const project = state.projects?.find((p: any) => p.name === 'multi-test');
 
-  test('06: Start database and verify data persistence', async () => {
-    await $`${BPG} start test-prod`;
-    await Bun.sleep(3000);
-
-    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
-    expect(isRunning).toBe(true);
-
-    // Verify data persisted
-    const count = await queryDatabase(DB_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-    expect(count).toBe('3');
-  });
-
-  test('07: Restart database', async () => {
-    await $`${BPG} restart test-prod`;
-    await Bun.sleep(3000);
-
-    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-prod`);
-    expect(isRunning).toBe(true);
-  });
-
-  test('08: Create branch', async () => {
-    await $`${BPG} branch test-prod test-dev`;
-
-    const pool = DEFAULT_CONFIG.zfs.pool;
-    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
-
-    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-dev`.quiet();
-    expect(zfsResult.exitCode).toBe(0);
-
-    // Check snapshot was created
-    const snapshotResult = await $`sudo zfs list -t snapshot | grep ${pool}/${datasetBase}/test-prod@`.quiet();
-    expect(snapshotResult.exitCode).toBe(0);
-
-    DEV_PORT = await getStateValue('.databases[0].branches[0].port');
-  });
-
-  test('09: Verify branch has same data', async () => {
-    await Bun.sleep(3000);
-
-    const count = await queryDatabase(DEV_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-    expect(count).toBe('3');
-  });
-
-  test('10: Modify branch data (isolated from primary)', async () => {
-    await $`PGPASSWORD=${DB_PASSWORD} psql -h localhost -p ${DEV_PORT} -U postgres -d postgres -c "INSERT INTO test_table (name) VALUES ('dev-only-data-1'), ('dev-only-data-2');"`;
-
-    const prodCount = await queryDatabase(DB_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-    const devCount = await queryDatabase(DEV_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-
-    expect(prodCount).toBe('3');
-    expect(devCount).toBe('5');
-  });
-
-  test('11: Stop branch', async () => {
-    await $`${BPG} stop test-dev`;
-    await Bun.sleep(2000);
-
-    const isStopped = await checkContainerStopped(`${CONTAINER_PREFIX}-test-dev`);
-    expect(isStopped).toBe(true);
-  });
-
-  test('12: Start branch', async () => {
-    await $`${BPG} start test-dev`;
-    await Bun.sleep(3000);
-
-    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-dev`);
-    expect(isRunning).toBe(true);
-  });
-
-  test('13: Reset branch to parent snapshot', async () => {
-    await $`${BPG} reset test-dev`;
-    await Bun.sleep(3000);
-
-    const isRunning = await checkContainerRunning(`${CONTAINER_PREFIX}-test-dev`);
-    expect(isRunning).toBe(true);
-
-    // Verify data was reset
-    const count = await queryDatabase(DEV_PORT, DB_PASSWORD, 'SELECT COUNT(*) FROM test_table;');
-    expect(count).toBe('3');
-  });
-
-  test('14: Idempotent start on running database', async () => {
-    const result = await $`${BPG} start test-prod`;
-    expect(result.exitCode).toBe(0);
-  });
-
-  test('15: Idempotent stop on stopped database', async () => {
-    await $`${BPG} stop test-prod`;
-    await Bun.sleep(2000);
-
-    const result = await $`${BPG} stop test-prod`;
-    expect(result.exitCode).toBe(0);
-
-    // Start it back up
-    await $`${BPG} start test-prod`;
-    await Bun.sleep(3000);
-  });
-
-  test('16: Status with mixed running/stopped states', async () => {
-    await $`${BPG} stop test-dev`;
-    await Bun.sleep(2000);
-
-    const result = await $`${BPG} status`;
-    expect(result.exitCode).toBe(0);
-
-    await $`${BPG} start test-dev`;
-    await Bun.sleep(3000);
-  });
-
-  test('17: Create second branch', async () => {
-    await $`${BPG} branch test-prod test-staging`;
-
-    const pool = DEFAULT_CONFIG.zfs.pool;
-    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
-
-    const zfsResult = await $`sudo zfs list ${pool}/${datasetBase}/test-staging`.quiet();
-    expect(zfsResult.exitCode).toBe(0);
-  });
-
-  test('18: List command shows all databases and branches', async () => {
-    const result = await $`${BPG} list`;
-    expect(result.exitCode).toBe(0);
-  });
-
-  test('19: Verify ZFS space efficiency (copy-on-write)', async () => {
-    const pool = DEFAULT_CONFIG.zfs.pool;
-    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
-
-    const prodSize = parseInt(await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-prod`.text());
-    const devSize = parseInt(await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-dev`.text());
-    const stagingSize = parseInt(await $`sudo zfs get -H -p -o value used ${pool}/${datasetBase}/test-staging`.text());
-
-    expect(devSize).toBeLessThan(prodSize);
-    expect(stagingSize).toBeLessThan(prodSize);
-  });
-
-  test('20: Destroy branches', async () => {
-    await $`${BPG} destroy test-staging`;
-    await $`${BPG} destroy test-dev`;
-
-    const pool = DEFAULT_CONFIG.zfs.pool;
-    const datasetBase = DEFAULT_CONFIG.zfs.datasetBase;
-
-    const stagingExists = await $`sudo zfs list ${pool}/${datasetBase}/test-staging`.quiet();
-    const devExists = await $`sudo zfs list ${pool}/${datasetBase}/test-dev`.quiet();
-
-    expect(stagingExists.exitCode).not.toBe(0);
-    expect(devExists.exitCode).not.toBe(0);
-  });
-
-  test('21: Edge case - Reset primary database should fail', async () => {
-    const result = await $`${BPG} reset test-prod`.quiet();
-    expect(result.exitCode).not.toBe(0);
-  });
-
-  test('22: Edge case - Start non-existent database should fail', async () => {
-    const result = await $`${BPG} start non-existent`.quiet();
-    expect(result.exitCode).not.toBe(0);
+      expect(project?.branches?.length).toBe(3); // main, dev, feature
+    }, { timeout: 60000 });
   });
 });

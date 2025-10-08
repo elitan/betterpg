@@ -5,7 +5,7 @@ describe('parseNamespace', () => {
   test('parses valid namespaced name', () => {
     const result = parseNamespace('api/dev');
     expect(result).toEqual({
-      database: 'api',
+      project: 'api',
       branch: 'dev',
       full: 'api/dev',
     });
@@ -14,7 +14,7 @@ describe('parseNamespace', () => {
   test('parses names with hyphens and underscores', () => {
     const result = parseNamespace('my-api_v2/feature-branch_test');
     expect(result).toEqual({
-      database: 'my-api_v2',
+      project: 'my-api_v2',
       branch: 'feature-branch_test',
       full: 'my-api_v2/feature-branch_test',
     });
@@ -22,31 +22,31 @@ describe('parseNamespace', () => {
 
   test('throws error for non-namespaced name', () => {
     expect(() => parseNamespace('api')).toThrow(
-      "Invalid namespace format: 'api'. Expected format: <database>/<branch>"
+      "Invalid namespace format: 'api'. Expected format: <project>/<branch>"
     );
   });
 
   test('throws error for too many slashes', () => {
     expect(() => parseNamespace('api/dev/extra')).toThrow(
-      "Invalid namespace format: 'api/dev/extra'. Expected format: <database>/<branch>"
+      "Invalid namespace format: 'api/dev/extra'. Expected format: <project>/<branch>"
     );
   });
 
-  test('throws error for empty database', () => {
+  test('throws error for empty project', () => {
     expect(() => parseNamespace('/branch')).toThrow(
-      "Invalid namespace format: '/branch'. Database and branch names cannot be empty"
+      "Invalid namespace format: '/branch'. Project and branch names cannot be empty"
     );
   });
 
   test('throws error for empty branch', () => {
-    expect(() => parseNamespace('database/')).toThrow(
-      "Invalid namespace format: 'database/'. Database and branch names cannot be empty"
+    expect(() => parseNamespace('project/')).toThrow(
+      "Invalid namespace format: 'project/'. Project and branch names cannot be empty"
     );
   });
 
-  test('throws error for invalid characters in database', () => {
+  test('throws error for invalid characters in project', () => {
     expect(() => parseNamespace('api@123/dev')).toThrow(
-      "Invalid database name: 'api@123'. Only alphanumeric characters, hyphens, and underscores are allowed"
+      "Invalid project name: 'api@123'. Only alphanumeric characters, hyphens, and underscores are allowed"
     );
   });
 
@@ -82,16 +82,16 @@ describe('isNamespaced', () => {
 
   test('returns false for empty parts', () => {
     expect(isNamespaced('/branch')).toBe(false);
-    expect(isNamespaced('database/')).toBe(false);
+    expect(isNamespaced('project/')).toBe(false);
   });
 });
 
 describe('getMainBranch', () => {
-  test('returns main branch for database', () => {
+  test('returns main branch for project', () => {
     expect(getMainBranch('api')).toBe('api/main');
   });
 
-  test('returns main branch for database with special characters', () => {
+  test('returns main branch for project with special characters', () => {
     expect(getMainBranch('my-api_v2')).toBe('my-api_v2/main');
   });
 });
