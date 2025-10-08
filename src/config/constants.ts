@@ -2,9 +2,9 @@ import packageJson from '../../package.json';
 
 /**
  * CLI name - used for technical identifiers (paths, containers, datasets)
- * Derived from package.json "name" field
+ * Derived from package.json "cliName" field, fallback to "name"
  */
-export const CLI_NAME = packageJson.name;
+export const CLI_NAME = (packageJson as any).cliName || packageJson.name;
 
 /**
  * Tool display name - used for user-facing messages and branding
@@ -16,7 +16,7 @@ export const TOOL_NAME = (packageJson as any).displayName || CLI_NAME;
  * Container prefix for Docker containers
  * Format: {CONTAINER_PREFIX}-{database}-{branch}
  */
-export const CONTAINER_PREFIX = CLI_NAME;
+export const CONTAINER_PREFIX = (packageJson as any).containerPrefix || CLI_NAME.replace(/[@/]/g, '');
 
 /**
  * Backup label prefix for PostgreSQL backup mode

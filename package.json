@@ -1,8 +1,10 @@
 {
   "name": "@elitan/pgd",
   "displayName": "pgd",
+  "cliName": "pgd",
+  "containerPrefix": "pgd",
   "version": "0.3.4",
-  "description": "PostgreSQL database branching using ZFS snapshots",
+  "description": "Git-like branching for Postgres",
   "module": "src/index.ts",
   "type": "module",
   "bin": {

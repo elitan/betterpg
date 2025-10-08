@@ -316,6 +316,12 @@ export class StateManager {
     await this.save();
   }
 
+  async deleteSnapshotsForBranch(branchName: string): Promise<void> {
+    if (!this.state) throw new Error('State not loaded');
+    this.state.snapshots = this.state.snapshots.filter(s => s.branchName !== branchName);
+    await this.save();
+  }
+
   async deleteOldSnapshots(branchName: string | undefined, retentionDays: number, dryRun: boolean = false): Promise<Snapshot[]> {
     if (!this.state) throw new Error('State not loaded');
 

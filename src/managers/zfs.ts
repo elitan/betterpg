@@ -73,7 +73,8 @@ export class ZFSManager {
   async destroyDataset(name: string, recursive = false): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${name}`;
     if (recursive) {
-      await $`sudo zfs destroy -r ${fullName}`;
+      // Use -R to destroy all dependents (clones) and snapshots
+      await $`sudo zfs destroy -R ${fullName}`;
     } else {
       await $`sudo zfs destroy ${fullName}`;
     }

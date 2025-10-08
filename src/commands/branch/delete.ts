@@ -43,11 +43,14 @@ export async function branchDeleteCommand(name: string) {
   }
   spinner.succeed('Container removed');
 
-  // Destroy ZFS dataset
+  // Destroy ZFS dataset (use recursive to handle any dependent clones)
   const datasetSpinner = ora('Destroying ZFS dataset').start();
   const datasetName = `${namespace.project}-${namespace.branch}`; // Consistent <project>-<branch> naming
   await zfs.destroyDataset(datasetName, true);
   datasetSpinner.succeed('ZFS dataset destroyed');
+
+  // Clean up snapshots for this branch from state
+  await state.deleteSnapshotsForBranch(branch.name);
 
   // Remove from state
   await state.deleteBranch(project.id, branch.id);

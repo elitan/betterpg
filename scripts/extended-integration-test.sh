@@ -21,6 +21,10 @@ fi
 
 BPG="./dist/pgd"
 
+# Get CLI name from package.json for state file paths
+CLI_NAME=$(cat package.json | jq -r '.cliName // .name')
+STATE_FILE=~/.local/share/${CLI_NAME}/state.json
+
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
@@ -33,7 +37,7 @@ cleanup() {
     sudo zfs create tank/pgd/databases 2>/dev/null || true
 
     # Remove state and config (user directories)
-    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd ~/.local/share/@elitan/pgd 2>/dev/null || true
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -84,8 +88,8 @@ fi
 # Test 3: Create test data
 echo -e "\n${BLUE}=== Test 3: Create test data ===${NC}"
 sleep 3  # Give PostgreSQL a moment
-PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].credentials.password')
-PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
+PGPASSWORD=$(cat $STATE_FILE | jq -r '.projects[0].credentials.password')
+PGPORT=$(cat $STATE_FILE | jq -r '.projects[0].branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres <<EOF
 CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -117,7 +121,7 @@ else
 fi
 
 # Verify state was updated
-STATE_STATUS=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].status')
+STATE_STATUS=$(cat $STATE_FILE | jq -r '.projects[0].branches[0].status')
 if [ "$STATE_STATUS" = "stopped" ]; then
     echo -e "${GREEN}✓ State updated correctly${NC}"
 else
@@ -137,7 +141,7 @@ else
 fi
 
 # Re-read port from state (Docker may have reassigned it)
-PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[0].port')
+PGPORT=$(cat $STATE_FILE | jq -r '.projects[0].branches[0].port')
 
 # Wait for PostgreSQL to be ready to accept connections
 echo -n "  Waiting for PostgreSQL to accept connections (port: $PGPORT)"
@@ -200,7 +204,7 @@ fi
 # Test 9: Verify branch has same data
 echo -e "\n${BLUE}=== Test 9: Verify branch data ===${NC}"
 sleep 3
-DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[0].branches[] | select(.name == "test-prod/dev") | .port')
+DEV_PORT=$(cat $STATE_FILE | jq -r '.projects[0].branches[] | select(.name == "test-prod/dev") | .port')
 
 if PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -c "SELECT COUNT(*) FROM test_table;" | grep -q "3"; then
     echo -e "${GREEN}✓ Branch has same data as primary${NC}"

@@ -25,13 +25,17 @@ fi
 
 BPG="./dist/pgd"
 
+# Get CLI name from package.json for state file paths
+CLI_NAME=$(cat package.json | jq -r '.cliName // .name')
+STATE_FILE=~/.local/share/${CLI_NAME}/state.json
+
 # Cleanup function
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
     docker ps -a | grep pgd- | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
     sudo zfs destroy -r tank/pgd/databases 2>/dev/null || true
     sudo zfs create tank/pgd/databases 2>/dev/null || true
-    rm -rf ~/.config/pgd ~/.local/share/pgd 2>/dev/null || true
+    rm -rf ~/.config/pgd ~/.local/share/pgd ~/.local/share/@elitan/pgd 2>/dev/null || true
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -88,8 +92,8 @@ fi
 
 # Test 5: Create test data
 echo -e "\n${BLUE}Test 5: Create test data${NC}"
-PGPASSWORD=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .credentials.password')
-PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
+PGPASSWORD=$(cat $STATE_FILE | jq -r '.projects[] | select(.name == "test-prod") | .credentials.password')
+PGPORT=$(cat $STATE_FILE | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
 
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres >/dev/null 2>&1 <<EOF
 CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW());
@@ -155,7 +159,7 @@ fi
 
 # Test 12: Verify branch has same data as parent
 echo -e "\n${BLUE}Test 12: Verify branch data${NC}"
-DEV_PORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | .branches[] | select(.name == "test-prod/dev") | .port')
+DEV_PORT=$(cat $STATE_FILE | jq -r '.projects[] | .branches[] | select(.name == "test-prod/dev") | .port')
 ROW_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $DEV_PORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | xargs)
 if [ "$ROW_COUNT" -eq 3 ]; then
     check_test "Branch has same data as parent"
@@ -240,7 +244,7 @@ $BPG start test-prod/dev >/dev/null 2>&1 && sleep 3
 # Test 19: Create manual snapshot
 echo -e "\n${BLUE}Test 19: Create manual snapshot${NC}"
 $BPG snapshot create test-prod/main >/dev/null 2>&1
-SNAPSHOT_COUNT=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_COUNT=$(cat $STATE_FILE | jq '[.snapshots[]] | length')
 if [ "$SNAPSHOT_COUNT" -gt 0 ]; then
     check_test "Create manual snapshot"
 else
@@ -251,7 +255,7 @@ fi
 # Test 20: Create snapshot with label
 echo -e "\n${BLUE}Test 20: Create snapshot with label${NC}"
 $BPG snapshot create test-prod/main --label "before-migration" >/dev/null 2>&1
-OUTPUT=$(cat ~/.local/share/pgd/state.json | jq -r '.snapshots[] | select(.label == "before-migration") | .label')
+OUTPUT=$(cat $STATE_FILE | jq -r '.snapshots[] | select(.label == "before-migration") | .label')
 if [ "$OUTPUT" = "before-migration" ]; then
     check_test "Create snapshot with label"
 else
@@ -282,7 +286,7 @@ fi
 # Test 23: Modify data after snapshot
 echo -e "\n${BLUE}Test 23: Modify data after snapshot${NC}"
 # Get fresh port in case it changed
-PGPORT=$(cat ~/.local/share/pgd/state.json | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
+PGPORT=$(cat $STATE_FILE | jq -r '.projects[] | select(.name == "test-prod") | .branches[0].port')
 PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -c "INSERT INTO users (name) VALUES ('Frank'), ('Grace');" >/dev/null 2>&1
 sleep 2
 ROW_COUNT=$(PGPASSWORD=$PGPASSWORD psql -h localhost -p $PGPORT -U postgres -d postgres -t -c "SELECT COUNT(*) FROM users;" | xargs)
@@ -313,10 +317,10 @@ $BPG branch delete test-prod/pitr-test 2>/dev/null || true
 
 # Test 25: Delete snapshot
 echo -e "\n${BLUE}Test 25: Delete snapshot${NC}"
-SNAPSHOT_ID=$(cat ~/.local/share/pgd/state.json | jq -r '.snapshots[0].id')
-SNAPSHOT_COUNT_BEFORE=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_ID=$(cat $STATE_FILE | jq -r '.snapshots[0].id')
+SNAPSHOT_COUNT_BEFORE=$(cat $STATE_FILE | jq '[.snapshots[]] | length')
 $BPG snapshot delete "$SNAPSHOT_ID" >/dev/null 2>&1
-SNAPSHOT_COUNT_AFTER=$(cat ~/.local/share/pgd/state.json | jq '[.snapshots[]] | length')
+SNAPSHOT_COUNT_AFTER=$(cat $STATE_FILE | jq '[.snapshots[]] | length')
 
 if [ "$SNAPSHOT_COUNT_AFTER" -lt "$SNAPSHOT_COUNT_BEFORE" ]; then
     check_test "Delete snapshot"
