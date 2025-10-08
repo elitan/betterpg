@@ -14,7 +14,7 @@ export const TOOL_NAME = (packageJson as any).displayName || CLI_NAME;
 
 /**
  * Container prefix for Docker containers
- * Format: {CONTAINER_PREFIX}-{database}-{branch}
+ * Format: {CONTAINER_PREFIX}-{project}-{branch}
  */
 export const CONTAINER_PREFIX = (packageJson as any).containerPrefix || CLI_NAME.replace(/[@/]/g, '');
 

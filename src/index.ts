@@ -108,13 +108,13 @@ projectCommand
 const branchCommand = program
   .command('branch')
   .alias('br')
-  .description('Manage branches within databases');
+  .description('Manage branches within projects');
 
 branchCommand
   .command('create')
   .description('Create a new branch from parent')
-  .argument('<name>', 'branch name in format: <database>/<branch>')
-  .option('--from <parent>', 'parent branch (defaults to <database>/main)')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
+  .option('--from <parent>', 'parent branch (defaults to <project>/main)')
   .option('--pitr <time>', 'recover to point in time (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
   .action(async (name: string, options: { from?: string; pitr?: string }) => {
     try {
@@ -129,10 +129,10 @@ branchCommand
   .command('list')
   .alias('ls')
   .description('List branches')
-  .argument('[database]', 'database name (optional, lists all if not specified)')
-  .action(async (database?: string) => {
+  .argument('[project]', 'project name (optional, lists all if not specified)')
+  .action(async (project?: string) => {
     try {
-      await branchListCommand(database);
+      await branchListCommand(project);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);
@@ -142,7 +142,7 @@ branchCommand
 branchCommand
   .command('get')
   .description('Get details about a branch')
-  .argument('<name>', 'branch name in format: <database>/<branch>')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
   .action(async (name: string) => {
     try {
       await branchGetCommand(name);
@@ -156,7 +156,7 @@ branchCommand
   .command('delete')
   .alias('rm')
   .description('Delete a branch')
-  .argument('<name>', 'branch name in format: <database>/<branch>')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
   .action(async (name: string) => {
     try {
       await branchDeleteCommand(name);
@@ -169,7 +169,7 @@ branchCommand
 branchCommand
   .command('sync')
   .description('Sync branch with parent\'s current state')
-  .argument('<name>', 'branch name in format: <database>/<branch>')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
   .option('-f, --force', 'force sync even if dependent branches exist (will destroy them)')
   .action(async (name: string, options: { force?: boolean }) => {
     try {
@@ -205,7 +205,7 @@ const walCommand = program
 walCommand
   .command('info')
   .description('Show WAL archive status')
-  .argument('[branch]', 'branch name in format: <database>/<branch> (optional, shows all if not specified)')
+  .argument('[branch]', 'branch name in format: <project>/<branch> (optional, shows all if not specified)')
   .action(async (branch?: string) => {
     try {
       await walInfoCommand(branch);
@@ -218,7 +218,7 @@ walCommand
 walCommand
   .command('cleanup')
   .description('Clean up old WAL files')
-  .argument('<branch>', 'branch name in format: <database>/<branch>')
+  .argument('<branch>', 'branch name in format: <project>/<branch>')
   .option('--days <days>', 'retention period in days (default: 7)', '7')
   .option('--dry-run', 'show what would be deleted without actually deleting')
   .action(async (branch: string, options: { days?: string; dryRun?: boolean }) => {
@@ -245,7 +245,7 @@ const snapshotCommand = program
 snapshotCommand
   .command('create')
   .description('Create a snapshot of a branch')
-  .argument('<branch>', 'branch name in format: <database>/<branch>')
+  .argument('<branch>', 'branch name in format: <project>/<branch>')
   .option('--label <label>', 'optional label for the snapshot')
   .action(async (branch: string, options: { label?: string }) => {
     try {
@@ -260,7 +260,7 @@ snapshotCommand
   .command('list')
   .alias('ls')
   .description('List snapshots')
-  .argument('[branch]', 'branch name in format: <database>/<branch> (optional, lists all if not specified)')
+  .argument('[branch]', 'branch name in format: <project>/<branch> (optional, lists all if not specified)')
   .action(async (branch?: string) => {
     try {
       await snapshotListCommand(branch);
@@ -287,7 +287,7 @@ snapshotCommand
 snapshotCommand
   .command('cleanup')
   .description('Clean up old snapshots')
-  .argument('[branch]', 'branch name in format: <database>/<branch> (optional with --all)')
+  .argument('[branch]', 'branch name in format: <project>/<branch> (optional with --all)')
   .option('--days <days>', 'retention period in days (default: 30)', '30')
   .option('--dry-run', 'show what would be deleted without actually deleting')
   .option('--all', 'cleanup snapshots across all branches')
@@ -310,8 +310,8 @@ snapshotCommand
 
 program
   .command('start')
-  .description('Start a database or branch')
-  .argument('<name>', 'name in format: <database>/<branch>')
+  .description('Start a branch')
+  .argument('<name>', 'name in format: <project>/<branch>')
   .action(async (name: string) => {
     try {
       await startCommand(name);
@@ -323,8 +323,8 @@ program
 
 program
   .command('stop')
-  .description('Stop a database or branch')
-  .argument('<name>', 'name in format: <database>/<branch>')
+  .description('Stop a branch')
+  .argument('<name>', 'name in format: <project>/<branch>')
   .action(async (name: string) => {
     try {
       await stopCommand(name);
@@ -336,8 +336,8 @@ program
 
 program
   .command('restart')
-  .description('Restart a database or branch')
-  .argument('<name>', 'name in format: <database>/<branch>')
+  .description('Restart a branch')
+  .argument('<name>', 'name in format: <project>/<branch>')
   .action(async (name: string) => {
     try {
       await restartCommand(name);
@@ -354,7 +354,7 @@ program
 program
   .command('status')
   .alias('ls')
-  .description('Show status of all databases and branches')
+  .description('Show status of all projects and branches')
   .action(async () => {
     try {
       await statusCommand();

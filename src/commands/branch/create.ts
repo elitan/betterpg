@@ -206,7 +206,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     if (recoveryTarget) {
       const pitrSpinner = ora('Configuring PITR recovery').start();
 
-      // Get source WAL archive path (shared across all branches of same database)
+      // Get source WAL archive path (shared across all branches of same project)
       const sourceWALArchivePath = wal.getArchivePath(sourceBranch.zfsDatasetName);
 
       // Setup recovery configuration in the cloned dataset

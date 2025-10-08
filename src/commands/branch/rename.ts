@@ -12,9 +12,9 @@ export async function branchRenameCommand(oldName: string, newName: string) {
   const oldNs = parseNamespace(oldName);
   const newNs = parseNamespace(newName);
 
-  // Must be in same database
-  if (oldNs.database !== newNs.database) {
-    throw new Error(`Cannot rename branch across databases. Both must be in '${oldNs.database}'`);
+  // Must be in same project
+  if (oldNs.project !== newNs.project) {
+    throw new Error(`Cannot rename branch across projects. Both must be in '${oldNs.project}'`);
   }
 
   const state = new StateManager(PATHS.STATE);
@@ -25,7 +25,7 @@ export async function branchRenameCommand(oldName: string, newName: string) {
     throw new Error(`Branch '${oldName}' not found`);
   }
 
-  const { branch, database } = result;
+  const { branch, project } = result;
 
   // Prevent renaming main branch
   if (branch.isPrimary) {
