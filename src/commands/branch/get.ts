@@ -19,39 +19,24 @@ export async function branchGetCommand(name: string) {
   const { branch, project } = result;
 
   console.log();
-  console.log(chalk.bold(`Branch: ${chalk.cyan(name)}`));
+  console.log(`Branch: ${chalk.cyan(name)}`);
   console.log();
-
-  const infoTable = new Table({
-    style: {
-      border: ['gray']
+  console.log(chalk.dim('  Status       '), branch.status === 'running' ? 'running' : 'stopped');
+  console.log(chalk.dim('  Port         '), branch.port.toString());
+  console.log(chalk.dim('  Size         '), formatBytes(branch.sizeBytes));
+  console.log(chalk.dim('  Created      '), new Date(branch.createdAt).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC'));
+  if (branch.parentBranchId) {
+    const parentBranch = project.branches.find(b => b.id === branch.parentBranchId);
+    if (parentBranch) {
+      console.log(chalk.dim('  Parent       '), parentBranch.name);
     }
-  });
-
-  infoTable.push(
-    ['ID', branch.id],
-    ['Name', branch.name],
-    ['Project', project.name],
-    ['Type', branch.isPrimary ? 'main' : 'branch'],
-    ['Status', branch.status === 'running' ? chalk.green('running') : chalk.red('stopped')],
-    ['Port', branch.port.toString()],
-    ['Size', formatBytes(branch.sizeBytes)],
-    ['Created', new Date(branch.createdAt).toLocaleString()],
-    ['Parent', branch.parentBranchId ? 'Yes' : 'None (main branch)'],
-    ['Snapshot', branch.snapshotName || 'N/A (main branch)']
-  );
-
-  console.log(infoTable.toString());
+  }
+  if (branch.snapshotName) {
+    const snapshotShortName = branch.snapshotName.split('@')[1];
+    console.log(chalk.dim('  Snapshot     '), snapshotShortName);
+  }
   console.log();
-
-  console.log(chalk.bold('Connection:'));
-  console.log(chalk.dim('  Host:    '), 'localhost');
-  console.log(chalk.dim('  Port:    '), branch.port);
-  console.log(chalk.dim('  Database:'), project.credentials.database);
-  console.log(chalk.dim('  Username:'), project.credentials.username);
-  console.log(chalk.dim('  Password:'), chalk.yellow(project.credentials.password));
-  console.log();
-  console.log(chalk.bold('Connection string:'));
-  console.log(chalk.dim('  ') + chalk.cyan(`postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`));
+  console.log('Connection:');
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
   console.log();
 }

@@ -21,10 +21,6 @@ interface CreateOptions {
 }
 
 export async function projectCreateCommand(name: string, options: CreateOptions = {}) {
-  console.log();
-  console.log(chalk.bold(`🚀 Creating project: ${chalk.cyan(name)}`));
-  console.log();
-
   // Validate flags
   if (options.version && options.image) {
     throw new Error('Cannot specify both --version and --image. Use one or the other.');
@@ -46,8 +42,13 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Sanitize name
   const sanitizedName = sanitizeName(name);
   if (sanitizedName !== name) {
-    console.log(chalk.yellow(`📝 Sanitized name: ${name} → ${sanitizedName}`));
+    console.log();
+    console.log(chalk.yellow(`Sanitized name: ${name} → ${sanitizedName}`));
   }
+
+  console.log();
+  console.log(`Creating project ${chalk.cyan(sanitizedName)}...`);
+  console.log();
 
   // Load state
   const state = new StateManager(PATHS.STATE);
@@ -56,25 +57,32 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Auto-detect or validate ZFS pool
   let pool: string;
   if (options.pool) {
-    const poolSpinner = ora(`Validating ZFS pool: ${options.pool}`).start();
+    const poolStart = Date.now();
+    process.stdout.write(chalk.dim(`  ▸ Validate ZFS pool ${options.pool}`));
     pool = await getZFSPool(options.pool);
-    poolSpinner.succeed(`Using ZFS pool: ${pool}`);
+    const poolTime = ((Date.now() - poolStart) / 1000).toFixed(1);
+    const labelLength = `Validate ZFS pool ${options.pool}`.length;
+    console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${poolTime}s`));
   } else {
-    const poolSpinner = ora('Detecting ZFS pool').start();
+    const poolStart = Date.now();
+    process.stdout.write(chalk.dim('  ▸ Detect ZFS pool'));
     pool = await getZFSPool();
-    poolSpinner.succeed(`Auto-detected ZFS pool: ${pool}`);
+    const poolTime = ((Date.now() - poolStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - 'Detect ZFS pool'.length)}${poolTime}s`));
   }
 
   // Auto-initialize state if needed (first project create)
   if (!state.isInitialized()) {
-    const initSpinner = ora('Initializing pgd').start();
+    const initStart = Date.now();
+    process.stdout.write(chalk.dim('  ▸ Initialize pgd'));
 
     // Create WAL archive directory
     await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
 
     // Initialize state
     await state.autoInitialize(pool, DEFAULTS.zfs.datasetBase);
-    initSpinner.succeed('pgd initialized');
+    const initTime = ((Date.now() - initStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - 'Initialize pgd'.length)}${initTime}s`));
   }
 
   // Check if project already exists
@@ -98,12 +106,16 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Create ZFS dataset for main branch
   const mainBranchName = buildNamespace(sanitizedName, 'main');
   const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <project>-<branch>
-  const spinner = ora(`Creating ZFS dataset: ${mainBranchName}`).start();
+
+  const datasetStart = Date.now();
+  process.stdout.write(chalk.dim(`  ▸ Create dataset ${mainBranchName}`));
   await zfs.createDataset(mainDatasetName, {
     compression: DEFAULTS.zfs.compression,
     recordsize: DEFAULTS.zfs.recordsize,
   });
-  spinner.succeed(`Created ZFS dataset: ${mainBranchName}`);
+  const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
+  const datasetLabel = `Create dataset ${mainBranchName}`.length;
+  console.log(chalk.dim(`${' '.repeat(40 - datasetLabel)}${datasetTime}s`));
 
   // Get dataset mountpoint
   const mountpoint = await zfs.getMountpoint(mainDatasetName);
@@ -115,17 +127,22 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Pull PostgreSQL image if needed
   const imageExists = await docker.imageExists(dockerImage);
   if (!imageExists) {
-    const pullSpinner = ora(`Pulling PostgreSQL image: ${dockerImage}`).start();
+    const pullStart = Date.now();
+    process.stdout.write(chalk.dim(`  ▸ Pull ${dockerImage}`));
     await docker.pullImage(dockerImage);
-    pullSpinner.succeed(`Pulled PostgreSQL image: ${dockerImage}`);
+    const pullTime = ((Date.now() - pullStart) / 1000).toFixed(1);
+    const pullLabel = `Pull ${dockerImage}`.length;
+    console.log(chalk.dim(`${' '.repeat(40 - pullLabel)}${pullTime}s`));
   }
 
   // Create WAL archive directory
   await wal.ensureArchiveDir(mainDatasetName);
   const walArchivePath = wal.getArchivePath(mainDatasetName);
 
-  // Create Docker container for main branch
-  const createSpinner = ora('Creating PostgreSQL container').start();
+  // Create and start Docker container for main branch
+  const containerStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
+
   const containerID = await docker.createContainer({
     name: containerName,
     image: dockerImage,
@@ -136,18 +153,15 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     username: 'postgres',
     database: 'postgres',
   });
-  createSpinner.succeed(`Created container ${chalk.dim(containerID.slice(0, 12))}`);
 
-  // Start container
-  const startSpinner = ora('Starting PostgreSQL container').start();
   await docker.startContainer(containerID);
-  startSpinner.text = 'Waiting for PostgreSQL to be ready';
   await docker.waitForHealthy(containerID);
 
   // Get the dynamically assigned port from Docker
   port = await docker.getContainerPort(containerID);
 
-  startSpinner.succeed('PostgreSQL is ready');
+  const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${containerTime}s`));
 
   // Get dataset size
   const sizeBytes = await zfs.getUsedSpace(mainDatasetName);
@@ -186,19 +200,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   await state.addProject(project);
 
   console.log();
-  console.log(chalk.green.bold('✓ Project created successfully!'));
-  console.log();
-  console.log(chalk.dim('Docker image:'), chalk.cyan(dockerImage));
-  console.log(chalk.dim('Main branch: '), chalk.cyan(mainBranchName));
-  console.log();
-  console.log(chalk.bold('Connection details:'));
-  console.log(chalk.dim('  Host:    '), 'localhost');
-  console.log(chalk.dim('  Port:    '), chalk.cyan(port.toString()));
-  console.log(chalk.dim('  Database:'), 'postgres');
-  console.log(chalk.dim('  Username:'), 'postgres');
-  console.log(chalk.dim('  Password:'), chalk.yellow(password));
-  console.log();
-  console.log(chalk.bold('Connection string:'));
-  console.log(chalk.dim('  ') + chalk.cyan(`postgresql://postgres:${password}@localhost:${port}/postgres`));
+  console.log('Connection ready:');
+  console.log(`  postgresql://postgres:${password}@localhost:${port}/postgres`);
   console.log();
 }

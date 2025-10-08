@@ -7,10 +7,6 @@ import { PATHS } from '../utils/paths';
 
 
 export async function startCommand(name: string) {
-  console.log();
-  console.log(chalk.bold(`▶️  Starting: ${chalk.cyan(name)}`));
-  console.log();
-
   // Load state
   const state = new StateManager(PATHS.STATE);
   await state.load();
@@ -28,20 +24,32 @@ export async function startCommand(name: string) {
   const { branch, project } = branchResult;
 
   if (branch.status === 'running') {
-    console.log(chalk.dim(`✓ Branch '${name}' is already running`));
+    console.log();
+    console.log(chalk.dim(`Branch '${name}' is already running`));
+    console.log();
     return;
   }
+
+  console.log();
+  console.log(`Starting ${chalk.cyan(name)}...`);
+  console.log();
 
   const containerID = await docker.getContainerByName(branch.containerName);
   if (!containerID) {
     throw new Error(`Container '${branch.containerName}' not found`);
   }
 
-  const spinner = ora('Starting PostgreSQL container').start();
+  const startTime = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Start container'));
   await docker.startContainer(containerID);
-  spinner.text = 'Waiting for PostgreSQL to be ready';
+  const startDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Start container'.length)}${startDuration}s`));
+
+  const readyTime = Date.now();
+  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
   await docker.waitForHealthy(containerID);
-  spinner.succeed('PostgreSQL is ready');
+  const readyDuration = ((Date.now() - readyTime) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${readyDuration}s`));
 
   // Get the actual port (Docker may reassign on restart)
   const actualPort = await docker.getContainerPort(containerID);
@@ -52,7 +60,7 @@ export async function startCommand(name: string) {
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Branch '${name}' started successfully!`));
-  console.log(chalk.dim('   Port:'), chalk.cyan(branch.port.toString()));
+  console.log('Branch started:');
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}`);
   console.log();
 }

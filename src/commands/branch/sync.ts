@@ -10,10 +10,6 @@ import { parseNamespace } from '../../utils/namespace';
 export async function branchSyncCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
 
-  console.log();
-  console.log(chalk.bold(`🔄 Syncing branch with parent: ${chalk.cyan(name)}`));
-  console.log();
-
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
@@ -48,16 +44,16 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
     );
   }
 
-  console.log(chalk.dim(`Parent: ${parentBranch.name}`));
+  console.log();
+  console.log(`Syncing ${chalk.cyan(name)} with ${chalk.cyan(parentBranch.name)}...`);
 
   if (dependentBranches.length > 0 && options.force) {
     console.log();
-    console.log(chalk.yellow.bold('⚠ Warning: Force sync enabled!'));
-    console.log(chalk.yellow(`The following dependent branches will be destroyed:`));
+    console.log(chalk.yellow('Warning: Force sync enabled!'));
+    console.log(chalk.yellow('The following dependent branches will be destroyed:'));
     dependentBranches.forEach(b => {
       console.log(chalk.yellow(`  • ${b.name}`));
     });
-    console.log();
   }
 
   console.log();
@@ -70,7 +66,8 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
 
   // If force sync, clean up dependent branches first
   if (dependentBranches.length > 0 && options.force) {
-    let spinner = ora('Cleaning up dependent branches').start();
+    const cleanupStart = Date.now();
+    process.stdout.write(chalk.dim('  ▸ Clean up dependent branches'));
 
     for (const depBranch of dependentBranches) {
       // Stop and remove container
@@ -87,59 +84,73 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
       await state.deleteBranch(project.id, depBranch.id);
     }
 
-    spinner.succeed(`Cleaned up ${dependentBranches.length} dependent branch(es)`);
+    const cleanupTime = ((Date.now() - cleanupStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - 'Clean up dependent branches'.length)}${cleanupTime}s`));
   }
 
   // Stop and remove existing container
-  let spinner = ora('Stopping branch container').start();
+  const stopStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Stop container'));
   const containerID = await docker.getContainerByName(branch.containerName);
   if (containerID) {
     await docker.stopContainer(containerID);
     await docker.removeContainer(containerID);
   }
-  spinner.succeed('Container stopped');
+  const stopTime = ((Date.now() - stopStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopTime}s`));
 
-  // Destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
-  spinner = ora('Destroying old dataset').start();
+  // Checkpoint parent before snapshot
   const datasetName = `${namespace.project}-${namespace.branch}`;
-  await zfs.destroyDataset(datasetName, true);
-  spinner.succeed('Old dataset destroyed');
-
-  // Create new snapshot from parent's current state
-  spinner = ora('Creating new snapshot from parent').start();
   const snapshotName = formatTimestamp(new Date());
   const fullSnapshotName = `${parentBranch.zfsDataset}@${snapshotName}`;
 
-  // For application-consistent snapshot (if parent is running)
   if (parentBranch.status === 'running') {
     const parentContainerID = await docker.getContainerByName(parentBranch.containerName);
     if (parentContainerID) {
       try {
-        // Use CHECKPOINT instead of pg_backup_start/stop to avoid session issues
+        const checkpointStart = Date.now();
+        process.stdout.write(chalk.dim(`  ▸ Checkpoint ${parentBranch.name}`));
         await docker.execSQL(
           parentContainerID,
           "CHECKPOINT;",
           project.credentials.username
         );
+        const checkpointTime = ((Date.now() - checkpointStart) / 1000).toFixed(1);
+        const labelLength = `Checkpoint ${parentBranch.name}`.length;
+        console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${checkpointTime}s`));
 
         // Create snapshot immediately after checkpoint
+        const snapshotStart = Date.now();
+        process.stdout.write(chalk.dim('  ▸ Create snapshot'));
         await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
-
-        spinner.succeed(`Created new snapshot: ${snapshotName}`);
+        const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
+        console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
       } catch (error) {
+        console.log(); // New line after incomplete progress
         throw error;
       }
     }
   } else {
-    // Crash-consistent if parent is stopped
+    const snapshotStart = Date.now();
+    process.stdout.write(chalk.dim('  ▸ Create snapshot'));
     await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
-    spinner.succeed(`Created new snapshot: ${snapshotName}`);
+    const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
   }
 
+  // Destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
+  const destroyStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Destroy old dataset'));
+  await zfs.destroyDataset(datasetName, true);
+  const destroyTime = ((Date.now() - destroyStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Destroy old dataset'.length)}${destroyTime}s`));
+
   // Clone the new snapshot
-  spinner = ora(`Cloning snapshot`).start();
+  const cloneStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Clone new snapshot'));
   await zfs.cloneSnapshot(fullSnapshotName, datasetName);
-  spinner.succeed(`Cloned snapshot`);
+  const cloneTime = ((Date.now() - cloneStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Clone new snapshot'.length)}${cloneTime}s`));
 
   const mountpoint = await zfs.getMountpoint(datasetName);
 
@@ -148,7 +159,8 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   await Bun.write(walArchivePath + '/.keep', '');
 
   // Recreate container with same port (use project's docker image)
-  spinner = ora('Recreating container').start();
+  const containerStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Start container'));
   const newContainerID = await docker.createContainer({
     name: branch.containerName,
     image: project.dockerImage,
@@ -161,9 +173,14 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   });
 
   await docker.startContainer(newContainerID);
-  spinner.text = 'Waiting for PostgreSQL to be ready';
   await docker.waitForHealthy(newContainerID);
-  spinner.succeed('PostgreSQL is ready');
+  const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Start container'.length)}${containerTime}s`));
+
+  const pgStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
+  const pgTime = ((Date.now() - pgStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${pgTime}s`));
 
   // Clean up orphaned snapshots for this branch (ZFS snapshots were destroyed with dataset)
   await state.deleteSnapshotsForBranch(branch.name);
@@ -176,7 +193,7 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Branch '${name}' synced with parent!`));
-  console.log(chalk.dim('   Port:'), chalk.cyan(branch.port.toString()));
+  console.log('Branch synced:');
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
   console.log();
 }

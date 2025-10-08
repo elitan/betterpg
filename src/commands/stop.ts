@@ -7,10 +7,6 @@ import { PATHS } from '../utils/paths';
 
 
 export async function stopCommand(name: string) {
-  console.log();
-  console.log(chalk.bold(`⏸️  Stopping: ${chalk.cyan(name)}`));
-  console.log();
-
   // Load state
   const state = new StateManager(PATHS.STATE);
   await state.load();
@@ -28,24 +24,32 @@ export async function stopCommand(name: string) {
   const { branch, project } = branchResult;
 
   if (branch.status === 'stopped') {
-    console.log(chalk.dim(`✓ Branch '${name}' is already stopped`));
+    console.log();
+    console.log(chalk.dim(`Branch '${name}' is already stopped`));
+    console.log();
     return;
   }
+
+  console.log();
+  console.log(`Stopping ${chalk.cyan(name)}...`);
+  console.log();
 
   const containerID = await docker.getContainerByName(branch.containerName);
   if (!containerID) {
     throw new Error(`Container '${branch.containerName}' not found`);
   }
 
-  const spinner = ora('Stopping container').start();
+  const stopTime = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Stop container'));
   await docker.stopContainer(containerID);
-  spinner.succeed('Container stopped');
+  const stopDuration = ((Date.now() - stopTime) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopDuration}s`));
 
   // Update state
   branch.status = 'stopped';
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Branch '${name}' stopped successfully!`));
+  console.log('Branch stopped');
   console.log();
 }

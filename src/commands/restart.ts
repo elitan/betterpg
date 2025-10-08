@@ -7,10 +7,6 @@ import { PATHS } from '../utils/paths';
 
 
 export async function restartCommand(name: string) {
-  console.log();
-  console.log(chalk.bold(`🔄 Restarting: ${chalk.cyan(name)}`));
-  console.log();
-
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
@@ -25,16 +21,26 @@ export async function restartCommand(name: string) {
 
   const { branch, project } = branchResult;
 
+  console.log();
+  console.log(`Restarting ${chalk.cyan(name)}...`);
+  console.log();
+
   const containerID = await docker.getContainerByName(branch.containerName);
   if (!containerID) {
     throw new Error(`Container '${branch.containerName}' not found`);
   }
 
-  const spinner = ora('Restarting PostgreSQL container').start();
+  const restartTime = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Stop container'));
   await docker.restartContainer(containerID);
-  spinner.text = 'Waiting for PostgreSQL to be ready';
+  const restartDuration = ((Date.now() - restartTime) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${restartDuration}s`));
+
+  const readyTime = Date.now();
+  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
   await docker.waitForHealthy(containerID);
-  spinner.succeed('PostgreSQL is ready');
+  const readyDuration = ((Date.now() - readyTime) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${readyDuration}s`));
 
   // Get the actual port (Docker may reassign on restart)
   const actualPort = await docker.getContainerPort(containerID);
@@ -44,7 +50,7 @@ export async function restartCommand(name: string) {
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Branch '${name}' restarted successfully!`));
-  console.log(chalk.dim('   Port:'), chalk.cyan(branch.port.toString()));
+  console.log('Branch restarted:');
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}`);
   console.log();
 }

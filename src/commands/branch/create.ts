@@ -110,8 +110,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     fullSnapshotName = selectedSnapshot.zfsSnapshot;
     snapshotName = fullSnapshotName.split('@')[1];
 
-    console.log(chalk.dim(`   Using snapshot: ${chalk.cyan(selectedSnapshot.label || snapshotName)}`));
-    console.log(chalk.dim(`   Snapshot created: ${chalk.yellow(formatDate(new Date(selectedSnapshot.createdAt)))}`));
+    console.log(chalk.dim(`  Using snapshot: ${selectedSnapshot.label || snapshotName} (created ${formatDate(new Date(selectedSnapshot.createdAt))})`));
     console.log();
   } else {
     // Create new snapshot with appropriate consistency level
@@ -128,45 +127,55 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       // 2. CHECKPOINT ensures all data is flushed to disk
       // 3. This provides application-consistent snapshots which are safe for PostgreSQL
       // 4. No need for WAL replay on recovery
-      const spinner = ora('Checkpointing database').start();
       const containerID = await docker.getContainerByName(sourceBranch.containerName);
       if (!containerID) {
         throw new Error(`Container ${sourceBranch.containerName} not found`);
       }
 
       try {
+        const checkpointStart = Date.now();
+        process.stdout.write(chalk.dim('  ▸ Checkpoint'));
         // Force a checkpoint to ensure all data is written to disk
         await docker.execSQL(containerID, 'CHECKPOINT;', sourceProject.credentials.username);
-        spinner.succeed('Database checkpointed');
+        const checkpointTime = ((Date.now() - checkpointStart) / 1000).toFixed(1);
+        console.log(chalk.dim(`${' '.repeat(40 - 'Checkpoint'.length)}${checkpointTime}s`));
 
         // Create ZFS snapshot immediately after checkpoint
-        const snapshotSpinner = ora(`Creating snapshot: ${snapshotName}`).start();
+        const snapshotStart = Date.now();
+        process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
         await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
         createdSnapshot = true;
-        snapshotSpinner.succeed(`Created snapshot: ${snapshotName}`);
+        const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
+        const labelLength = `Snapshot ${snapshotName}`.length;
+        console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${snapshotTime}s`));
       } catch (error: any) {
+        console.log(); // New line after incomplete progress line
         throw error;
       }
     } else {
       // Database is stopped - direct snapshot
-      const spinner = ora(`Creating snapshot: ${snapshotName}`).start();
+      const snapshotStart = Date.now();
+      process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
       await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
       createdSnapshot = true;
-      spinner.succeed(`Created snapshot: ${snapshotName}`);
+      const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
+      const labelLength = `Snapshot ${snapshotName}`.length;
+      console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${snapshotTime}s`));
     }
   }
 
   // Clone snapshot - use consistent <project>-<branch> naming
   const targetDatasetName = `${target.project}-${target.branch}`;
-  let cloneSpinner: any;
   let mountpoint: string;
   let port: number;
   let containerID: string | undefined;
 
   try {
-    cloneSpinner = ora(`Cloning snapshot to: ${target.branch}`).start();
+    const cloneStart = Date.now();
+    process.stdout.write(chalk.dim('  ▸ Clone dataset'));
     await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
-    cloneSpinner.succeed(`Cloned snapshot to: ${target.branch}`);
+    const cloneTime = ((Date.now() - cloneStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - 'Clone dataset'.length)}${cloneTime}s`));
 
     // Rollback: destroy cloned dataset
     rollback.add(async () => {
@@ -189,9 +198,12 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     const dockerImage = sourceProject.dockerImage;
     const imageExists = await docker.imageExists(dockerImage);
     if (!imageExists) {
-      const pullSpinner = ora(`Pulling image: ${dockerImage}`).start();
+      const pullStart = Date.now();
+      process.stdout.write(chalk.dim(`  ▸ Pull ${dockerImage}`));
       await docker.pullImage(dockerImage);
-      pullSpinner.succeed(`Pulled image: ${dockerImage}`);
+      const pullTime = ((Date.now() - pullStart) / 1000).toFixed(1);
+      const labelLength = `Pull ${dockerImage}`.length;
+      console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${pullTime}s`));
     }
 
     // Create WAL archive directory for target branch
@@ -203,7 +215,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
     // If PITR is requested, setup recovery configuration
     if (recoveryTarget) {
-      const pitrSpinner = ora('Configuring PITR recovery').start();
+      const pitrStart = Date.now();
+      process.stdout.write(chalk.dim('  ▸ Configure PITR recovery'));
 
       // Get source WAL archive path (shared across all branches of same project)
       const sourceWALArchivePath = wal.getArchivePath(sourceBranch.zfsDatasetName);
@@ -214,12 +227,16 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       // For PITR recovery, mount the SOURCE WAL archive so PostgreSQL can read archived WAL files
       walArchivePath = sourceWALArchivePath;
 
-      pitrSpinner.succeed(`Configured PITR recovery to ${chalk.yellow(formatDate(recoveryTarget))}`);
+      const pitrTime = ((Date.now() - pitrStart) / 1000).toFixed(1);
+      console.log(chalk.dim(`${' '.repeat(40 - 'Configure PITR recovery'.length)}${pitrTime}s`));
     }
 
-    // Create container
+    // Create and start container
     const containerName = `${CONTAINER_PREFIX}-${target.project}-${target.branch}`;
-    const containerSpinner = ora(`Creating container: ${containerName}`).start();
+    const containerStart = Date.now();
+    const containerLabel = recoveryTarget ? 'PostgreSQL WAL replay' : 'PostgreSQL ready';
+    process.stdout.write(chalk.dim(`  ▸ ${containerLabel}`));
+
     containerID = await docker.createContainer({
       name: containerName,
       image: dockerImage,
@@ -239,21 +256,13 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     });
 
     await docker.startContainer(containerID);
-    if (recoveryTarget) {
-      containerSpinner.text = 'PostgreSQL is replaying WAL logs to recovery target...';
-    } else {
-      containerSpinner.text = 'Waiting for PostgreSQL to be ready';
-    }
     await docker.waitForHealthy(containerID);
 
     // Get the dynamically assigned port from Docker
     port = await docker.getContainerPort(containerID);
 
-    if (recoveryTarget) {
-      containerSpinner.succeed('PITR recovery completed - PostgreSQL is ready');
-    } else {
-      containerSpinner.succeed('PostgreSQL is ready');
-    }
+    const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
+    console.log(chalk.dim(`${' '.repeat(40 - containerLabel.length)}${containerTime}s`));
 
     const sizeBytes = await zfs.getUsedSpace(targetDatasetName);
 
@@ -280,22 +289,13 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   } catch (error) {
     // Operation failed, rollback all created resources
     console.log();
-    console.log(chalk.yellow('⚠️  Operation failed, cleaning up...'));
+    console.log('Operation failed, cleaning up...');
     await rollback.execute();
     throw error;
   }
 
   console.log();
-  console.log(chalk.green.bold('✓ Branch created successfully!'));
-  console.log();
-  console.log(chalk.dim('Branch:  '), chalk.cyan(target.full));
-  console.log(chalk.dim('Parent:  '), chalk.dim(source.full));
-  console.log();
-  console.log(chalk.bold('Connection details:'));
-  console.log(chalk.dim('  Host:    '), 'localhost');
-  console.log(chalk.dim('  Port:    '), chalk.cyan(port.toString()));
-  console.log(chalk.dim('  Database:'), sourceProject.credentials.database);
-  console.log(chalk.dim('  Username:'), sourceProject.credentials.username);
-  console.log(chalk.dim('  Password:'), chalk.yellow(sourceProject.credentials.password));
+  console.log('Connection ready:');
+  console.log(`  postgresql://${sourceProject.credentials.username}:${sourceProject.credentials.password}@localhost:${port}/${sourceProject.credentials.database}`);
   console.log();
 }

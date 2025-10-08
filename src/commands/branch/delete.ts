@@ -10,7 +10,7 @@ export async function branchDeleteCommand(name: string) {
   const namespace = parseNamespace(name);
 
   console.log();
-  console.log(chalk.bold(`🗑️  Deleting branch: ${chalk.cyan(name)}`));
+  console.log(`Deleting ${chalk.cyan(name)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -35,27 +35,35 @@ export async function branchDeleteCommand(name: string) {
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Stop and remove container
-  const spinner = ora('Stopping container').start();
+  const stopStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Stop container'));
   const containerID = await docker.getContainerByName(branch.containerName);
   if (containerID) {
     await docker.stopContainer(containerID);
     await docker.removeContainer(containerID);
   }
-  spinner.succeed('Container removed');
+  const stopTime = ((Date.now() - stopStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopTime}s`));
 
   // Destroy ZFS dataset (use recursive to handle any dependent clones)
-  const datasetSpinner = ora('Destroying ZFS dataset').start();
+  const datasetStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Destroy dataset'));
   const datasetName = `${namespace.project}-${namespace.branch}`; // Consistent <project>-<branch> naming
   await zfs.destroyDataset(datasetName, true);
-  datasetSpinner.succeed('ZFS dataset destroyed');
+  const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Destroy dataset'.length)}${datasetTime}s`));
 
   // Clean up snapshots for this branch from state
+  const cleanupStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Clean up snapshots'));
   await state.deleteSnapshotsForBranch(branch.name);
+  const cleanupTime = ((Date.now() - cleanupStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Clean up snapshots'.length)}${cleanupTime}s`));
 
   // Remove from state
   await state.deleteBranch(project.id, branch.id);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Branch '${name}' deleted successfully!`));
+  console.log('Branch deleted');
   console.log();
 }
