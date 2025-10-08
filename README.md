@@ -1,6 +1,8 @@
 # pgd
 
-**Clone 100GB PostgreSQL in 2-5 seconds. Production-safe. Zero data loss.**
+**Instant git-like branching for Postgres**
+
+Clone 100GB PostgreSQL in 2-5 seconds. Production-safe. Zero data loss.
 
 ```bash
 # Create project with PostgreSQL 17

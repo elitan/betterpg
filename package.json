@@ -4,7 +4,7 @@
   "cliName": "pgd",
   "containerPrefix": "pgd",
   "version": "0.3.4",
-  "description": "Git-like branching for Postgres",
+  "description": "Instant git-like branching for Postgres",
   "module": "src/index.ts",
   "type": "module",
   "bin": {
