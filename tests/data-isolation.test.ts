@@ -54,17 +54,17 @@ describe('Data Isolation and Persistence', () => {
     test('should persist data after restart', async () => {
       await ensureSetup();
       const creds = await getProjectCredentials('isolation-test');
-      const port = await getBranchPort('isolation-test/main');
 
-      // Restart
+      // Restart (command waits for container to be healthy)
       await restartCommand('isolation-test/main');
-      await Bun.sleep(3000);
-      await waitForReady(port, creds.password, 60000);
+
+      // Get port AFTER restart (Docker may reassign)
+      const port = await getBranchPort('isolation-test/main');
 
       // Verify data persisted
       const count = await query(port, creds.password, 'SELECT COUNT(*) FROM users;');
       expect(count).toBe('3');
-    }, { timeout: 90000 }); // Restart can take longer on resource-constrained machines
+    }, { timeout: 120000 }); // Restart + health check can take 60-90s
   });
 
   describe('Branch Isolation', () => {
