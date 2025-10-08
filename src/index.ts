@@ -170,9 +170,10 @@ branchCommand
   .command('sync')
   .description('Sync branch with parent\'s current state')
   .argument('<name>', 'branch name in format: <database>/<branch>')
-  .action(async (name: string) => {
+  .option('-f, --force', 'force sync even if dependent branches exist (will destroy them)')
+  .action(async (name: string, options: { force?: boolean }) => {
     try {
-      await branchSyncCommand(name);
+      await branchSyncCommand(name, options);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);

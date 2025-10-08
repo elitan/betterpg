@@ -7,7 +7,7 @@ import { formatTimestamp } from '../../utils/helpers';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 
-export async function branchSyncCommand(name: string) {
+export async function branchSyncCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
 
   console.log();
@@ -35,7 +35,31 @@ export async function branchSyncCommand(name: string) {
     throw new Error(`Parent branch not found for '${name}'`);
   }
 
+  // Check for dependent branches (branches that have this branch as parent)
+  const dependentBranches = project.branches.filter(b => b.parentBranchId === branch.id);
+  if (dependentBranches.length > 0 && !options.force) {
+    const dependentNames = dependentBranches.map(b => `  • ${b.name}`).join('\n');
+    throw new Error(
+      `Cannot sync '${name}' - the following branches depend on it:\n\n` +
+      `${dependentNames}\n\n` +
+      `Syncing will destroy all dependent branches due to ZFS clone dependencies.\n` +
+      `Either delete the dependent branches first, or use --force to proceed anyway.\n\n` +
+      `${chalk.yellow('Warning:')} Using --force will permanently delete all dependent branches!`
+    );
+  }
+
   console.log(chalk.dim(`Parent: ${parentBranch.name}`));
+
+  if (dependentBranches.length > 0 && options.force) {
+    console.log();
+    console.log(chalk.yellow.bold('⚠ Warning: Force sync enabled!'));
+    console.log(chalk.yellow(`The following dependent branches will be destroyed:`));
+    dependentBranches.forEach(b => {
+      console.log(chalk.yellow(`  • ${b.name}`));
+    });
+    console.log();
+  }
+
   console.log();
 
   // Get ZFS config from state
@@ -43,6 +67,28 @@ export async function branchSyncCommand(name: string) {
 
   const docker = new DockerManager();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
+
+  // If force sync, clean up dependent branches first
+  if (dependentBranches.length > 0 && options.force) {
+    let spinner = ora('Cleaning up dependent branches').start();
+
+    for (const depBranch of dependentBranches) {
+      // Stop and remove container
+      const depContainerID = await docker.getContainerByName(depBranch.containerName);
+      if (depContainerID) {
+        await docker.stopContainer(depContainerID);
+        await docker.removeContainer(depContainerID);
+      }
+
+      // Clean up snapshots from state
+      await state.deleteSnapshotsForBranch(depBranch.name);
+
+      // Remove branch from state (will be destroyed with ZFS dataset)
+      await state.deleteBranch(project.id, depBranch.id);
+    }
+
+    spinner.succeed(`Cleaned up ${dependentBranches.length} dependent branch(es)`);
+  }
 
   // Stop and remove existing container
   let spinner = ora('Stopping branch container').start();
@@ -53,7 +99,7 @@ export async function branchSyncCommand(name: string) {
   }
   spinner.succeed('Container stopped');
 
-  // Destroy existing ZFS dataset
+  // Destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
   spinner = ora('Destroying old dataset').start();
   const datasetName = `${namespace.project}-${namespace.branch}`;
   await zfs.destroyDataset(datasetName, true);
@@ -118,6 +164,9 @@ export async function branchSyncCommand(name: string) {
   spinner.text = 'Waiting for PostgreSQL to be ready';
   await docker.waitForHealthy(newContainerID);
   spinner.succeed('PostgreSQL is ready');
+
+  // Clean up orphaned snapshots for this branch (ZFS snapshots were destroyed with dataset)
+  await state.deleteSnapshotsForBranch(branch.name);
 
   // Update state
   const sizeBytes = await zfs.getUsedSpace(datasetName);
