@@ -8,10 +8,8 @@ Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreS
 
 ```bash
 # Create project with PostgreSQL 17 (auto-creates demo/main branch)
-pgd project create demo
-```
+$ pgd project create demo
 
-```
 Creating project demo...
   ▸ Detect ZFS pool                         0.0s
   ▸ Validate permissions                    0.0s
@@ -27,14 +25,12 @@ Connection ready:
 
 ```bash
 # Add data to main branch
-psql -h localhost -p 32835 -U postgres << EOF
+$ psql -h localhost -p 32835 -U postgres << EOF
 CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
 INSERT INTO users (name) VALUES ('Alice'), ('Bob'), ('Charlie');
 SELECT * FROM users;
 EOF
-```
 
-```
  id |  name
 ----+---------
   1 | Alice
@@ -45,10 +41,8 @@ EOF
 
 ```bash
 # Create branch in 0.1s (copies entire database via ZFS snapshot)
-pgd branch create demo/dev
-```
+$ pgd branch create demo/dev
 
-```
 Creating demo/dev from demo/main...
   ▸ Checkpoint                              0.1s
   ▸ Snapshot 2025-10-09T18-40-21            0.0s
@@ -64,10 +58,8 @@ Connection ready:
 
 ```bash
 # Check status - two isolated databases running
-pgd status
-```
+$ pgd status
 
-```
 Projects (1)
 ┌───┬───────────────┬───────────────┬────────────────────┬───────────┬─────────────────────┐
 │   │ Name          │ Type          │ Image              │ Branches  │ Created             │
@@ -84,14 +76,12 @@ Projects (1)
 
 ```bash
 # Make changes in dev branch
-psql -h localhost -p 32836 -U postgres << EOF
+$ psql -h localhost -p 32836 -U postgres << EOF
 INSERT INTO users (name) VALUES ('Dave'), ('Eve');
 DELETE FROM users WHERE name = 'Bob';
 SELECT * FROM users;
 EOF
-```
 
-```
  id |  name
 ----+---------
   1 | Alice
@@ -103,11 +93,9 @@ EOF
 
 ```bash
 # Compare both branches - complete isolation
-psql -h localhost -p 32835 -U postgres -c "SELECT * FROM users;"  # Main
-psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
-```
+$ psql -h localhost -p 32835 -U postgres -c "SELECT * FROM users;"  # Main
+$ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
 
-```
 --- Main branch (Port 32835) ---
  id |  name
 ----+---------
@@ -128,10 +116,8 @@ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
 
 ```bash
 # Sync dev back to main's current state
-pgd branch sync demo/dev
-```
+$ pgd branch sync demo/dev
 
-```
 Syncing demo/dev with demo/main...
   ▸ Stop container                          0.2s
   ▸ Checkpoint demo/main                    0.1s
@@ -145,10 +131,8 @@ Syncing demo/dev with demo/main...
 
 ```bash
 # Dev now matches main (Bob is back, Dave/Eve gone)
-psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
-```
+$ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
 
-```
  id |  name
 ----+---------
   1 | Alice
