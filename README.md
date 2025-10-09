@@ -224,8 +224,6 @@ New branch (prod/dev) - ready in ~100ms
 **Why it's safe:** CHECKPOINT ensures all committed transactions are on disk (zero data loss)
 **Why it's efficient:** Branches are ~100KB until data diverges
 
-*Note: Starting the PostgreSQL container adds ~6 seconds, but the actual database branching completes in milliseconds*
-
 ## Command Reference
 
 <details>
