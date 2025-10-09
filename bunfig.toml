@@ -1,8 +1,8 @@
 [test]
-# Set default test timeout to 120 seconds
+# Set default test timeout to 20 minutes (1200 seconds)
 # PostgreSQL container startup can take 10-30 seconds
-# on smaller machines (3-4GB RAM)
-timeout = 120000
+# Integration tests with multiple containers can take several minutes
+timeout = 1200000
 
 # Tests run sequentially (not concurrent) to avoid:
 # - State file locking contention (state.json)

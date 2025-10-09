@@ -256,7 +256,15 @@ export class ZFSManager {
    */
   async mountDataset(dataset: string): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`sudo zfs mount ${fullName}`;
+    try {
+      await $`sudo zfs mount ${fullName}`.quiet();
+    } catch (error: any) {
+      // Ignore "already mounted" errors - this makes the operation idempotent
+      if (error.stderr && error.stderr.includes('already mounted')) {
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -265,6 +273,14 @@ export class ZFSManager {
    */
   async unmountDataset(dataset: string): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`sudo zfs unmount ${fullName}`;
+    try {
+      await $`sudo zfs unmount ${fullName}`.quiet();
+    } catch (error: any) {
+      // Ignore "not currently mounted" errors - this makes the operation idempotent
+      if (error.stderr && (error.stderr.includes('not currently mounted') || error.stderr.includes('not mounted'))) {
+        return;
+      }
+      throw error;
+    }
   }
 }
