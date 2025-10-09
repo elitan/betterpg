@@ -49,7 +49,11 @@ export async function branchDeleteCommand(name: string) {
   const datasetStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Destroy dataset'));
   const datasetName = `${namespace.project}-${namespace.branch}`; // Consistent <project>-<branch> naming
-  await zfs.destroyDataset(datasetName, true);
+  // Only destroy dataset if it exists - this handles cases where previous deletion attempts
+  // were interrupted or failed partway through, leaving state entries without actual ZFS datasets
+  if (await zfs.datasetExists(datasetName)) {
+    await zfs.destroyDataset(datasetName, true);
+  }
   const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
   console.log(chalk.dim(`${' '.repeat(40 - 'Destroy dataset'.length)}${datasetTime}s`));
 

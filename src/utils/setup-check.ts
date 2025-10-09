@@ -58,12 +58,11 @@ export async function isSetupComplete(): Promise<boolean> {
       return false;
     }
 
-    // Check 5: Sudoers file exists
-    try {
-      await $`test -f /etc/sudoers.d/pgd`.quiet();
-    } catch (error) {
-      return false;
-    }
+    // We intentionally skip checking if /etc/sudoers.d/pgd exists because:
+    // - Regular users cannot read sudoers files (they have mode 0440, root-only readable)
+    // - The test would always fail even when setup is complete
+    // - Verifying pgd group membership (above) is sufficient proof that setup ran successfully
+    // - If the sudoers file is somehow missing, ZFS mount/unmount operations will fail with clear sudo errors
 
     return true;
   } catch (error) {
