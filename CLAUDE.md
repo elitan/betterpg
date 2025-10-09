@@ -33,21 +33,36 @@ bun run dev
 # Install globally
 sudo cp dist/pgd /usr/local/bin/
 
-# Run tests
-./scripts/run-extended-tests.sh     # Extended integration tests (21 tests)
-./scripts/run-v1-tests.sh           # V1 comprehensive tests (36 tests)
-./scripts/run-advanced-tests.sh     # Advanced tests (13 tests)
-./scripts/integration-test.sh       # Basic integration tests
-./scripts/performance-test.sh       # Performance benchmarks
+# Run tests (cleans up first, then runs in parallel)
+bun run test           # Runs all tests via ./scripts/test.sh
+# or
+./scripts/test.sh      # Cleans, builds, then runs all *.test.ts files in parallel
+
+# Run tests in watch mode (local only)
+bun run test:watch
+
+# Run specific test file
+sudo bun test tests/branch.test.ts
+
+# Manual cleanup (removes all test artifacts)
+sudo ./scripts/cleanup.sh
 ```
 
 ## Testing Notes
 
+- **Test framework**: Uses Bun's built-in test runner
+- **Test files**: All `*.test.ts` files in `src/` and `tests/` directories
+- **Sequential execution**: Tests run sequentially (not parallel) to avoid resource contention on:
+  - State file locking (state.json)
+  - ZFS dataset operations
+  - Docker container memory pressure on smaller machines
+- **Test isolation**: Each test file has its own beforeAll/afterAll cleanup for proper isolation
 - **ZFS requirement**: Tests MUST be run on Linux with ZFS (Ubuntu 20.04+, Debian 11+)
+- **ZFS pool**: Tests assume a ZFS pool named `tank` exists
+- **Permissions**: Tests require sudo for ZFS and Docker operations
+- **Timeout**: 120 second timeout per test (configured in bunfig.toml)
+- **Pre-test cleanup**: `./scripts/test.sh` automatically runs cleanup before tests
 - Development on macOS requires SSH to a VPS with ZFS installed
-- VPS access: `ssh pgd` (configured with ZFS pool `tank`)
-- All tests assume a ZFS pool named `tank` exists
-- Tests create temporary projects and clean up afterwards
 
 ## Architecture
 
@@ -287,7 +302,7 @@ From TODO.md, completed features (v0.3.5):
 - ✅ WAL archiving & monitoring
 - ✅ Point-in-time recovery (PITR)
 - ✅ Branch sync functionality
-- ✅ Comprehensive test coverage (70 tests total)
+- ✅ Comprehensive test coverage
 - ✅ GitHub Actions CI pipeline
 - ✅ **Zero-config design** - no config file, no init command, auto-detects ZFS pool
 - ✅ **Custom Docker images** - support for PostgreSQL extensions (pgvector, TimescaleDB, etc.)
@@ -301,29 +316,28 @@ Next priorities (v0.4.0+):
 
 ## Testing Philosophy
 
-**Test Suites (70 tests total):**
-1. **Extended tests** (`scripts/run-extended-tests.sh`) - 21 tests
-   - Project lifecycle (create → stop → start → restart)
-   - Data persistence across stop/start cycles
-   - Branch creation (both snapshot types)
-   - Branch data verification and isolation
-   - ZFS copy-on-write efficiency validation
+**Test Structure:**
+- All tests use Bun's built-in test runner
+- Test files located in `tests/` directory and `src/utils/namespace.test.ts`
+- Comprehensive coverage including:
+  - Project and branch lifecycle operations
+  - Data persistence and isolation
+  - Snapshot creation and management
+  - WAL archiving and PITR
+  - Edge cases and error handling
+  - State integrity verification
 
-2. **V1 tests** (`scripts/run-v1-tests.sh`) - 36 tests
-   - Comprehensive coverage of all implemented features
-   - Project, branch, snapshot, WAL commands
-   - Edge cases and error handling
+**CI/CD Pipeline (.github/workflows/test.yml):**
+- Runs on: Ubuntu 22.04
+- Environment setup:
+  - Installs Bun (latest)
+  - Installs PostgreSQL client tools (psql, jq)
+  - Installs ZFS utilities
+  - Creates file-based ZFS pool (`tank`, 10GB)
+- Execution: `./scripts/test.sh` (builds binary, then runs all tests)
+- Timeout: 15 minutes
+- Cleanup: Removes all test containers and ZFS pool
 
-3. **Advanced tests** (`scripts/run-advanced-tests.sh`) - 13 tests
-   - Branch sync functionality
-   - State integrity verification
-   - ZFS/Docker integration testing
-   - Complete cleanup verification
+Always run full test suite (`bun run test`) before committing changes to core managers.
 
-**CI/CD:**
-- GitHub Actions runs all 70 tests automatically
-- Ubuntu 22.04 with ZFS, Docker, PostgreSQL client tools
-- File-based ZFS pool for testing
-
-Always run full test suite before committing changes to core managers.
-- we do not need to consider backward compaiblity
+**Note:** We do not need to consider backward compatibility
