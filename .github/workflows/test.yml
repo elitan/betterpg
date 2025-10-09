@@ -47,6 +47,11 @@ jobs:
     - name: Build pgd
       run: bun run build
 
+    - name: Pre-pull Docker images
+      run: |
+        # Pre-pull PostgreSQL image to avoid Docker Hub rate limits during tests
+        docker pull postgres:17-alpine
+
     - name: Run test suite
       run: ./scripts/test.sh
       timeout-minutes: 15
