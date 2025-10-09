@@ -49,7 +49,14 @@ export async function setupCommand() {
   console.log(chalk.yellow('[1/5]'), 'Checking ZFS installation...');
 
   try {
-    await $`command -v zpool`.quiet();
+    // Try standard locations for ZFS binaries
+    // Bun's $ shell in compiled binaries might not have PATH set correctly
+    try {
+      await $`/usr/sbin/zpool status`.quiet();
+    } catch (error) {
+      // Fallback to PATH-based command
+      await $`zpool status`.quiet();
+    }
     console.log(chalk.green('✓'), 'ZFS is installed');
   } catch (error) {
     console.log(chalk.red('✗'), 'ZFS is not installed');
@@ -66,7 +73,8 @@ export async function setupCommand() {
 
   let pool: string;
   try {
-    const poolsOutput = await $`zpool list -H -o name`.text();
+    // Use full path to ensure it works in compiled binary
+    const poolsOutput = await $`/usr/sbin/zpool list -H -o name`.text();
     const pools = poolsOutput.trim().split('\n').filter(p => p);
 
     if (pools.length === 0) {
@@ -117,36 +125,36 @@ export async function setupCommand() {
 
   try {
     // Check if delegation is enabled
-    const delegation = await $`zpool get -H -o value delegation ${pool}`.text();
+    const delegation = await $`/usr/sbin/zpool get -H -o value delegation ${pool}`.text();
 
     if (delegation.trim() !== 'on') {
       console.log('Enabling ZFS delegation on pool...');
-      await $`zpool set delegation=on ${pool}`;
+      await $`/usr/sbin/zpool set delegation=on ${pool}`;
     }
 
     // Create base dataset if needed
     const baseDataset = `${pool}/pgd`;
     try {
-      await $`zfs list ${baseDataset}`.quiet();
+      await $`/usr/sbin/zfs list ${baseDataset}`.quiet();
     } catch (error) {
       console.log(`Creating base dataset: ${baseDataset}`);
-      await $`zfs create ${baseDataset}`;
+      await $`/usr/sbin/zfs create ${baseDataset}`;
     }
 
     // Create databases dataset if needed
     const databasesDataset = `${pool}/pgd/databases`;
     try {
-      await $`zfs list ${databasesDataset}`.quiet();
+      await $`/usr/sbin/zfs list ${databasesDataset}`.quiet();
     } catch (error) {
       console.log(`Creating databases dataset: ${databasesDataset}`);
-      await $`zfs create ${databasesDataset}`;
+      await $`/usr/sbin/zfs create ${databasesDataset}`;
     }
 
     // Grant permissions
     console.log(`Granting permissions to user '${actualUser}'...`);
-    await $`zfs allow ${actualUser} create,destroy,snapshot,clone,mount ${databasesDataset}`;
-    await $`zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
-    await $`zfs allow ${actualUser} compression,recordsize,mountpoint ${databasesDataset}`;
+    await $`/usr/sbin/zfs allow ${actualUser} create,destroy,snapshot,clone,mount ${databasesDataset}`;
+    await $`/usr/sbin/zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
+    await $`/usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint ${databasesDataset}`;
 
     console.log(chalk.green('✓'), 'ZFS permissions granted');
   } catch (error) {
