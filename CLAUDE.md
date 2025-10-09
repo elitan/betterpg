@@ -14,7 +14,7 @@ pgd provides instant PostgreSQL database branching using ZFS snapshots. It combi
 - Branch 100GB PostgreSQL database in 2-5 seconds with zero data loss
 - Space-efficient: branches are ~100KB initially (ZFS CoW)
 - Full isolation: each branch is an independent PostgreSQL instance
-- Production-safe: application-consistent snapshots via `pg_backup_start`/`pg_backup_stop`
+- Production-safe: application-consistent snapshots via CHECKPOINT
 
 ## Build and Development Commands
 
@@ -138,8 +138,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - Uses dockerode library for Docker API
 - Container naming: `pgd-<project>-<branch>` (e.g., `pgd-api-dev`)
 - Each container is a complete PostgreSQL database instance
-- Implements PostgreSQL backup mode: `startBackupMode()`, `stopBackupMode()`
-- Compatible with PostgreSQL 15+ (`pg_backup_*`) and <15 (`pg_start_backup`)
+- Executes SQL commands via `execSQL()` method using Bun.spawn
 - Uses Bun.spawn for SQL execution to avoid dockerode stream issues
 
 **WALManager** (`src/managers/wal.ts`):
@@ -165,7 +164,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - List snapshots: `pgd snapshot list [branch]`
 - Delete snapshots: `pgd snapshot delete <snapshot-id>`
 - Snapshots stored in state.json with metadata (id, timestamp, label, size)
-- Snapshots are application-consistent (use pg_backup_start/stop)
+- All snapshots are application-consistent (use CHECKPOINT before ZFS snapshot)
 
 **Point-in-Time Recovery (PITR):**
 - Create branch from specific time: `pgd branch create <project>/<name> --pitr <timestamp>`
@@ -185,16 +184,22 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 ### Snapshot Consistency
 
-**Application-consistent snapshots (default)**: Uses CHECKPOINT
+**Branch creation (application-consistent)**: Uses CHECKPOINT before snapshot
 - Zero data loss, all committed transactions included
-- 2-5 second operation
+- ~100ms operation (CHECKPOINT flushes dirty buffers)
 - Safe for production, migration testing, compliance
-- Uses PostgreSQL CHECKPOINT to flush all data to disk before snapshot
-- Used by: `pgd snapshot create`, `pgd branch create`
+- Uses PostgreSQL CHECKPOINT to flush all data to disk before ZFS snapshot
+- Used by: `pgd branch create`, `pgd branch sync`
+
+**Manual snapshots (application-consistent)**: CHECKPOINT + ZFS snapshot
+- ~100ms operation (CHECKPOINT flushes dirty buffers)
+- Zero data loss, all committed transactions included
+- Safe for PITR recovery without WAL replay overhead
+- Used by: `pgd snapshot create`
 
 **PITR recovery**: Uses existing snapshots + WAL replay
 - Recovers PostgreSQL database to specific point in time
-- Uses crash-consistent snapshots (WAL replay provides consistency)
+- Uses application-consistent snapshots as base
 - Replays WAL logs from snapshot to target time
 - Used by: `pgd branch create --pitr <timestamp>`
 

@@ -21,6 +21,8 @@ pgd status
 
 **Requirements:** Linux + ZFS + Docker + Bun
 
+> **⚠️ Security Notice:** This is beta software (v0.3.5). Database credentials stored in plaintext (`~/.local/share/pgd/state.json`). Designed for development/testing environments. Production use requires additional security hardening.
+
 ```bash
 # Install dependencies (Ubuntu/Debian)
 sudo apt install zfsutils-linux
@@ -268,7 +270,7 @@ pgd branch sync prod/dev
 <summary><strong>Snapshot Commands</strong></summary>
 
 ```bash
-# Create snapshot (enables PITR)
+# Create snapshot (application-consistent, uses CHECKPOINT)
 pgd snapshot create prod/main --label "before-migration"
 
 # List/delete

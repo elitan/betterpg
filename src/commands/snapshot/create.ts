@@ -39,6 +39,26 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   const stateData = state.getState();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
+  // If branch is running, execute CHECKPOINT before snapshot
+  if (branch.status === 'running') {
+    const { DockerManager } = await import('../../managers/docker');
+    const docker = new DockerManager();
+
+    const containerID = await docker.getContainerByName(branch.containerName);
+    if (!containerID) {
+      throw new Error(`Container ${branch.containerName} not found`);
+    }
+
+    const spinner = ora('Running CHECKPOINT').start();
+    try {
+      await docker.execSQL(containerID, 'CHECKPOINT;', proj.credentials.username);
+      spinner.succeed('CHECKPOINT completed');
+    } catch (error: any) {
+      spinner.fail('CHECKPOINT failed');
+      throw error;
+    }
+  }
+
   // Create ZFS snapshot
   const snapshotTimestamp = formatTimestamp(new Date());
   const datasetName = branch.zfsDataset.split('/').pop() || '';
