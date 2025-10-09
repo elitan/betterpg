@@ -124,6 +124,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   await zfs.createDataset(mainDatasetName, {
     compression: DEFAULTS.zfs.compression,
     recordsize: DEFAULTS.zfs.recordsize,
+    atime: DEFAULTS.zfs.atime,
   });
   const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
   const datasetLabel = `Create dataset ${mainBranchName}`.length;
