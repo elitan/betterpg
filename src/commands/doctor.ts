@@ -1,0 +1,732 @@
+import chalk from 'chalk';
+import { $ } from 'bun';
+import { StateManager } from '../managers/state';
+import { DockerManager } from '../managers/docker';
+import { PATHS } from '../utils/paths';
+import { DEFAULTS } from '../config/defaults';
+import { getZFSPool } from '../utils/zfs-pool';
+import { validateAllPermissions } from '../utils/zfs-permissions';
+import * as fs from 'fs/promises';
+
+interface CheckResult {
+  name: string;
+  status: 'pass' | 'fail' | 'warn' | 'info';
+  message: string;
+  details?: string[];
+}
+
+export async function doctorCommand() {
+  console.log();
+  console.log(chalk.bold('pgd Health Check'));
+  console.log(chalk.dim('═'.repeat(60)));
+  console.log();
+
+  const allResults: CheckResult[] = [];
+
+  // System Information
+  console.log(chalk.bold('System Information'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const systemResults = [
+    await checkOS(),
+    await checkBunVersion(),
+    await checkPgdVersion(),
+  ];
+  allResults.push(...systemResults);
+  printResults(systemResults);
+  console.log();
+
+  // ZFS Checks
+  console.log(chalk.bold('ZFS Configuration'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const zfsResults = [
+    await checkZFSInstalled(),
+    await checkZFSPool(),
+    await checkZFSPermissions(),
+    await checkZFSDataset(),
+  ];
+  allResults.push(...zfsResults);
+  printResults(zfsResults);
+  console.log();
+
+  // Docker Checks
+  console.log(chalk.bold('Docker Configuration'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const dockerResults = [
+    await checkDockerInstalled(),
+    await checkDockerRunning(),
+    await checkDockerPermissions(),
+    await checkDockerImages(),
+  ];
+  allResults.push(...dockerResults);
+  printResults(dockerResults);
+  console.log();
+
+  // pgd State
+  console.log(chalk.bold('pgd State'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const stateResults = [
+    await checkStateFile(),
+    await checkWALDirectory(),
+    await checkProjects(),
+    await checkContainers(),
+  ];
+  allResults.push(...stateResults);
+  printResults(stateResults);
+  console.log();
+
+  // File Permissions
+  console.log(chalk.bold('File Permissions'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const permResults = [
+    await checkStateFilePermissions(),
+    await checkWALPermissions(),
+  ];
+  allResults.push(...permResults);
+  printResults(permResults);
+  console.log();
+
+  // Summary
+  console.log(chalk.dim('═'.repeat(60)));
+  printSummary(allResults);
+}
+
+function printResults(results: CheckResult[]) {
+  for (const result of results) {
+    const icon = result.status === 'pass' ? chalk.green('✓')
+      : result.status === 'fail' ? chalk.red('✗')
+      : result.status === 'warn' ? chalk.yellow('⚠')
+      : chalk.blue('ℹ');
+
+    console.log(`${icon} ${result.name}`);
+
+    if (result.message) {
+      const color = result.status === 'pass' ? chalk.dim
+        : result.status === 'fail' ? chalk.red
+        : result.status === 'warn' ? chalk.yellow
+        : chalk.dim;
+
+      console.log(`  ${color(result.message)}`);
+    }
+
+    if (result.details && result.details.length > 0) {
+      for (const detail of result.details) {
+        console.log(`  ${chalk.dim('→')} ${chalk.dim(detail)}`);
+      }
+    }
+  }
+}
+
+function printSummary(allResults: CheckResult[]) {
+  const passed = allResults.filter(r => r.status === 'pass').length;
+  const failed = allResults.filter(r => r.status === 'fail').length;
+  const warnings = allResults.filter(r => r.status === 'warn').length;
+  const info = allResults.filter(r => r.status === 'info').length;
+
+  console.log();
+  console.log(chalk.bold('Summary:'));
+  console.log(`  ${chalk.green('✓')} Passed: ${passed}`);
+  if (warnings > 0) console.log(`  ${chalk.yellow('⚠')} Warnings: ${warnings}`);
+  if (failed > 0) console.log(`  ${chalk.red('✗')} Failed: ${failed}`);
+  if (info > 0) console.log(`  ${chalk.blue('ℹ')} Info: ${info}`);
+
+  console.log();
+
+  if (failed > 0) {
+    console.log(chalk.red('✗ Issues detected. Please fix the failed checks above.'));
+    console.log();
+    console.log('Common fixes:');
+    console.log('  • Run setup: sudo pgd setup');
+    console.log('  • Create ZFS pool: sudo zpool create tank /dev/sdb');
+    console.log('  • Log out and back in (for group changes)');
+  } else if (warnings > 0) {
+    console.log(chalk.yellow('⚠ pgd is functional but has warnings. Review above.'));
+  } else {
+    console.log(chalk.green('✓ All checks passed! pgd is ready to use.'));
+  }
+  console.log();
+}
+
+// Check functions
+async function checkOS(): Promise<CheckResult> {
+  try {
+    const result = await $`uname -s`.text();
+    const os = result.trim();
+
+    if (os === 'Linux') {
+      const distro = await $`cat /etc/os-release | grep "^PRETTY_NAME=" | cut -d'"' -f2`.quiet().text();
+      return {
+        name: 'Operating System',
+        status: 'pass',
+        message: distro.trim(),
+      };
+    } else {
+      return {
+        name: 'Operating System',
+        status: 'fail',
+        message: `Detected ${os}. pgd requires Linux.`,
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'Operating System',
+      status: 'fail',
+      message: 'Unable to detect OS',
+    };
+  }
+}
+
+async function checkBunVersion(): Promise<CheckResult> {
+  try {
+    const version = await $`bun --version`.text();
+    return {
+      name: 'Bun Runtime',
+      status: 'pass',
+      message: `v${version.trim()}`,
+    };
+  } catch (error) {
+    return {
+      name: 'Bun Runtime',
+      status: 'fail',
+      message: 'Bun not found. Install: curl -fsSL https://bun.sh/install | bash',
+    };
+  }
+}
+
+async function checkPgdVersion(): Promise<CheckResult> {
+  try {
+    const packageJson = await Bun.file('package.json').text();
+    const pkg = JSON.parse(packageJson);
+    return {
+      name: 'pgd Version',
+      status: 'info',
+      message: `v${pkg.version}`,
+    };
+  } catch (error) {
+    return {
+      name: 'pgd Version',
+      status: 'info',
+      message: 'Unable to detect version',
+    };
+  }
+}
+
+async function checkZFSInstalled(): Promise<CheckResult> {
+  try {
+    const version = await $`zfs version`.quiet().text();
+    const match = version.match(/zfs-(\S+)/);
+    const versionStr = match ? match[1] : 'unknown';
+
+    return {
+      name: 'ZFS Installation',
+      status: 'pass',
+      message: `zfs-${versionStr}`,
+    };
+  } catch (error) {
+    return {
+      name: 'ZFS Installation',
+      status: 'fail',
+      message: 'ZFS not installed. Run: sudo apt install zfsutils-linux',
+    };
+  }
+}
+
+async function checkZFSPool(): Promise<CheckResult> {
+  try {
+    const pools = await $`zpool list -H -o name`.quiet().text();
+    const poolList = pools.trim().split('\n').filter(p => p);
+
+    if (poolList.length === 0) {
+      return {
+        name: 'ZFS Pool',
+        status: 'fail',
+        message: 'No ZFS pools found',
+        details: [
+          'Create a pool: sudo zpool create tank /dev/sdb',
+          'For testing: sudo truncate -s 10G /tmp/zfs-pool.img && sudo zpool create tank /tmp/zfs-pool.img',
+        ],
+      };
+    }
+
+    // Try to get the pool from state
+    let statePool: string | null = null;
+    try {
+      const state = new StateManager(PATHS.STATE);
+      await state.load();
+      if (state.isInitialized()) {
+        const stateData = state.getState();
+        statePool = stateData.zfsPool;
+      }
+    } catch (error) {
+      // State not initialized yet, that's okay
+    }
+
+    if (statePool) {
+      return {
+        name: 'ZFS Pool',
+        status: 'pass',
+        message: `Using pool: ${statePool}`,
+        details: poolList.length > 1 ? [`Other pools: ${poolList.filter(p => p !== statePool).join(', ')}`] : undefined,
+      };
+    } else if (poolList.length === 1) {
+      return {
+        name: 'ZFS Pool',
+        status: 'pass',
+        message: `Available pool: ${poolList[0]}`,
+        details: ['Will be auto-detected on first project create'],
+      };
+    } else {
+      return {
+        name: 'ZFS Pool',
+        status: 'warn',
+        message: `Found ${poolList.length} pools: ${poolList.join(', ')}`,
+        details: ['Specify pool when creating project: pgd project create myapp --pool <name>'],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'ZFS Pool',
+      status: 'fail',
+      message: 'Unable to list ZFS pools',
+    };
+  }
+}
+
+async function checkZFSPermissions(): Promise<CheckResult> {
+  try {
+    // Get pool from state or auto-detect
+    let pool: string;
+    try {
+      const state = new StateManager(PATHS.STATE);
+      await state.load();
+      if (state.isInitialized()) {
+        const stateData = state.getState();
+        pool = stateData.zfsPool;
+      } else {
+        pool = await getZFSPool();
+      }
+    } catch (error) {
+      pool = await getZFSPool();
+    }
+
+    // Check if running as root (skip validation)
+    if (process.getuid && process.getuid() === 0) {
+      return {
+        name: 'ZFS Permissions',
+        status: 'warn',
+        message: 'Running as root - permissions not validated',
+      };
+    }
+
+    try {
+      await validateAllPermissions(pool, DEFAULTS.zfs.datasetBase);
+      return {
+        name: 'ZFS Permissions',
+        status: 'pass',
+        message: `Delegation configured for ${pool}/${DEFAULTS.zfs.datasetBase}`,
+      };
+    } catch (error) {
+      return {
+        name: 'ZFS Permissions',
+        status: 'fail',
+        message: 'ZFS permissions not configured',
+        details: [
+          'Run setup: sudo pgd setup',
+          'This grants ZFS delegation permissions to your user',
+        ],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'ZFS Permissions',
+      status: 'fail',
+      message: 'Unable to check permissions',
+    };
+  }
+}
+
+async function checkZFSDataset(): Promise<CheckResult> {
+  try {
+    const state = new StateManager(PATHS.STATE);
+    await state.load();
+
+    if (!state.isInitialized()) {
+      return {
+        name: 'ZFS Dataset',
+        status: 'info',
+        message: 'Not initialized yet',
+        details: ['Will be created on first project create'],
+      };
+    }
+
+    const stateData = state.getState();
+    const fullPath = `${stateData.zfsPool}/${stateData.zfsDatasetBase}`;
+
+    try {
+      const result = await $`zfs list -H -o name ${fullPath}`.quiet().text();
+      if (result.trim() === fullPath) {
+        return {
+          name: 'ZFS Dataset',
+          status: 'pass',
+          message: fullPath,
+        };
+      }
+    } catch (error) {
+      return {
+        name: 'ZFS Dataset',
+        status: 'warn',
+        message: `Dataset ${fullPath} not found`,
+        details: ['Will be created automatically on next project create'],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'ZFS Dataset',
+      status: 'info',
+      message: 'State not initialized',
+    };
+  }
+
+  return {
+    name: 'ZFS Dataset',
+    status: 'info',
+    message: 'Unknown',
+  };
+}
+
+async function checkDockerInstalled(): Promise<CheckResult> {
+  try {
+    const version = await $`docker --version`.quiet().text();
+    const match = version.match(/Docker version ([\d.]+)/);
+    const versionStr = match ? match[1] : 'unknown';
+
+    return {
+      name: 'Docker Installation',
+      status: 'pass',
+      message: `v${versionStr}`,
+    };
+  } catch (error) {
+    return {
+      name: 'Docker Installation',
+      status: 'fail',
+      message: 'Docker not installed. Run: curl -fsSL https://get.docker.com | sh',
+    };
+  }
+}
+
+async function checkDockerRunning(): Promise<CheckResult> {
+  try {
+    await $`docker info`.quiet();
+    return {
+      name: 'Docker Daemon',
+      status: 'pass',
+      message: 'Running',
+    };
+  } catch (error) {
+    return {
+      name: 'Docker Daemon',
+      status: 'fail',
+      message: 'Docker daemon not running. Start: sudo systemctl start docker',
+    };
+  }
+}
+
+async function checkDockerPermissions(): Promise<CheckResult> {
+  try {
+    // Check if user is in docker group
+    const groups = await $`groups`.text();
+    const hasDockerGroup = groups.includes('docker');
+
+    // Try to run docker command
+    try {
+      await $`docker ps`.quiet();
+      return {
+        name: 'Docker Permissions',
+        status: 'pass',
+        message: hasDockerGroup ? 'User in docker group' : 'Can access docker',
+      };
+    } catch (error) {
+      if (!hasDockerGroup) {
+        return {
+          name: 'Docker Permissions',
+          status: 'fail',
+          message: 'Not in docker group',
+          details: [
+            'Add to group: sudo usermod -aG docker $USER',
+            'Then log out and back in',
+          ],
+        };
+      } else {
+        return {
+          name: 'Docker Permissions',
+          status: 'fail',
+          message: 'Cannot access Docker daemon',
+          details: ['Try logging out and back in (group membership not active)'],
+        };
+      }
+    }
+  } catch (error) {
+    return {
+      name: 'Docker Permissions',
+      status: 'fail',
+      message: 'Unable to check permissions',
+    };
+  }
+}
+
+async function checkDockerImages(): Promise<CheckResult> {
+  try {
+    const docker = new DockerManager();
+    const defaultImageExists = await docker.imageExists(DEFAULTS.postgres.defaultImage);
+
+    if (defaultImageExists) {
+      return {
+        name: 'Docker Images',
+        status: 'pass',
+        message: `Default image cached: ${DEFAULTS.postgres.defaultImage}`,
+      };
+    } else {
+      return {
+        name: 'Docker Images',
+        status: 'info',
+        message: 'Default image not cached',
+        details: ['Will be pulled automatically on first project create'],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'Docker Images',
+      status: 'warn',
+      message: 'Unable to check images',
+    };
+  }
+}
+
+async function checkStateFile(): Promise<CheckResult> {
+  try {
+    const exists = await Bun.file(PATHS.STATE).exists();
+
+    if (!exists) {
+      return {
+        name: 'State File',
+        status: 'info',
+        message: 'Not initialized',
+        details: ['Will be created on first project create'],
+      };
+    }
+
+    const state = new StateManager(PATHS.STATE);
+    await state.load();
+    const stateData = state.getState();
+
+    const projectCount = stateData.projects?.length || 0;
+    const branchCount = stateData.projects?.reduce((sum, p) => sum + p.branches.length, 0) || 0;
+
+    return {
+      name: 'State File',
+      status: 'pass',
+      message: `${projectCount} project(s), ${branchCount} branch(es)`,
+      details: [`Location: ${PATHS.STATE}`],
+    };
+  } catch (error) {
+    return {
+      name: 'State File',
+      status: 'fail',
+      message: 'State file corrupted or unreadable',
+      details: [`Location: ${PATHS.STATE}`],
+    };
+  }
+}
+
+async function checkWALDirectory(): Promise<CheckResult> {
+  try {
+    const exists = await Bun.file(PATHS.WAL_ARCHIVE).exists();
+
+    if (!exists) {
+      return {
+        name: 'WAL Archive Directory',
+        status: 'info',
+        message: 'Not created yet',
+        details: ['Will be created on first project create'],
+      };
+    }
+
+    const entries = await fs.readdir(PATHS.WAL_ARCHIVE);
+    const datasetDirs = entries.filter(e => !e.startsWith('.'));
+
+    return {
+      name: 'WAL Archive Directory',
+      status: 'pass',
+      message: `${datasetDirs.length} dataset(s)`,
+      details: [`Location: ${PATHS.WAL_ARCHIVE}`],
+    };
+  } catch (error) {
+    return {
+      name: 'WAL Archive Directory',
+      status: 'warn',
+      message: 'Unable to check directory',
+    };
+  }
+}
+
+async function checkProjects(): Promise<CheckResult> {
+  try {
+    const state = new StateManager(PATHS.STATE);
+    await state.load();
+
+    if (!state.isInitialized()) {
+      return {
+        name: 'Projects',
+        status: 'info',
+        message: 'No projects yet',
+        details: ['Create first project: pgd project create myapp'],
+      };
+    }
+
+    const stateData = state.getState();
+    const projects = stateData.projects || [];
+
+    if (projects.length === 0) {
+      return {
+        name: 'Projects',
+        status: 'info',
+        message: 'No projects',
+        details: ['Create first project: pgd project create myapp'],
+      };
+    }
+
+    const details = projects.map(p => {
+      const branchCount = p.branches.length;
+      return `${p.name}: ${branchCount} branch(es), ${p.dockerImage}`;
+    });
+
+    return {
+      name: 'Projects',
+      status: 'pass',
+      message: `${projects.length} project(s)`,
+      details,
+    };
+  } catch (error) {
+    return {
+      name: 'Projects',
+      status: 'info',
+      message: 'No projects',
+    };
+  }
+}
+
+async function checkContainers(): Promise<CheckResult> {
+  try {
+    const docker = new DockerManager();
+    const allContainers = await docker.listContainers();
+    const pgdContainers = allContainers.filter(c => c.Names.some(n => n.startsWith('/pgd-')));
+
+    if (pgdContainers.length === 0) {
+      return {
+        name: 'Docker Containers',
+        status: 'info',
+        message: 'No pgd containers',
+      };
+    }
+
+    const running = pgdContainers.filter(c => c.State === 'running').length;
+    const stopped = pgdContainers.length - running;
+
+    const details = pgdContainers.map(c => {
+      const name = c.Names[0].replace('/pgd-', '');
+      const state = c.State === 'running' ? '●' : '○';
+      return `${state} ${name} (${c.State})`;
+    });
+
+    return {
+      name: 'Docker Containers',
+      status: 'pass',
+      message: `${running} running, ${stopped} stopped`,
+      details,
+    };
+  } catch (error) {
+    return {
+      name: 'Docker Containers',
+      status: 'warn',
+      message: 'Unable to list containers',
+    };
+  }
+}
+
+async function checkStateFilePermissions(): Promise<CheckResult> {
+  try {
+    const exists = await Bun.file(PATHS.STATE).exists();
+    if (!exists) {
+      return {
+        name: 'State File Permissions',
+        status: 'info',
+        message: 'State file not created yet',
+      };
+    }
+
+    const stat = await fs.stat(PATHS.STATE);
+    const uid = process.getuid ? process.getuid() : -1;
+
+    if (stat.uid === uid) {
+      return {
+        name: 'State File Permissions',
+        status: 'pass',
+        message: 'Owned by current user',
+      };
+    } else {
+      return {
+        name: 'State File Permissions',
+        status: 'warn',
+        message: 'Not owned by current user',
+        details: [`File is owned by UID ${stat.uid}, you are UID ${uid}`],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'State File Permissions',
+      status: 'warn',
+      message: 'Unable to check permissions',
+    };
+  }
+}
+
+async function checkWALPermissions(): Promise<CheckResult> {
+  try {
+    const exists = await Bun.file(PATHS.WAL_ARCHIVE).exists();
+    if (!exists) {
+      return {
+        name: 'WAL Directory Permissions',
+        status: 'info',
+        message: 'WAL directory not created yet',
+      };
+    }
+
+    const stat = await fs.stat(PATHS.WAL_ARCHIVE);
+    const uid = process.getuid ? process.getuid() : -1;
+
+    if (stat.uid === uid) {
+      return {
+        name: 'WAL Directory Permissions',
+        status: 'pass',
+        message: 'Owned by current user',
+      };
+    } else {
+      return {
+        name: 'WAL Directory Permissions',
+        status: 'warn',
+        message: 'Not owned by current user',
+        details: [`Directory is owned by UID ${stat.uid}, you are UID ${uid}`],
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'WAL Directory Permissions',
+      status: 'warn',
+      message: 'Unable to check permissions',
+    };
+  }
+}

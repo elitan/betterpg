@@ -13,6 +13,7 @@ import { CONTAINER_PREFIX } from '../../config/constants';
 import { DEFAULTS } from '../../config/defaults';
 import { getZFSPool } from '../../utils/zfs-pool';
 import { validateAllPermissions } from '../../utils/zfs-permissions';
+import { requireSetup } from '../../utils/setup-check';
 import * as fs from 'fs/promises';
 
 interface CreateOptions {
@@ -22,6 +23,9 @@ interface CreateOptions {
 }
 
 export async function projectCreateCommand(name: string, options: CreateOptions = {}) {
+  // Check if setup has been completed
+  await requireSetup();
+
   // Validate flags
   if (options.version && options.image) {
     throw new Error('Cannot specify both --version and --image. Use one or the other.');

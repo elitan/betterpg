@@ -23,6 +23,8 @@ import { startCommand } from './commands/start';
 import { stopCommand } from './commands/stop';
 import { restartCommand } from './commands/restart';
 import { statusCommand } from './commands/status';
+import { doctorCommand } from './commands/doctor';
+import { setupCommand } from './commands/setup';
 import packageJson from '../package.json';
 
 const program = new Command();
@@ -358,6 +360,30 @@ program
   .action(async () => {
     try {
       await statusCommand();
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('doctor')
+  .description('Run health checks and diagnostics')
+  .action(async () => {
+    try {
+      await doctorCommand();
+    } catch (error: any) {
+      console.error(chalk.red('✗'), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('setup')
+  .description('One-time setup: grant ZFS permissions and configure Docker (requires sudo)')
+  .action(async () => {
+    try {
+      await setupCommand();
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);

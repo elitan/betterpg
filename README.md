@@ -42,52 +42,66 @@ sudo apt install zfsutils-linux
 curl -fsSL https://get.docker.com | sh
 curl -fsSL https://bun.sh/install | bash
 
-# Add user to docker group
-sudo usermod -aG docker $USER && newgrp docker
-
-# Create ZFS pool (if you don't have one)
-zpool list  # Check existing pools
-# For testing: sudo truncate -s 10G /tmp/zfs-pool.img && sudo zpool create tank /tmp/zfs-pool.img
-# For production: sudo zpool create tank /dev/sdb
-
 # Install pgd
 git clone https://github.com/elitan/pgd.git && cd pgd
 bun install && bun run build
 sudo cp dist/pgd /usr/local/bin/
+```
 
-# Setup permissions (one-time, required before first use)
-sudo ./scripts/setup-permissions.sh
+### One-Time Setup (Required per server)
 
-# Start using (no init needed - auto-configures on first use)
+Run these commands **once per server**:
+
+```bash
+# 1. Create ZFS pool (if you don't have one)
+zpool list  # Check existing pools
+# For testing: sudo truncate -s 10G /tmp/zfs-pool.img && sudo zpool create tank /tmp/zfs-pool.img
+# For production: sudo zpool create tank /dev/sdb
+
+# 2. Run pgd setup (grants permissions, configures Docker)
+sudo pgd setup
+
+# 3. Log out and log back in (required for group membership to take effect)
+
+# 4. Verify setup and start using pgd:
+pgd doctor              # Check if everything is configured correctly
 pgd project create myapp
 ```
+
+**What `pgd setup` does:**
+- Auto-detects ZFS pool (or prompts if multiple exist)
+- Grants ZFS delegation permissions (90% of operations run without sudo)
+- Adds user to docker group
+- Creates `pgd` group and adds current user
+- Installs minimal sudoers config for mount/unmount operations only
+
+**Security:** Only mount/unmount require sudo (Linux kernel limitation). All other operations use ZFS delegation.
+
+**Troubleshooting:** Run `pgd doctor` to diagnose configuration issues. The command checks:
+- System requirements (OS, Bun, Docker, ZFS)
+- Permissions (ZFS delegation, Docker group)
+- pgd state (projects, branches, containers)
+- File permissions and directory structure
 
 <details>
 <summary>Detailed setup & permissions</summary>
 
 **Permission setup** (one-time, required before first use):
 ```bash
-sudo ./scripts/setup-permissions.sh
+sudo pgd setup
 ```
 
-This script:
+The setup command:
 1. Auto-detects ZFS pool (or prompts if multiple exist)
 2. Grants ZFS delegation permissions (90% of operations run without sudo)
-3. Creates `pgd` group and adds current user
-4. Installs minimal sudoers config for mount/unmount operations only
-5. Validates setup with comprehensive checks
+3. Adds user to docker group
+4. Creates `pgd` group and adds current user
+5. Installs minimal sudoers config for mount/unmount operations only
 
 **Security model:**
 - 90% of ZFS operations use delegation (no sudo)
 - Only mount/unmount require sudo (Linux kernel CAP_SYS_ADMIN requirement)
-- Sudo restricted to `/sbin/zfs` commands only
-- See `docs/SUDO-SECURITY.md` for security analysis
-
-**Docker permissions:**
-```bash
-sudo usermod -aG docker $USER
-# Log out and back in, or run: newgrp docker
-```
+- Sudo restricted to `/sbin/zfs mount` and `/sbin/zfs unmount` only
 
 **ZFS pool options:**
 ```bash
@@ -347,6 +361,39 @@ psql -h localhost -p <port> -U <username> -d <database>
 
 # Or use connection string from status
 psql postgresql://<username>:<password>@localhost:<port>/<database>
+```
+</details>
+
+<details>
+<summary><strong>Diagnostics</strong></summary>
+
+```bash
+# Run comprehensive health checks
+pgd doctor
+```
+
+**Checks performed:**
+- System requirements (OS, Bun, Docker, ZFS)
+- ZFS configuration (pool, permissions, datasets)
+- Docker configuration (daemon, permissions, images)
+- pgd state (projects, branches, containers)
+- File permissions and directory structure
+
+**Use cases:**
+- Verify setup after installation
+- Troubleshoot configuration issues
+- Generate diagnostic info for GitHub issues
+- Check system health before major operations
+
+**Example output:**
+```
+✓ Operating System: Ubuntu 24.04.3 LTS
+✓ ZFS Installation: zfs-2.2.2
+✓ ZFS Permissions: Delegation configured
+✓ Docker Daemon: Running
+✓ Projects: 3 project(s), 7 branch(es)
+
+Summary: ✓ All checks passed! pgd is ready to use.
 ```
 </details>
 

@@ -34,7 +34,7 @@ bun run dev
 sudo cp dist/pgd /usr/local/bin/
 
 # Setup permissions (one-time, required before use)
-sudo ./scripts/setup-permissions.sh
+sudo pgd setup
 
 # Run tests (cleans up first, then runs in parallel)
 bun run test           # Runs all tests via ./scripts/test.sh
@@ -113,6 +113,9 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `stop <project>/<branch>` - Stop a running branch (stops PostgreSQL container)
 - `restart <project>/<branch>` - Restart a branch (restarts PostgreSQL container)
 - `status` - Show status of all projects and branches
+
+**Diagnostics commands**:
+- `doctor` - Run comprehensive health checks and diagnostics
 
 ### Manager Classes
 
@@ -226,15 +229,15 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 **One-time setup required:**
 ```bash
-sudo ./scripts/setup-permissions.sh
+sudo pgd setup
 ```
 
-This script:
+This command:
 1. Auto-detects ZFS pool (or prompts if multiple exist)
 2. Grants ZFS delegation permissions (create, destroy, snapshot, clone, etc.)
-3. Creates `pgd` group and adds current user
-4. Installs targeted sudoers config (`/etc/sudoers.d/pgd`) for mount/unmount operations only
-5. Validates setup with comprehensive checks
+3. Adds user to docker group
+4. Creates `pgd` group and adds current user
+5. Installs targeted sudoers config (`/etc/sudoers.d/pgd`) for mount/unmount operations only
 
 **No configuration file needed!** pgd uses sensible hardcoded defaults:
 - Default PostgreSQL image: `postgres:17-alpine`
@@ -252,8 +255,7 @@ This script:
 **Security model:**
 - 90% of ZFS operations use delegation (no sudo required)
 - Only mount/unmount operations require sudo due to Linux kernel limitations
-- Sudo is restricted to `/sbin/zfs` commands only via `/etc/sudoers.d/pgd`
-- See `docs/SUDO-SECURITY.md` for detailed security analysis
+- Sudo is restricted to `/sbin/zfs mount` and `/sbin/zfs unmount` only via `/etc/sudoers.d/pgd`
 
 ## File Locations
 
@@ -281,6 +283,12 @@ This script:
 4. Find branch in `project.branches[]` array
 5. Use `project.dockerImage` when creating Docker containers
 6. Perform ZFS/Docker operations using managers
+
+**Adding a new global command:**
+1. Create file in `src/commands/<name>.ts`
+2. Export async function: `export async function <name>Command(...)`
+3. Import and wire in `src/index.ts` under `program.command()`
+4. Examples: `status`, `doctor`
 
 **Working with ZFS:**
 - Dataset names use `-` separator: `<project>-<branch>`
@@ -310,8 +318,8 @@ When modifying branching logic:
 - Linux + ZFS required (no macOS support)
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
-- ZFS pool must exist before running setup script (auto-detected)
-- One-time permission setup required (`sudo ./scripts/setup-permissions.sh`)
+- ZFS pool must exist before running setup (auto-detected)
+- One-time permission setup required (`sudo pgd setup`)
 - Mount/unmount operations require sudo due to Linux kernel CAP_SYS_ADMIN requirement
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
