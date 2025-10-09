@@ -181,8 +181,10 @@ export class WALManager {
    * Setup recovery configuration for PITR
    * This configures PostgreSQL to replay WALs to a specific point in time
    *
-   * Note: This must be called BEFORE the container is created, as we need to write
-   * to the data directory. We use sudo to overcome permission issues.
+   * Note: This must be called BEFORE the container is created.
+   * The ZFS dataset is mounted with permissions that allow the current user to write.
+   * We write files as the current user and Docker's PostgreSQL container will have
+   * the correct ownership when it starts (postgres user inside container).
    */
   async setupPITRecovery(
     targetMountpoint: string,
@@ -192,7 +194,12 @@ export class WALManager {
     const pgdataPath = `${targetMountpoint}/pgdata`;
 
     // Create recovery.signal file for PostgreSQL 12+
-    await $`sudo touch ${pgdataPath}/recovery.signal`.quiet();
+    // We can write directly since the ZFS dataset is owned by the current user
+    await Bun.write(`${pgdataPath}/recovery.signal`, '');
+
+    // Set permissions to 600 (owner read/write only)
+    // PostgreSQL requires strict permissions on config files
+    await $`chmod 600 ${pgdataPath}/recovery.signal`.quiet();
 
     // Create recovery configuration
     let recoveryConf = `restore_command = 'cp ${walArchivePath}/%f %p'\n`;
@@ -205,11 +212,8 @@ export class WALManager {
 
     recoveryConf += `recovery_target_action = 'promote'\n`;
 
-    // For PostgreSQL 12+, write to postgresql.auto.conf using sudo
-    const tempFile = `/tmp/${CLI_NAME}-recovery-${Date.now()}.conf`;
-    await Bun.write(tempFile, recoveryConf);
-    await $`sudo mv ${tempFile} ${pgdataPath}/postgresql.auto.conf`.quiet();
-    await $`sudo chmod 600 ${pgdataPath}/postgresql.auto.conf`.quiet();
-    await $`sudo chmod 600 ${pgdataPath}/recovery.signal`.quiet();
+    // For PostgreSQL 12+, write to postgresql.auto.conf
+    await Bun.write(`${pgdataPath}/postgresql.auto.conf`, recoveryConf);
+    await $`chmod 600 ${pgdataPath}/postgresql.auto.conf`.quiet();
   }
 }

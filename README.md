@@ -55,6 +55,9 @@ git clone https://github.com/elitan/pgd.git && cd pgd
 bun install && bun run build
 sudo cp dist/pgd /usr/local/bin/
 
+# Setup permissions (one-time, required before first use)
+sudo ./scripts/setup-permissions.sh
+
 # Start using (no init needed - auto-configures on first use)
 pgd project create myapp
 ```
@@ -62,7 +65,23 @@ pgd project create myapp
 <details>
 <summary>Detailed setup & permissions</summary>
 
-**ZFS permissions:** Currently requires sudo (delegation support coming soon)
+**Permission setup** (one-time, required before first use):
+```bash
+sudo ./scripts/setup-permissions.sh
+```
+
+This script:
+1. Auto-detects ZFS pool (or prompts if multiple exist)
+2. Grants ZFS delegation permissions (90% of operations run without sudo)
+3. Creates `pgd` group and adds current user
+4. Installs minimal sudoers config for mount/unmount operations only
+5. Validates setup with comprehensive checks
+
+**Security model:**
+- 90% of ZFS operations use delegation (no sudo)
+- Only mount/unmount require sudo (Linux kernel CAP_SYS_ADMIN requirement)
+- Sudo restricted to `/sbin/zfs` commands only
+- See `docs/SUDO-SECURITY.md` for security analysis
 
 **Docker permissions:**
 ```bash

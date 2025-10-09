@@ -12,6 +12,7 @@ import { buildNamespace, validateName } from '../../utils/namespace';
 import { CONTAINER_PREFIX } from '../../config/constants';
 import { DEFAULTS } from '../../config/defaults';
 import { getZFSPool } from '../../utils/zfs-pool';
+import { validateAllPermissions } from '../../utils/zfs-permissions';
 import * as fs from 'fs/promises';
 
 interface CreateOptions {
@@ -71,6 +72,13 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     console.log(chalk.dim(`${' '.repeat(40 - 'Detect ZFS pool'.length)}${poolTime}s`));
   }
 
+  // Validate permissions before proceeding
+  const permStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Validate permissions'));
+  await validateAllPermissions(pool, DEFAULTS.zfs.datasetBase);
+  const permTime = ((Date.now() - permStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Validate permissions'.length)}${permTime}s`));
+
   // Auto-initialize state if needed (first project create)
   if (!state.isInitialized()) {
     const initStart = Date.now();
@@ -116,6 +124,13 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
   const datasetLabel = `Create dataset ${mainBranchName}`.length;
   console.log(chalk.dim(`${' '.repeat(40 - datasetLabel)}${datasetTime}s`));
+
+  // Mount the dataset (requires sudo on Linux due to kernel restrictions)
+  const mountStart = Date.now();
+  process.stdout.write(chalk.dim(`  ▸ Mount dataset`));
+  await zfs.mountDataset(mainDatasetName);
+  const mountTime = ((Date.now() - mountStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Mount dataset'.length)}${mountTime}s`));
 
   // Get dataset mountpoint
   const mountpoint = await zfs.getMountpoint(mainDatasetName);

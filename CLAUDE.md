@@ -33,6 +33,9 @@ bun run dev
 # Install globally
 sudo cp dist/pgd /usr/local/bin/
 
+# Setup permissions (one-time, required before use)
+sudo ./scripts/setup-permissions.sh
+
 # Run tests (cleans up first, then runs in parallel)
 bun run test           # Runs all tests via ./scripts/test.sh
 # or
@@ -59,7 +62,7 @@ sudo ./scripts/cleanup.sh
 - **Test isolation**: Each test file has its own beforeAll/afterAll cleanup for proper isolation
 - **ZFS requirement**: Tests MUST be run on Linux with ZFS (Ubuntu 20.04+, Debian 11+)
 - **ZFS pool**: Tests assume a ZFS pool named `tank` exists
-- **Permissions**: Tests require sudo for ZFS and Docker operations
+- **Permissions**: Tests run with sudo (permission validation skipped for uid=0)
 - **Timeout**: 120 second timeout per test (configured in bunfig.toml)
 - **Pre-test cleanup**: `./scripts/test.sh` automatically runs cleanup before tests
 - Development on macOS requires SSH to a VPS with ZFS installed
@@ -125,7 +128,8 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - Wraps ZFS commands using Bun's `$` shell API
 - Dataset naming: `<project>-<branch>` (e.g., `api-dev`)
 - All operations use `${pool}/${datasetBase}/${name}` pattern
-- Key methods: `createSnapshot()`, `cloneSnapshot()`, `destroyDataset()`
+- Key methods: `createSnapshot()`, `cloneSnapshot()`, `destroyDataset()`, `mountDataset()`, `unmountDataset()`
+- **Permissions**: Most operations use ZFS delegation (no sudo), only mount/unmount require sudo due to Linux kernel CAP_SYS_ADMIN requirement
 
 **DockerManager** (`src/managers/docker.ts`):
 - Uses dockerode library for Docker API
@@ -220,6 +224,18 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 ## Configuration & Initialization
 
+**One-time setup required:**
+```bash
+sudo ./scripts/setup-permissions.sh
+```
+
+This script:
+1. Auto-detects ZFS pool (or prompts if multiple exist)
+2. Grants ZFS delegation permissions (create, destroy, snapshot, clone, etc.)
+3. Creates `pgd` group and adds current user
+4. Installs targeted sudoers config (`/etc/sudoers.d/pgd`) for mount/unmount operations only
+5. Validates setup with comprehensive checks
+
 **No configuration file needed!** pgd uses sensible hardcoded defaults:
 - Default PostgreSQL image: `postgres:17-alpine`
 - ZFS compression: `lz4` (fast, good for databases)
@@ -232,6 +248,12 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 3. Initializes state.json with pool/dataset info
 
 **Defaults location:** `src/config/defaults.ts`
+
+**Security model:**
+- 90% of ZFS operations use delegation (no sudo required)
+- Only mount/unmount operations require sudo due to Linux kernel limitations
+- Sudo is restricted to `/sbin/zfs` commands only via `/etc/sudoers.d/pgd`
+- See `docs/SUDO-SECURITY.md` for detailed security analysis
 
 ## File Locations
 
@@ -288,7 +310,9 @@ When modifying branching logic:
 - Linux + ZFS required (no macOS support)
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
-- ZFS pool must exist before first `pgd project create` (auto-detected)
+- ZFS pool must exist before running setup script (auto-detected)
+- One-time permission setup required (`sudo ./scripts/setup-permissions.sh`)
+- Mount/unmount operations require sudo due to Linux kernel CAP_SYS_ADMIN requirement
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
 

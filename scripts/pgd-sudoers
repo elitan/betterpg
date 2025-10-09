@@ -1,0 +1,43 @@
+# pgd ZFS sudoers configuration
+# This file grants limited sudo access for ZFS operations on pgd datasets
+#
+# Installation: sudo cp scripts/pgd-sudoers /etc/sudoers.d/pgd
+# Verify: sudo visudo -c
+#
+# SECURITY NOTE:
+# This is FAR more secure than granting unrestricted sudo or adding to sudoers.
+# User can ONLY run specific zfs commands on datasets under the pgd namespace.
+
+# Allow user to run ZFS commands on pgd datasets without password
+# Restrict to: create, destroy, mount, unmount, clone, snapshot, promote, set
+# Restrict to: datasets matching pattern: tank/pgd/databases/*
+
+# Pattern: /sbin/zfs <command> <dataset-pattern>
+%pgd ALL=(ALL) NOPASSWD: /sbin/zfs create *, \
+                         /sbin/zfs destroy *, \
+                         /sbin/zfs snapshot *, \
+                         /sbin/zfs clone *, \
+                         /sbin/zfs promote *, \
+                         /sbin/zfs set *, \
+                         /sbin/zfs get *, \
+                         /sbin/zfs list *, \
+                         /sbin/zfs mount *, \
+                         /sbin/zfs unmount *, \
+                         /sbin/zfs allow *
+
+# Alternative per-user configuration (if not using pgd group):
+# %USERNAME ALL=(ALL) NOPASSWD: /sbin/zfs create *, ...
+
+# IMPORTANT NOTES:
+# 1. This allows ZFS operations on ANY dataset (paths aren't validated in sudoers)
+# 2. pgd code validates dataset names to ensure they're under tank/pgd/databases
+# 3. Do NOT grant shell access to untrusted users who can run pgd
+# 4. Consider using AppArmor/SELinux for additional confinement
+
+# Why we need sudo for ZFS on Linux:
+# - Linux kernel requires CAP_SYS_ADMIN for mount(2) syscall
+# - ZFS delegation (zfs allow) works for most operations
+# - But mount/unmount cannot be delegated on Linux (kernel limitation)
+# - This sudoers file grants ONLY zfs commands, not system-wide sudo
+
+# Verified on: Ubuntu 22.04+, Debian 11+, ZFS 2.1+

@@ -42,7 +42,7 @@ export class ZFSManager {
   }
 
   async createPool(devices: string[]): Promise<void> {
-    await $`sudo zpool create ${this.pool} ${devices}`;
+    await $`zpool create ${this.pool} ${devices}`;
   }
 
   async getPoolStatus(): Promise<PoolStatus> {
@@ -62,11 +62,21 @@ export class ZFSManager {
   async createDataset(name: string, options?: Record<string, string>): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${name}`;
 
-    if (options) {
-      const opts = Object.entries(options).flatMap(([key, value]) => ['-o', `${key}=${value}`]);
-      await $`sudo zfs create -p ${opts} ${fullName}`;
-    } else {
-      await $`sudo zfs create -p ${fullName}`;
+    // Note: ZFS may print "filesystem successfully created, but it may only be mounted by root"
+    // to stderr. This is expected on Linux and not an error - we'll mount it with sudo later.
+    try {
+      if (options) {
+        const opts = Object.entries(options).flatMap(([key, value]) => ['-o', `${key}=${value}`]);
+        await $`zfs create -p ${opts} ${fullName}`.quiet();
+      } else {
+        await $`zfs create -p ${fullName}`.quiet();
+      }
+    } catch (error: any) {
+      // If the error is just the mount warning, ignore it
+      if (error.stderr && error.stderr.includes('may only be mounted by root')) {
+        return; // Dataset was created successfully
+      }
+      throw error;
     }
   }
 
@@ -74,9 +84,9 @@ export class ZFSManager {
     const fullName = `${this.pool}/${this.datasetBase}/${name}`;
     if (recursive) {
       // Use -R to destroy all dependents (clones) and snapshots
-      await $`sudo zfs destroy -R ${fullName}`;
+      await $`zfs destroy -R ${fullName}`;
     } else {
-      await $`sudo zfs destroy ${fullName}`;
+      await $`zfs destroy ${fullName}`;
     }
   }
 
@@ -138,7 +148,7 @@ export class ZFSManager {
 
   async setProperty(dataset: string, key: string, value: string): Promise<void> {
     const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`sudo zfs set ${key}=${value} ${fullName}`;
+    await $`zfs set ${key}=${value} ${fullName}`;
   }
 
   async getProperty(dataset: string, key: string): Promise<string> {
@@ -150,11 +160,11 @@ export class ZFSManager {
   // Snapshot operations
   async createSnapshot(dataset: string, snapName: string): Promise<void> {
     const fullDataset = `${this.pool}/${this.datasetBase}/${dataset}`;
-    await $`sudo zfs snapshot ${fullDataset}@${snapName}`;
+    await $`zfs snapshot ${fullDataset}@${snapName}`;
   }
 
   async destroySnapshot(snapshot: string): Promise<void> {
-    await $`sudo zfs destroy ${snapshot}`;
+    await $`zfs destroy ${snapshot}`;
   }
 
   async getSnapshotSize(fullSnapshotName: string): Promise<number> {
@@ -202,12 +212,23 @@ export class ZFSManager {
   // Clone operations
   async cloneSnapshot(snapshot: string, target: string): Promise<void> {
     const fullTarget = `${this.pool}/${this.datasetBase}/${target}`;
-    await $`sudo zfs clone ${snapshot} ${fullTarget}`;
+
+    // Note: ZFS may print "filesystem successfully created, but it may only be mounted by root"
+    // to stderr. This is expected on Linux and not an error - we'll mount it with sudo later.
+    try {
+      await $`zfs clone ${snapshot} ${fullTarget}`.quiet();
+    } catch (error: any) {
+      // If the error is just the mount warning, ignore it
+      if (error.stderr && error.stderr.includes('may only be mounted by root')) {
+        return; // Dataset was created successfully
+      }
+      throw error;
+    }
   }
 
   async promoteClone(clone: string): Promise<void> {
     const fullClone = `${this.pool}/${this.datasetBase}/${clone}`;
-    await $`sudo zfs promote ${fullClone}`;
+    await $`zfs promote ${fullClone}`;
   }
 
   // Utility functions
@@ -227,5 +248,23 @@ export class ZFSManager {
     const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
     const output = await $`zfs get -H -p -o value mountpoint ${fullName}`.text();
     return output.trim();
+  }
+
+  /**
+   * Mount a dataset
+   * Requires sudo on Linux due to kernel CAP_SYS_ADMIN requirement
+   */
+  async mountDataset(dataset: string): Promise<void> {
+    const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
+    await $`sudo zfs mount ${fullName}`;
+  }
+
+  /**
+   * Unmount a dataset
+   * Requires sudo on Linux due to kernel CAP_SYS_ADMIN requirement
+   */
+  async unmountDataset(dataset: string): Promise<void> {
+    const fullName = `${this.pool}/${this.datasetBase}/${dataset}`;
+    await $`sudo zfs unmount ${fullName}`;
   }
 }

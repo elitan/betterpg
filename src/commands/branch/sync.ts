@@ -152,6 +152,13 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   const cloneTime = ((Date.now() - cloneStart) / 1000).toFixed(1);
   console.log(chalk.dim(`${' '.repeat(40 - 'Clone new snapshot'.length)}${cloneTime}s`));
 
+  // Mount the dataset (requires sudo on Linux due to kernel restrictions)
+  const mountStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Mount dataset'));
+  await zfs.mountDataset(datasetName);
+  const mountTime = ((Date.now() - mountStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Mount dataset'.length)}${mountTime}s`));
+
   const mountpoint = await zfs.getMountpoint(datasetName);
 
   // Create WAL archive directory
