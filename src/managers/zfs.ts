@@ -47,14 +47,20 @@ export class ZFSManager {
 
   async getPoolStatus(): Promise<PoolStatus> {
     const output = await $`zpool list -H -p ${this.pool}`.text();
-    const [name, size, allocated, free, , , , health] = output.trim().split('\t');
+    // Format: name size alloc free ckpoint expandsz frag cap dedup health altroot
+    const fields = output.trim().split('\t');
+    const name = fields[0];
+    const size = parseInt(fields[1], 10);
+    const allocated = parseInt(fields[2], 10);
+    const free = parseInt(fields[3], 10);
+    const health = fields[9];
 
     return {
       name,
       health,
-      size: parseInt(size, 10),
-      allocated: parseInt(allocated, 10),
-      free: parseInt(free, 10),
+      size,
+      allocated,
+      free,
     };
   }
 

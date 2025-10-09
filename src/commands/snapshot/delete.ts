@@ -6,7 +6,7 @@ import { PATHS } from '../../utils/paths';
 
 export async function snapshotDeleteCommand(snapshotId: string) {
   console.log();
-  console.log(chalk.bold(`🗑️  Deleting snapshot: ${chalk.cyan(snapshotId)}`));
+  console.log(`Deleting snapshot ${chalk.cyan(snapshotId)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);

@@ -5,7 +5,7 @@ import { parseNamespace } from '../../utils/namespace';
 
 export async function branchRenameCommand(oldName: string, newName: string) {
   console.log();
-  console.log(chalk.bold(`✏️  Renaming branch: ${chalk.cyan(oldName)} → ${chalk.cyan(newName)}`));
+  console.log(`Renaming branch ${chalk.cyan(oldName)} to ${chalk.cyan(newName)}...`);
   console.log();
 
   // Parse both namespaces
@@ -38,7 +38,7 @@ export async function branchRenameCommand(oldName: string, newName: string) {
     throw new Error(`Branch '${newName}' already exists`);
   }
 
-  console.log(chalk.yellow('⚠️  Warning: Renaming requires stopping the branch, updating the container, and restarting.'));
+  console.log(chalk.yellow('Warning: Renaming requires stopping the branch, updating the container, and restarting.'));
   console.log(chalk.yellow('This feature is not yet implemented.'));
   console.log();
   console.log(chalk.dim('Workaround: Create a new branch and delete the old one.'));

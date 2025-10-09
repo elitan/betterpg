@@ -12,7 +12,7 @@ export async function walInfoCommand(branchName?: string) {
   const wal = new WALManager();
 
   console.log();
-  console.log(chalk.bold('📦 WAL Archive Status'));
+  console.log(chalk.bold('WAL Archive Status'));
   console.log();
 
   if (branchName) {

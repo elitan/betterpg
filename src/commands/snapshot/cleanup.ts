@@ -17,10 +17,10 @@ export async function snapshotCleanupCommand(
 ) {
   console.log();
   if (options.all) {
-    console.log(chalk.bold(`🧹 Cleaning up snapshots older than ${options.days} days (all branches)`));
+    console.log(chalk.bold(`Cleaning up snapshots older than ${options.days} days (all branches)`));
   } else if (branchName) {
     const target = parseNamespace(branchName);
-    console.log(chalk.bold(`🧹 Cleaning up snapshots for ${chalk.cyan(target.full)}`));
+    console.log(chalk.bold(`Cleaning up snapshots for ${chalk.cyan(target.full)}`));
     console.log(chalk.dim(`Retention: ${options.days} days`));
   } else {
     throw new Error('Must specify branch name or use --all flag');

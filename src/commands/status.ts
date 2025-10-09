@@ -31,7 +31,7 @@ function formatDate(dateStr: string): string {
 
 export async function statusCommand() {
   console.log();
-  console.log(chalk.bold(`📊 ${TOOL_NAME} Status`));
+  console.log(chalk.bold(`${TOOL_NAME} Status`));
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -65,7 +65,7 @@ export async function statusCommand() {
     formatBytes(poolStatus.free)
   ]);
 
-  console.log(chalk.bold('🗄️  ZFS Pool'));
+  console.log(chalk.bold('ZFS Pool'));
   console.log(poolTable.toString());
   console.log();
 
@@ -77,7 +77,7 @@ export async function statusCommand() {
     return;
   }
 
-  console.log(chalk.bold(`📊 Projects (${projects.length})`));
+  console.log(chalk.bold(`Projects (${projects.length})`));
   console.log();
 
   // Create table for all instances (primaries + branches)

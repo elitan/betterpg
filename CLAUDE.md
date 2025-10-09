@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+- never create markdown (`.md`) files after you are done. Never!
+- never use emojis unless told to do so.
+- i know i'm absolutly right. no need to tell me.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview

@@ -15,9 +15,10 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   const target = parseNamespace(branchName);
 
   console.log();
-  console.log(chalk.bold(`📸 Creating snapshot of ${chalk.cyan(target.full)}`));
   if (options.label) {
-    console.log(chalk.dim(`Label: ${options.label}`));
+    console.log(`Creating snapshot of ${chalk.cyan(target.full)} (${chalk.dim(options.label)})...`);
+  } else {
+    console.log(`Creating snapshot of ${chalk.cyan(target.full)}...`);
   }
   console.log();
 
@@ -66,13 +67,19 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
     ? `${snapshotTimestamp}-${options.label}`
     : snapshotTimestamp;
 
-  const spinner = ora('Creating ZFS snapshot').start();
+  const snapshotStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Create snapshot'));
   await zfs.createSnapshot(datasetName, snapshotName);
   const fullSnapshotName = `${branch.zfsDataset}@${snapshotName}`;
-  spinner.succeed(`Created snapshot: ${chalk.cyan(snapshotName)}`);
+  const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
 
   // Get snapshot size
+  const sizeStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Calculate size'));
   const sizeBytes = await zfs.getSnapshotSize(fullSnapshotName);
+  const sizeTime = ((Date.now() - sizeStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Calculate size'.length)}${sizeTime}s`));
 
   // Create snapshot record
   const snapshot: Snapshot = {
@@ -89,11 +96,8 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   await state.addSnapshot(snapshot);
 
   console.log();
-  console.log(chalk.green.bold('✓ Snapshot created successfully!'));
-  console.log();
-  console.log(chalk.dim('Snapshot ID:  '), snapshot.id);
-  console.log(chalk.dim('Branch:       '), target.full);
-  console.log(chalk.dim('ZFS Snapshot: '), snapshotName);
-  console.log(chalk.dim('Created:      '), new Date(snapshot.createdAt).toLocaleString());
+  console.log('Snapshot created:');
+  console.log(`  ID: ${snapshot.id}`);
+  console.log(`  Name: ${snapshotName}`);
   console.log();
 }

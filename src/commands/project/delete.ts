@@ -7,7 +7,7 @@ import { PATHS } from '../../utils/paths';
 
 export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
   console.log();
-  console.log(chalk.bold(`🗑️  Deleting project: ${chalk.cyan(name)}`));
+  console.log(`Deleting project ${chalk.cyan(name)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -21,7 +21,7 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   // Check if project has non-main branches
   const nonMainBranches = project.branches.filter(b => !b.isPrimary);
   if (nonMainBranches.length > 0 && !options.force) {
-    console.log(chalk.yellow(`⚠️  Project '${name}' has ${nonMainBranches.length} branch(es):`));
+    console.log(chalk.yellow(`Project '${name}' has ${nonMainBranches.length} branch(es):`));
     for (const branch of nonMainBranches) {
       console.log(chalk.dim(`  - ${branch.name}`));
     }

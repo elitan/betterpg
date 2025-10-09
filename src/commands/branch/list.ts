@@ -26,52 +26,46 @@ export async function branchListCommand(projectName?: string) {
     }
   }
 
-  console.log();
-  if (projectName) {
-    console.log(`Branches for ${chalk.cyan(projectName)}:`);
-  } else {
-    console.log('All branches:');
-  }
-  console.log();
+  // Create table
+  const table = new Table({
+    head: ['', 'Branch', 'Status', 'Port', 'Size', 'Created'],
+    style: {
+      head: ['cyan'],
+      border: ['gray']
+    }
+  });
 
-  // Calculate total branches
-  let totalBranches = 0;
-  const projectCount = filtered.length;
-
-  // Helper function to build tree structure
+  // Helper to build tree and render branches
   interface BranchNode {
     branch: any;
     children: BranchNode[];
   }
 
-  // Helper function to render tree recursively
-  function renderBranch(node: BranchNode, prefix: string, isLast: boolean, isRoot: boolean) {
-    totalBranches++;
+  function renderBranch(node: BranchNode, depth: number = 0) {
     const branch = node.branch;
-    const branchName = branch.name;
-    const status = branch.status === 'running' ? 'running' : 'stopped';
-    const port = branch.status === 'running' ? branch.port.toString().padEnd(7) : '-'.padEnd(7);
-    const size = formatBytes(branch.sizeBytes).padEnd(10);
-    const tag = branch.isPrimary ? chalk.dim('(main)') : '';
+    const statusIcon = branch.status === 'running' ? chalk.green('●') : chalk.red('●');
+    const statusText = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
+    const port = branch.status === 'running' ? `Port ${branch.port}` : '-';
 
-    // Tree characters
-    const connector = isRoot ? '  ' : (isLast ? '└─ ' : '├─ ');
-    const nameWithConnector = isRoot ? branchName : connector + branchName;
+    // Build name with tree structure
+    const indent = depth > 0 ? '  ↳ ' : '';
+    const name = indent + branch.name;
+    const type = branch.isPrimary ? chalk.dim(' (main)') : '';
 
-    // Adjust padding based on tree depth
-    const basePadding = 25;
-    const actualPadding = basePadding - (isRoot ? 0 : 3);
-
-    console.log(`  ${prefix}${chalk.cyan(nameWithConnector.padEnd(actualPadding))} ${status.padEnd(10)} ${port} ${size} ${tag}`);
+    table.push([
+      statusIcon,
+      name + type,
+      statusText,
+      port,
+      formatBytes(branch.sizeBytes),
+      new Date(branch.createdAt).toLocaleString()
+    ]);
 
     // Render children
-    node.children.forEach((child, index) => {
-      const childIsLast = index === node.children.length - 1;
-      const childPrefix = isRoot ? '' : prefix + (isLast ? '   ' : '│  ');
-      renderBranch(child, childPrefix, childIsLast, false);
-    });
+    node.children.forEach(child => renderBranch(child, depth + 1));
   }
 
+  // Process each project
   for (const proj of filtered) {
     // Build tree structure
     const branchMap = new Map<string, BranchNode>();
@@ -98,14 +92,10 @@ export async function branchListCommand(projectName?: string) {
     }
 
     // Render tree
-    roots.forEach(root => renderBranch(root, '', true, true));
+    roots.forEach(root => renderBranch(root, 0));
   }
 
   console.log();
-  if (projectName) {
-    console.log(`${totalBranches} ${totalBranches === 1 ? 'branch' : 'branches'}`);
-  } else {
-    console.log(`${totalBranches} ${totalBranches === 1 ? 'branch' : 'branches'} across ${projectCount} ${projectCount === 1 ? 'project' : 'projects'}`);
-  }
+  console.log(table.toString());
   console.log();
 }
