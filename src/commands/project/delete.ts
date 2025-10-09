@@ -59,6 +59,7 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
     // Only destroy dataset if it exists - this handles cases where previous deletion attempts
     // were interrupted or failed partway through, leaving state entries without actual ZFS datasets
     if (await zfs.datasetExists(datasetName)) {
+      await zfs.unmountDataset(datasetName);
       await zfs.destroyDataset(datasetName, true);
     }
   }

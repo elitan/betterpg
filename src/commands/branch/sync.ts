@@ -138,9 +138,10 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
     console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
   }
 
-  // Destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
+  // Unmount and destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
   const destroyStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Destroy old dataset'));
+  await zfs.unmountDataset(datasetName);
   await zfs.destroyDataset(datasetName, true);
   const destroyTime = ((Date.now() - destroyStart) / 1000).toFixed(1);
   console.log(chalk.dim(`${' '.repeat(40 - 'Destroy old dataset'.length)}${destroyTime}s`));
