@@ -21,16 +21,17 @@ import {
 } from './helpers/commands';
 
 describe('Edge Cases and Error Handling', () => {
-  beforeAll(async () => {
+  // Setup test that runs first
+  test('setup: create test project', async () => {
     silenceConsole();
     await cleanup.beforeAll();
 
-    // Setup: Create a project for testing
+    // Create a project for testing
     await projectCreateCommand('edge-test', {});
     const creds = await getProjectCredentials('edge-test');
     const port = await getBranchPort('edge-test/main');
     await waitForReady(port, creds.password, 60000);
-  });
+  }, { timeout: 120000 });
 
   afterAll(async () => {
     await cleanup.afterAll();
