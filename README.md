@@ -288,8 +288,8 @@ pgd branch list prod  # Specific project
 pgd branch get prod/dev
 pgd branch delete prod/dev
 
-# Sync branch with parent's current state
-pgd branch sync prod/dev
+# Reset branch to parent's current state
+pgd branch reset prod/dev
 ```
 </details>
 
@@ -419,7 +419,7 @@ Summary: ✓ All checks passed! pgd is ready to use.
 **Operation timings:**
 - Database branching: ~100ms (CHECKPOINT + ZFS snapshot + clone + mount)
 - PostgreSQL startup: ~6s (container initialization, not part of branching)
-- Branch sync: ~100ms branching + ~6s container restart
+- Branch reset: ~100ms branching + ~6s container restart
 - PITR recovery: ~100ms branching + 1-10min WAL replay + ~6s container startup
 - Delete branch: 1-2s
 

@@ -11,7 +11,7 @@ import { branchCreateCommand } from './commands/branch/create';
 import { branchListCommand } from './commands/branch/list';
 import { branchGetCommand } from './commands/branch/get';
 import { branchDeleteCommand } from './commands/branch/delete';
-import { branchSyncCommand } from './commands/branch/sync';
+import { branchResetCommand } from './commands/branch/reset';
 import { branchPasswordCommand } from './commands/branch/password';
 import { walInfoCommand } from './commands/wal/info';
 import { walCleanupCommand } from './commands/wal/cleanup';
@@ -169,13 +169,13 @@ branchCommand
   });
 
 branchCommand
-  .command('sync')
-  .description('Sync branch with parent\'s current state')
+  .command('reset')
+  .description('Reset branch to parent\'s current state')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .option('-f, --force', 'force sync even if dependent branches exist (will destroy them)')
+  .option('-f, --force', 'force reset even if dependent branches exist (will destroy them)')
   .action(async (name: string, options: { force?: boolean }) => {
     try {
-      await branchSyncCommand(name, options);
+      await branchResetCommand(name, options);
     } catch (error: any) {
       console.error(chalk.red('✗'), error.message);
       process.exit(1);

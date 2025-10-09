@@ -40,7 +40,7 @@ export { branchCreateCommand } from '../../src/commands/branch/create';
 export { branchListCommand } from '../../src/commands/branch/list';
 export { branchGetCommand } from '../../src/commands/branch/get';
 export { branchDeleteCommand } from '../../src/commands/branch/delete';
-export { branchSyncCommand } from '../../src/commands/branch/sync';
+export { branchResetCommand } from '../../src/commands/branch/reset';
 
 // Snapshot commands
 export { snapshotCreateCommand } from '../../src/commands/snapshot/create';

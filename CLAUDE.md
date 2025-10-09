@@ -95,7 +95,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `branch list [project]` - Lists branches (all or for specific project)
 - `branch get <project>/<branch>` - Shows branch details (port, credentials, etc.)
 - `branch delete <project>/<branch>` - Deletes branch (removes PostgreSQL database)
-- `branch sync <project>/<branch>` - Syncs branch with parent's current state
+- `branch reset <project>/<branch>` - Resets branch to parent's current state
 
 **Snapshot commands** (`pgd snapshot <command>`):
 - `snapshot create <project>/<branch>` - Create manual snapshot
@@ -193,7 +193,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - ~100ms operation (CHECKPOINT flushes dirty buffers)
 - Safe for production, migration testing, compliance
 - Uses PostgreSQL CHECKPOINT to flush all data to disk before ZFS snapshot
-- Used by: `pgd branch create`, `pgd branch sync`
+- Used by: `pgd branch create`, `pgd branch reset`
 
 **Manual snapshots (application-consistent)**: CHECKPOINT + ZFS snapshot
 - ~100ms operation (CHECKPOINT flushes dirty buffers)
@@ -342,7 +342,7 @@ From TODO.md, completed features (v0.3.5):
 - ✅ Snapshot management (create, list, delete with labels)
 - ✅ WAL archiving & monitoring
 - ✅ Point-in-time recovery (PITR)
-- ✅ Branch sync functionality
+- ✅ Branch reset functionality
 - ✅ Comprehensive test coverage
 - ✅ GitHub Actions CI pipeline
 - ✅ **Zero-config design** - no config file, no init command, auto-detects ZFS pool

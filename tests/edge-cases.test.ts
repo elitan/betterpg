@@ -14,7 +14,7 @@ import {
   branchCreateCommand,
   branchGetCommand,
   branchDeleteCommand,
-  branchSyncCommand,
+  branchResetCommand,
   startCommand,
   stopCommand,
   restartCommand,
@@ -109,9 +109,9 @@ describe('Edge Cases and Error Handling', () => {
   });
 
   describe('Invalid Operations', () => {
-    test('should fail to sync main branch', async () => {
+    test('should fail to reset main branch', async () => {
       await ensureSetup();
-      await expect(branchSyncCommand('edge-test/main', {})).rejects.toThrow();
+      await expect(branchResetCommand('edge-test/main', {})).rejects.toThrow();
     });
 
     test('should fail to create branch with invalid --from', async () => {

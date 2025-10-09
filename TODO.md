@@ -23,7 +23,7 @@
 - [x] `pgd branch rename <old> <new>` - Rename branch
 - [x] `pgd start/stop/restart <db>/<branch>` - Lifecycle management
 - [x] `pgd status` - Show all databases and branches
-- [x] `pgd branch sync <db>/<branch>` - Sync branch with parent's current state
+- [x] `pgd branch reset <db>/<branch>` - Reset branch to parent's current state
 
 ### Testing & Infrastructure ✅ COMPLETE (v0.3.4)
 - [x] VPS setup script (`scripts/vps-setup.sh`)
@@ -41,7 +41,7 @@
   - Edge cases and error handling
 - [x] Advanced integration tests (`scripts/test-advanced.sh`)
   - 13 tests for advanced scenarios
-  - Branch sync functionality
+  - Branch reset functionality
   - State integrity verification
   - ZFS/Docker integration testing
   - Complete cleanup verification
@@ -86,7 +86,7 @@
 
 - [x] Update data model to use namespace structure
 - [x] Implement `pgd db` command group (create, list, get, delete, rename)
-- [x] Implement `pgd branch` command group (create, list, get, delete, rename, sync)
+- [x] Implement `pgd branch` command group (create, list, get, delete, rename, reset)
 - [x] Update lifecycle commands to use namespaces (start, stop, restart)
 - [x] Update integration tests for namespace syntax
 - [x] Create CLAUDE.md documentation
@@ -233,7 +233,7 @@
 - [x] PostgreSQL backup mode session issue
   - pg_backup_start/stop required same session but each execSQL created new session
   - Fixed by replacing with CHECKPOINT command for crash-consistent snapshots
-  - Applied to both branch create and branch sync commands
+  - Applied to both branch create and branch reset commands
 - [x] Test coverage gaps - Added 49 new tests (36 V1 + 13 advanced)
 - [x] GitHub Actions CI cleanup step required sudo for file removal
 
@@ -267,7 +267,7 @@ Since ZFS is Linux-only, development requires VPS:
    - Database, branch, snapshot, WAL commands
    - Edge cases and error handling
 3. **Advanced tests** (13 tests) - `./scripts/run-advanced-tests.sh`
-   - Branch sync functionality
+   - Branch reset functionality
    - State integrity and ZFS/Docker integration
    - Complete cleanup verification
 
@@ -320,7 +320,7 @@ User → CLI (src/index.ts)
 - Fixed critical bugs (pg_backup session issue, variable hoisting)
 - Added 49 new tests (V1 + Advanced test suites)
 - Implemented GitHub Actions CI pipeline
-- Fixed branch sync command
+- Fixed branch reset command
 - All 70 tests passing in CI
 
 **Next Milestone (v0.4.0):** Branch diff, promote, and web UI dashboard

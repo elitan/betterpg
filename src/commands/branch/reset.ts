@@ -7,7 +7,7 @@ import { formatTimestamp } from '../../utils/helpers';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 
-export async function branchSyncCommand(name: string, options: { force?: boolean } = {}) {
+export async function branchResetCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
 
   const state = new StateManager(PATHS.STATE);
@@ -20,9 +20,9 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
 
   const { branch, project } = result;
 
-  // Prevent syncing main branch
+  // Prevent resetting main branch
   if (branch.isPrimary) {
-    throw new Error(`Cannot sync main branch. Main branch has no parent.`);
+    throw new Error(`Cannot reset main branch. Main branch has no parent.`);
   }
 
   // Find parent branch
@@ -36,20 +36,20 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   if (dependentBranches.length > 0 && !options.force) {
     const dependentNames = dependentBranches.map(b => `  • ${b.name}`).join('\n');
     throw new Error(
-      `Cannot sync '${name}' - the following branches depend on it:\n\n` +
+      `Cannot reset '${name}' - the following branches depend on it:\n\n` +
       `${dependentNames}\n\n` +
-      `Syncing will destroy all dependent branches due to ZFS clone dependencies.\n` +
+      `Resetting will destroy all dependent branches due to ZFS clone dependencies.\n` +
       `Either delete the dependent branches first, or use --force to proceed anyway.\n\n` +
       `${chalk.yellow('Warning:')} Using --force will permanently delete all dependent branches!`
     );
   }
 
   console.log();
-  console.log(`Syncing ${chalk.cyan(name)} with ${chalk.cyan(parentBranch.name)}...`);
+  console.log(`Resetting ${chalk.cyan(name)} to ${chalk.cyan(parentBranch.name)}...`);
 
   if (dependentBranches.length > 0 && options.force) {
     console.log();
-    console.log(chalk.yellow('Warning: Force sync enabled!'));
+    console.log(chalk.yellow('Warning: Force reset enabled!'));
     console.log(chalk.yellow('The following dependent branches will be destroyed:'));
     dependentBranches.forEach(b => {
       console.log(chalk.yellow(`  • ${b.name}`));
@@ -64,7 +64,7 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   const docker = new DockerManager();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
-  // If force sync, clean up dependent branches first
+  // If force reset, clean up dependent branches first
   if (dependentBranches.length > 0 && options.force) {
     const cleanupStart = Date.now();
     process.stdout.write(chalk.dim('  ▸ Clean up dependent branches'));
@@ -201,7 +201,7 @@ export async function branchSyncCommand(name: string, options: { force?: boolean
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log('Branch synced:');
+  console.log('Branch reset:');
   console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
   console.log();
 }
