@@ -161,10 +161,10 @@ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
 
 ## What just happened?
 
-[✓] Created full database copy in 0.1s (Checkpoint + ZFS snapshot + clone + mount)
-[✓] Each branch is isolated (changes don't leak between branches)
-[✓] Branches are 127 KB via ZFS copy-on-write (not full copies)
-[✓] Sync resets branch to parent (like `git reset --hard origin/main`)
+- [✓] Created full database copy in 0.1s (Checkpoint + ZFS snapshot + clone + mount)
+- [✓] Each branch is isolated (changes don't leak between branches)
+- [✓] Branches are 127 KB via ZFS copy-on-write (not full copies)
+- [✓] Sync resets branch to parent (like `git reset --hard origin/main`)
 
 **Think of it like Git for databases:**
 - `pgd project create` = `git init`
