@@ -1,27 +1,192 @@
 # pgd
 
-**Instant branching for Postgres**
+**Instant PostgreSQL branching using ZFS snapshots**
 
-Clone 100GB database in ~100ms. Production-safe. Zero data loss.
+Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.
+
+## See it in action
 
 ```bash
-# Create project with PostgreSQL 17
-pgd project create prod
+# Create project with PostgreSQL 17 (auto-creates demo/main branch)
+pgd project create demo
+```
 
-# Branch in ~100ms (full database copy)
-pgd branch create prod/dev
+```
+Creating project demo...
+  ▸ Detect ZFS pool                         0.0s
+  ▸ Validate permissions                    0.0s
+  ▸ Create dataset demo/main                0.0s
+  ▸ Mount dataset                           0.0s
+  ▸ PostgreSQL ready                        6.2s
 
-# Each branch is a complete, isolated PostgreSQL instance
+Connection ready:
+  postgresql://postgres:***@localhost:32835/postgres
+```
+
+**Notice:** Created `demo/main` branch automatically. Every project starts with a main branch.
+
+```bash
+# Add data to main branch
+psql -h localhost -p 32835 -U postgres << EOF
+CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);
+INSERT INTO users (name) VALUES ('Alice'), ('Bob'), ('Charlie');
+SELECT * FROM users;
+EOF
+```
+
+```
+ id |  name
+----+---------
+  1 | Alice
+  2 | Bob
+  3 | Charlie
+(3 rows)
+```
+
+```bash
+# Create branch in 0.1s (copies entire database via ZFS snapshot)
+pgd branch create demo/dev
+```
+
+```
+Creating demo/dev from demo/main...
+  ▸ Checkpoint                              0.1s
+  ▸ Snapshot 2025-10-09T18-40-21            0.0s
+  ▸ Clone dataset                           0.0s
+  ▸ Mount dataset                           0.0s
+  ▸ PostgreSQL ready                        6.3s
+
+Connection ready:
+  postgresql://postgres:***@localhost:32836/postgres
+```
+
+**Notice:** Branch created in **0.1s** (Checkpoint + Snapshot + Clone + Mount). PostgreSQL container startup (6.3s) happens in parallel.
+
+```bash
+# Check status - two isolated databases running
 pgd status
 ```
 
-**Git for databases:** Project = repository, Branch = complete PostgreSQL database (~100KB via ZFS copy-on-write)
+```
+Projects (1)
+┌───┬───────────────┬───────────────┬────────────────────┬───────────┬─────────────────────┐
+│   │ Name          │ Type          │ Image              │ Branches  │ Created             │
+├───┼───────────────┼───────────────┼────────────────────┼───────────┼─────────────────────┤
+│ ● │ demo          │ project       │ postgres:17-alpine │ 2         │ 2025-10-09 18:40:21 │
+├───┼───────────────┼───────────────┼────────────────────┼───────────┼─────────────────────┤
+│ ● │   ↳ demo/main │ running | 13s │ Port 32835         │ 9.25 MB   │ 2025-10-09 18:40:21 │
+├───┼───────────────┼───────────────┼────────────────────┼───────────┼─────────────────────┤
+│ ● │   ↳ demo/dev  │ running | 6s  │ Port 32836         │ 127.50 KB │ 2025-10-09 18:40:28 │
+└───┴───────────────┴───────────────┴────────────────────┴───────────┴─────────────────────┘
+```
 
-## Installation
+**Notice:** `demo/dev` is **127.50 KB** (not 9.25 MB). ZFS copy-on-write shares unchanged data blocks.
+
+```bash
+# Make changes in dev branch
+psql -h localhost -p 32836 -U postgres << EOF
+INSERT INTO users (name) VALUES ('Dave'), ('Eve');
+DELETE FROM users WHERE name = 'Bob';
+SELECT * FROM users;
+EOF
+```
+
+```
+ id |  name
+----+---------
+  1 | Alice
+  3 | Charlie
+  4 | Dave
+  5 | Eve
+(4 rows)
+```
+
+```bash
+# Compare both branches - complete isolation
+psql -h localhost -p 32835 -U postgres -c "SELECT * FROM users;"  # Main
+psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
+```
+
+```
+--- Main branch (Port 32835) ---
+ id |  name
+----+---------
+  1 | Alice
+  2 | Bob      ← Still here
+  3 | Charlie
+(3 rows)
+
+--- Dev branch (Port 32836) ---
+ id |  name
+----+---------
+  1 | Alice
+  3 | Charlie  ← Bob deleted
+  4 | Dave     ← New rows
+  5 | Eve
+(4 rows)
+```
+
+```bash
+# Sync dev back to main's current state
+pgd branch sync demo/dev
+```
+
+```
+Syncing demo/dev with demo/main...
+  ▸ Stop container                          0.2s
+  ▸ Checkpoint demo/main                    0.1s
+  ▸ Create snapshot                         0.0s
+  ▸ Destroy old dataset                     0.1s
+  ▸ Clone new snapshot                      0.0s
+  ▸ Mount dataset                           0.0s
+  ▸ Start container                         6.2s
+  ▸ PostgreSQL ready                        0.0s
+```
+
+```bash
+# Dev now matches main (Bob is back, Dave/Eve gone)
+psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
+```
+
+```
+ id |  name
+----+---------
+  1 | Alice
+  2 | Bob      ← Back from main
+  3 | Charlie
+(3 rows)
+```
+
+---
+
+## What just happened?
+
+[✓] Created full database copy in 0.1s (Checkpoint + ZFS snapshot + clone + mount)
+[✓] Each branch is isolated (changes don't leak between branches)
+[✓] Branches are 127 KB via ZFS copy-on-write (not full copies)
+[✓] Sync resets branch to parent (like `git reset --hard origin/main`)
+
+**Think of it like Git for databases:**
+- `pgd project create` = `git init`
+- `pgd branch create` = `git branch` (complete database instance)
+- `pgd branch sync` = `git reset --hard origin/main`
+
+## Why pgd?
+
+**Perfect for:**
+- Testing migrations on production data before applying
+- Developer environments with real data volumes
+- Debugging production issues without risk
+- Point-in-time recovery via snapshots + WAL archiving
+
+**How it works:**
+ZFS copy-on-write + PostgreSQL CHECKPOINT = instant, space-efficient, application-consistent clones
 
 **Requirements:** Linux + ZFS + Docker + Bun
 
-> **⚠️ Security Notice:** This is beta software (v0.3.5). Database credentials stored in plaintext (`~/.local/share/pgd/state.json`). Designed for development/testing environments. Production use requires additional security hardening.
+> **⚠ Security Notice:** Beta software (v0.3.5). Credentials stored in plaintext. Designed for dev/test environments.
+
+## Installation
 
 ```bash
 # Install dependencies (Ubuntu/Debian)
@@ -103,128 +268,6 @@ sudo zpool create tank /dev/sdb
 sudo zpool create tank mirror /dev/sdb /dev/sdc
 ```
 </details>
-
-## Core Concepts
-
-**Project** = Git repository (logical grouping)
-**Branch** = Complete PostgreSQL database instance (isolated, full read-write)
-
-```
-Project: prod (postgres:17-alpine)
-├── prod/main        → PostgreSQL on port 32771 (primary)
-├── prod/dev         → PostgreSQL on port 32772 (~100KB via ZFS CoW)
-└── prod/test        → PostgreSQL on port 32773 (~100KB via ZFS CoW)
-
-Project: vectordb (ankane/pgvector:17)
-└── vectordb/main    → PostgreSQL with pgvector extension
-```
-
-**Space efficiency:** Branches share unchanged data blocks, only divergent data uses additional space
-
-| Scenario | Storage |
-|----------|---------|
-| 10GB database + new branch | 10GB + 100KB |
-| 10GB database + 5 branches (minimal changes) | 10GB + 500KB |
-
-### 1. Migration Testing (Primary Use Case)
-
-Test migrations on production data before applying to prod.
-
-```bash
-# Snapshot production before migration
-pgd snapshot create prod/main --label "before-migration-v2.3"
-
-# Create test branch (~100ms)
-pgd branch create prod/migration-test
-
-# Run migration on test branch
-pgd status  # Get connection details
-psql -h localhost -p <port> -U postgres -d postgres -f migrations/v2.3.sql
-
-# Verify success, then apply to production
-# If it fails, delete branch and fix migration
-pgd branch delete prod/migration-test
-
-# If production migration fails, recover via PITR
-pgd branch create prod/recovered --pitr "before-migration-v2.3"
-```
-
-**Benefits:** Zero risk to production, catch errors before prod, fast rollback via PITR
-
-### 2. Dev Environments with Real Data
-
-Give developers production data copies for realistic development.
-
-```bash
-# Create branch per developer (~100ms each)
-pgd branch create prod/dev-alice
-pgd branch create prod/dev-bob
-
-# Get connection info
-pgd status
-
-# Anonymize sensitive data (run once per branch)
-psql -h localhost -p <port> -U postgres <<EOF
-UPDATE users SET email = CONCAT('user', id, '@example.com'), phone = NULL;
-UPDATE credit_cards SET number = '4111111111111111';
-EOF
-```
-
-**Benefits:** Real data volumes, find edge cases, isolated environments
-
-### 3. Debug Production Issues
-
-```bash
-# Create exact copy of production (~100ms)
-pgd branch create prod/debug-issue-123
-
-# Debug with real data, zero risk
-pgd status  # Get connection details
-psql -h localhost -p <port> -U postgres
-
-# Clean up when done
-pgd branch delete prod/debug-issue-123
-```
-
-### 4. Point-in-Time Recovery
-
-Recover database to specific point in time (requires regular snapshots).
-
-```bash
-# Create regular snapshots (automate via cron)
-pgd snapshot create prod/main --label "daily-$(date +%Y%m%d)"
-
-# After incident, recover to point before incident
-pgd branch create prod/before-incident --pitr "2025-10-07T14:30:00Z"
-# Or relative: --pitr "2 hours ago"
-
-# Verify recovered data
-pgd status  # Get connection details
-psql -h localhost -p <port> -U postgres
-```
-
-**Recovery time:** Depends on WAL replay (typically minutes for hours of WAL)
-
-## How It Works
-
-**Branching process (~100ms total):**
-```
-Source branch (prod/main)
-    ↓
-1. CHECKPOINT (flush dirty buffers to disk) ~100ms
-    ↓
-2. ZFS snapshot (atomic)                     ~1ms
-    ↓
-3. ZFS clone (instant, copy-on-write)        ~1ms
-    ↓
-4. Mount dataset                              ~1ms
-    ↓
-New branch (prod/dev) - ready in ~100ms
-```
-
-**Why it's fast:** ZFS copy-on-write shares unchanged data blocks (no data copying)
-**Why it's safe:** CHECKPOINT ensures all committed transactions are on disk (zero data loss)
-**Why it's efficient:** Branches are ~100KB until data diverges
 
 ## Command Reference
 
