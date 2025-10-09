@@ -5,7 +5,7 @@ import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { WALManager } from '../../managers/wal';
-import { generateUUID, generatePassword, sanitizeName } from '../../utils/helpers';
+import { generateUUID, generatePassword } from '../../utils/helpers';
 import { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace, validateName } from '../../utils/namespace';
@@ -23,6 +23,9 @@ interface CreateOptions {
 }
 
 export async function projectCreateCommand(name: string, options: CreateOptions = {}) {
+  // Validate name FIRST before any operations
+  validateName(name, 'project');
+
   // Check if setup has been completed
   await requireSetup();
 
@@ -41,18 +44,8 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     dockerImage = DEFAULTS.postgres.defaultImage;
   }
 
-  // Validate name before processing
-  validateName(name, 'project');
-
-  // Sanitize name
-  const sanitizedName = sanitizeName(name);
-  if (sanitizedName !== name) {
-    console.log();
-    console.log(chalk.yellow(`Sanitized name: ${name} → ${sanitizedName}`));
-  }
-
   console.log();
-  console.log(`Creating project ${chalk.cyan(sanitizedName)}...`);
+  console.log(`Creating project ${chalk.cyan(name)}...`);
   console.log();
 
   // Load state
@@ -98,9 +91,9 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   }
 
   // Check if project already exists
-  const existing = await state.getProjectByName(sanitizedName);
+  const existing = await state.getProjectByName(name);
   if (existing) {
-    throw new Error(`Project '${sanitizedName}' already exists`);
+    throw new Error(`Project '${name}' already exists`);
   }
 
   // Get ZFS config from state
@@ -116,8 +109,8 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   let port = 0;
 
   // Create ZFS dataset for main branch
-  const mainBranchName = buildNamespace(sanitizedName, 'main');
-  const mainDatasetName = `${sanitizedName}-main`; // Use consistent naming: <project>-<branch>
+  const mainBranchName = buildNamespace(name, 'main');
+  const mainDatasetName = `${name}-main`; // Use consistent naming: <project>-<branch>
 
   const datasetStart = Date.now();
   process.stdout.write(chalk.dim(`  ▸ Create dataset ${mainBranchName}`));
@@ -142,7 +135,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Generate credentials
   const password = generatePassword();
-  const containerName = `${CONTAINER_PREFIX}-${sanitizedName}-main`;
+  const containerName = `${CONTAINER_PREFIX}-${name}-main`;
 
   // Pull PostgreSQL image if needed
   const imageExists = await docker.imageExists(dockerImage);
@@ -190,7 +183,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   const mainBranch: Branch = {
     id: generateUUID(),
     name: mainBranchName,
-    projectName: sanitizedName,
+    projectName: name,
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
@@ -206,7 +199,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Create project record with main branch
   const project: Project = {
     id: generateUUID(),
-    name: sanitizedName,
+    name: name,
     dockerImage,
     createdAt: new Date().toISOString(),
     credentials: {
