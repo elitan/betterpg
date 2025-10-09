@@ -2,13 +2,13 @@
 
 **Instant branching for Postgres**
 
-Clone 100GB database in 2-5 seconds. Production-safe. Zero data loss.
+Clone 100GB database in ~100ms. Production-safe. Zero data loss.
 
 ```bash
 # Create project with PostgreSQL 17
 pgd project create prod
 
-# Branch in 2-5 seconds (full database copy)
+# Branch in ~100ms (full database copy)
 pgd branch create prod/dev
 
 # Each branch is a complete, isolated PostgreSQL instance
@@ -16,21 +16,6 @@ pgd status
 ```
 
 **Git for databases:** Project = repository, Branch = complete PostgreSQL database (~100KB via ZFS copy-on-write)
-
-## Why pgd?
-
-| pgd | Neon | Supabase |
-|-----|------|----------|
-| 2-5s branch creation | <1s | Minutes-hours |
-| 1-5ms latency (local) | 3-15ms (network) | 1-5ms |
-| ~100KB per branch (ZFS CoW) | Page-level CoW | Full duplication |
-| Full data in branches | Full data | Schema only* |
-| No vendor lock-in | Proprietary storage | Supabase ecosystem |
-
-\* Supabase requires manual seed scripts
-
-**Use pgd if you need:** local performance, production data testing, full control, zero cloud fees
-**Use cloud if you need:** multi-region, scale-to-zero, managed infrastructure
 
 ## Installation
 
@@ -147,7 +132,7 @@ Test migrations on production data before applying to prod.
 # Snapshot production before migration
 pgd snapshot create prod/main --label "before-migration-v2.3"
 
-# Create test branch (2-5 seconds)
+# Create test branch (~100ms)
 pgd branch create prod/migration-test
 
 # Run migration on test branch
@@ -169,7 +154,7 @@ pgd branch create prod/recovered --pitr "before-migration-v2.3"
 Give developers production data copies for realistic development.
 
 ```bash
-# Create branch per developer (2-5 seconds each)
+# Create branch per developer (~100ms each)
 pgd branch create prod/dev-alice
 pgd branch create prod/dev-bob
 
@@ -188,7 +173,7 @@ EOF
 ### 3. Debug Production Issues
 
 ```bash
-# Create exact copy of production (2-5 seconds)
+# Create exact copy of production (~100ms)
 pgd branch create prod/debug-issue-123
 
 # Debug with real data, zero risk
@@ -220,24 +205,26 @@ psql -h localhost -p <port> -U postgres
 
 ## How It Works
 
-**4-step process:**
+**Branching process (~100ms total):**
 ```
 Source branch (prod/main)
     ↓
-1. CHECKPOINT (flush dirty buffers to disk)
+1. CHECKPOINT (flush dirty buffers to disk) ~100ms
     ↓
-2. ZFS snapshot (atomic, ~100ms)
+2. ZFS snapshot (atomic)                     ~1ms
     ↓
-3. ZFS clone (instant, copy-on-write)
+3. ZFS clone (instant, copy-on-write)        ~1ms
     ↓
-4. Docker container (new PostgreSQL instance)
+4. Mount dataset                              ~1ms
     ↓
-New branch (prod/dev) - fully isolated
+New branch (prod/dev) - ready in ~100ms
 ```
 
-**Why it's fast:** ZFS copy-on-write shares unchanged data blocks
+**Why it's fast:** ZFS copy-on-write shares unchanged data blocks (no data copying)
 **Why it's safe:** CHECKPOINT ensures all committed transactions are on disk (zero data loss)
 **Why it's efficient:** Branches are ~100KB until data diverges
+
+*Note: Starting the PostgreSQL container adds ~6 seconds, but the actual database branching completes in milliseconds*
 
 ## Command Reference
 
@@ -403,9 +390,10 @@ Summary: ✓ All checks passed! pgd is ready to use.
 <summary><strong>Performance</strong></summary>
 
 **Operation timings:**
-- Create branch: 2-5s (CHECKPOINT + ZFS snapshot + container start)
-- Branch sync: 2-5s (re-snapshot parent + clone + restart)
-- PITR recovery: 1-10min (depends on WAL replay)
+- Database branching: ~100ms (CHECKPOINT + ZFS snapshot + clone + mount)
+- PostgreSQL startup: ~6s (container initialization, not part of branching)
+- Branch sync: ~100ms branching + ~6s container restart
+- PITR recovery: ~100ms branching + 1-10min WAL replay + ~6s container startup
 - Delete branch: 1-2s
 
 **Production recommendations:**
