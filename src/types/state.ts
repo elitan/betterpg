@@ -25,9 +25,11 @@ export interface Branch {
   parentBranchId: string | null;             // null for main branch
   isPrimary: boolean;                        // true for main branch, false for others
   snapshotName: string | null;               // null for main branch
+  zfsDataset: string;                        // ZFS dataset name (e.g., api-dev)
   port: number;
   createdAt: string;
   status: 'running' | 'stopped' | 'created';
+  sizeBytes?: number;                        // Dataset size in bytes (optional, populated on create/reset)
 }
 
 export interface Credentials {
@@ -44,4 +46,5 @@ export interface Snapshot {
   zfsSnapshot: string; // Full ZFS snapshot name with @
   createdAt: string;
   label?: string;      // Optional user label
+  sizeBytes?: number;  // Snapshot size in bytes (optional)
 }

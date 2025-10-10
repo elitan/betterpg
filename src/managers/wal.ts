@@ -64,8 +64,8 @@ export class WALManager {
       if (walFiles.length > 0) {
         // Sort by filename (WAL files are named sequentially)
         walFiles.sort();
-        oldestWAL = walFiles[0];
-        newestWAL = walFiles[walFiles.length - 1];
+        oldestWAL = walFiles[0] ?? null;
+        newestWAL = walFiles[walFiles.length - 1] ?? null;
 
         // Get timestamps from file modification times
         const oldestFile = Bun.file(`${walArchivePath}/${oldestWAL}`);
@@ -161,6 +161,8 @@ export class WALManager {
       for (let i = 0; i < walFiles.length - 1; i++) {
         const current = walFiles[i];
         const next = walFiles[i + 1];
+
+        if (!current || !next) continue; // Skip if undefined
 
         // Extract the numeric part (last 8 hex digits)
         const currentNum = parseInt(current.slice(-8), 16);

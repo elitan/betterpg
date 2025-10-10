@@ -43,7 +43,7 @@ export async function checkZFSPermissions(pool: string, datasetBase: string): Pr
     for (const line of lines) {
       // Look for lines starting with the username
       const match = line.match(new RegExp(`user ${username}\\s+(.+)`));
-      if (match) {
+      if (match && match[1]) {
         userPermissions = match[1].split(',').map(p => p.trim());
         break;
       }

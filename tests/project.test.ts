@@ -81,7 +81,7 @@ describe('Project Operations', () => {
 
   describe('Delete Project', () => {
     test('should delete project and all branches', async () => {
-      await projectDeleteCommand('web');
+      await projectDeleteCommand('web', {});
 
       // Verify ZFS dataset removed
       expect(await datasetExists('web-main')).toBe(false);
@@ -93,7 +93,7 @@ describe('Project Operations', () => {
     }, { timeout: 15000 });
 
     test('should fail to delete non-existent project', async () => {
-      await expect(projectDeleteCommand('non-existent')).rejects.toThrow();
+      await expect(projectDeleteCommand('non-existent', {})).rejects.toThrow();
     });
   });
 });

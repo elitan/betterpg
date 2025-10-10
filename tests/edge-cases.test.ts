@@ -58,7 +58,7 @@ describe('Edge Cases and Error Handling', () => {
   describe('Non-existent Resources', () => {
     test('should fail operations on non-existent project', async () => {
       await expect(projectGetCommand('non-existent')).rejects.toThrow();
-      await expect(projectDeleteCommand('non-existent')).rejects.toThrow();
+      await expect(projectDeleteCommand('non-existent', {})).rejects.toThrow();
     });
 
     test('should fail operations on non-existent branch', async () => {

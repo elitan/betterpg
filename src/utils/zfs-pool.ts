@@ -16,7 +16,7 @@ export async function autoDetectZFSPool(): Promise<string> {
     }
 
     if (pools.length === 1) {
-      return pools[0];
+      return pools[0]!; // Safe: we checked length === 1
     }
 
     throw new Error(

@@ -13,7 +13,7 @@ export function parseRecoveryTime(input: string): Date {
 
   // Try relative time formats
   const relativeMatch = input.match(/^-?(\d+)\s*(h|hour|hours|m|min|mins|minute|minutes|d|day|days)(\s+ago)?$/i);
-  if (relativeMatch) {
+  if (relativeMatch && relativeMatch[1] && relativeMatch[2]) {
     const amount = parseInt(relativeMatch[1], 10);
     const unit = relativeMatch[2].toLowerCase();
 

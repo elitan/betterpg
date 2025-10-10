@@ -6,7 +6,7 @@ import { DockerManager } from '../../managers/docker';
 import { WALManager } from '../../managers/wal';
 import { StateManager } from '../../managers/state';
 import { generateUUID, sanitizeName, formatTimestamp } from '../../utils/helpers';
-import { Branch } from '../../types/state';
+import type { Branch } from '../../types/state';
 import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
 import { parseRecoveryTime, formatDate } from '../../utils/time';
 import { Rollback } from '../../utils/rollback';
@@ -82,8 +82,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   const rollback = new Rollback();
 
   // For PITR, find existing snapshot before recovery target
-  let fullSnapshotName: string;
-  let snapshotName: string;
+  // Note: These will always be assigned by either PITR or non-PITR block below
+  let fullSnapshotName!: string;
+  let snapshotName!: string;
   let createdSnapshot = false;
 
   if (options.pitr && recoveryTarget) {
@@ -106,10 +107,14 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     validSnapshots.sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-    const selectedSnapshot = validSnapshots[0];
+    const selectedSnapshot = validSnapshots[0]!; // Safe: we checked validSnapshots.length > 0
 
     fullSnapshotName = selectedSnapshot.zfsSnapshot;
-    snapshotName = fullSnapshotName.split('@')[1];
+    const parts = fullSnapshotName.split('@');
+    if (parts.length !== 2 || !parts[1]) {
+      throw new Error(`Invalid snapshot name format: ${fullSnapshotName}`);
+    }
+    snapshotName = parts[1];
 
     console.log(chalk.dim(`  Using snapshot: ${selectedSnapshot.label || snapshotName} (created ${formatDate(new Date(selectedSnapshot.createdAt))})`));
     console.log();
@@ -126,6 +131,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     snapshotName = formatTimestamp(new Date());
     fullSnapshotName = `${sourceDatasetPath}@${snapshotName}`;
   }
+
+  // At this point, either PITR or non-PITR block has set these variables
+  // The ! operator above tells TypeScript we guarantee they'll be assigned
 
   // Only create a NEW snapshot if not using PITR (PITR uses existing snapshots)
   if (!options.pitr) {
@@ -291,6 +299,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       parentBranchId: sourceBranch.id,
       isPrimary: false,
       snapshotName: fullSnapshotName,
+      zfsDataset: targetDatasetName,
       port,
       createdAt: new Date().toISOString(),
       sizeBytes,

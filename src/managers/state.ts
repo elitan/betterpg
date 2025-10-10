@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { State, Project, Branch, Snapshot } from '../types/state';
+import type { State, Project, Branch, Snapshot } from '../types/state';
 
 export class StateManager {
   private state: State | null = null;

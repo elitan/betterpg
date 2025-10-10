@@ -49,18 +49,17 @@ export class ZFSManager {
     const output = await $`zpool list -H -p ${this.pool}`.text();
     // Format: name size alloc free ckpoint expandsz frag cap dedup health altroot
     const fields = output.trim().split('\t');
-    const name = fields[0];
-    const size = parseInt(fields[1], 10);
-    const allocated = parseInt(fields[2], 10);
-    const free = parseInt(fields[3], 10);
-    const health = fields[9];
+
+    if (fields.length < 10) {
+      throw new Error(`Invalid zpool output: ${output}`);
+    }
 
     return {
-      name,
-      health,
-      size,
-      allocated,
-      free,
+      name: fields[0]!,
+      health: fields[9]!,
+      size: parseInt(fields[1]!, 10),
+      allocated: parseInt(fields[2]!, 10),
+      free: parseInt(fields[3]!, 10),
     };
   }
 
@@ -110,17 +109,19 @@ export class ZFSManager {
     const fullName = `${this.pool}/${this.datasetBase}/${name}`;
     const output = await $`zfs list -H -p -o name,used,avail,refer,mountpoint,creation ${fullName}`.text();
 
-    const [dsName, used, available, referenced, mountpoint, creation] =
-      output.trim().split('\t');
+    const fields = output.trim().split('\t');
+    if (fields.length < 6) {
+      throw new Error(`Invalid zfs output: ${output}`);
+    }
 
     return {
-      name: dsName,
+      name: fields[0]!,
       type: 'filesystem',
-      used: parseInt(used, 10),
-      available: parseInt(available, 10),
-      referenced: parseInt(referenced, 10),
-      mountpoint,
-      created: new Date(parseInt(creation, 10) * 1000),
+      used: parseInt(fields[1]!, 10),
+      available: parseInt(fields[2]!, 10),
+      referenced: parseInt(fields[3]!, 10),
+      mountpoint: fields[4]!,
+      created: new Date(parseInt(fields[5]!, 10) * 1000),
     };
   }
 
@@ -134,17 +135,19 @@ export class ZFSManager {
         .split('\n')
         .filter(line => line)
         .map(line => {
-          const [name, used, available, referenced, type, mountpoint, creation] =
-            line.split('\t');
+          const fields = line.split('\t');
+          if (fields.length < 7) {
+            throw new Error(`Invalid zfs list output: ${line}`);
+          }
 
           return {
-            name,
-            type: type as 'filesystem' | 'snapshot',
-            used: parseInt(used, 10),
-            available: parseInt(available, 10),
-            referenced: parseInt(referenced, 10),
-            mountpoint,
-            created: new Date(parseInt(creation, 10) * 1000),
+            name: fields[0]!,
+            type: fields[4] as 'filesystem' | 'snapshot',
+            used: parseInt(fields[1]!, 10),
+            available: parseInt(fields[2]!, 10),
+            referenced: parseInt(fields[3]!, 10),
+            mountpoint: fields[5]!,
+            created: new Date(parseInt(fields[6]!, 10) * 1000),
           };
         });
     } catch {
@@ -191,14 +194,22 @@ export class ZFSManager {
         .split('\n')
         .filter(line => line)
         .map(line => {
-          const [name, used, creation] = line.split('\t');
-          const [datasetName] = name.split('@');
+          const fields = line.split('\t');
+          if (fields.length < 3) {
+            throw new Error(`Invalid zfs snapshot list output: ${line}`);
+          }
+
+          const name = fields[0]!;
+          const parts = name.split('@');
+          if (parts.length !== 2 || !parts[0]) {
+            throw new Error(`Invalid snapshot name format: ${name}`);
+          }
 
           return {
             name,
-            dataset: datasetName,
-            used: parseInt(used, 10),
-            created: new Date(parseInt(creation, 10) * 1000),
+            dataset: parts[0],
+            used: parseInt(fields[1]!, 10),
+            created: new Date(parseInt(fields[2]!, 10) * 1000),
           };
         });
     } catch {

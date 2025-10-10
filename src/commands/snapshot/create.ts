@@ -5,7 +5,7 @@ import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { generateUUID, formatTimestamp } from '../../utils/helpers';
-import { Snapshot } from '../../types/state';
+import type { Snapshot } from '../../types/state';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export interface SnapshotCreateOptions {

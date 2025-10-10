@@ -77,7 +77,10 @@ export async function listSnapshots(datasetName: string): Promise<string[]> {
   return output
     .split('\n')
     .filter(line => line.trim())
-    .map(line => line.split('@')[1])
+    .map(line => {
+      const parts = line.split('@');
+      return parts[1] || '';
+    })
     .filter(Boolean);
 }
 

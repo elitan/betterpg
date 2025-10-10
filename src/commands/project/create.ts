@@ -7,7 +7,7 @@ import { StateManager } from '../../managers/state';
 import { WALManager } from '../../managers/wal';
 import { CertManager } from '../../managers/cert';
 import { generateUUID, generatePassword } from '../../utils/helpers';
-import { Project, Branch } from '../../types/state';
+import type { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace, validateName } from '../../utils/namespace';
 import { CONTAINER_PREFIX } from '../../config/constants';
@@ -199,6 +199,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
+    zfsDataset: mainDatasetName,
     port,
     createdAt: new Date().toISOString(),
     sizeBytes,

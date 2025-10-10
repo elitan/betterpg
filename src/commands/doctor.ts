@@ -623,7 +623,7 @@ async function checkContainers(): Promise<CheckResult> {
   try {
     const docker = new DockerManager();
     const allContainers = await docker.listContainers();
-    const pgdContainers = allContainers.filter(c => c.Names.some(n => n.startsWith('/pgd-')));
+    const pgdContainers = allContainers.filter(c => c.name.startsWith('pgd-'));
 
     if (pgdContainers.length === 0) {
       return {
@@ -633,13 +633,13 @@ async function checkContainers(): Promise<CheckResult> {
       };
     }
 
-    const running = pgdContainers.filter(c => c.State === 'running').length;
+    const running = pgdContainers.filter(c => c.state === 'running').length;
     const stopped = pgdContainers.length - running;
 
     const details = pgdContainers.map(c => {
-      const name = c.Names[0].replace('/pgd-', '');
-      const state = c.State === 'running' ? '●' : '○';
-      return `${state} ${name} (${c.State})`;
+      const name = c.name.replace('pgd-', '');
+      const stateIcon = c.state === 'running' ? '●' : '○';
+      return `${stateIcon} ${name} (${c.state})`;
     });
 
     return {

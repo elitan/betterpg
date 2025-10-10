@@ -11,13 +11,16 @@ export function generatePassword(length = 32): string {
   let password = '';
 
   for (let i = 0; i < length; i++) {
-    password += chars[bytes[i] % chars.length];
+    const byte = bytes[i];
+    if (byte === undefined) continue; // Should never happen with Buffer
+    password += chars[byte % chars.length];
   }
 
   return password;
 }
 
-export function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number | undefined): string {
+  if (bytes === undefined || bytes === null) return '-';
   if (bytes === 0) return '0 B';
 
   const k = 1024;

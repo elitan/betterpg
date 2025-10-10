@@ -84,9 +84,11 @@ describe('SSL/TLS Tests', () => {
     // Test connection with sslmode=require using query helper
     const result = await query(mainPort, mainPassword, "SELECT ssl, version FROM pg_stat_ssl WHERE pid = pg_backend_pid();");
 
-    const [sslEnabled, tlsVersion] = result.split('|');
-    expect(sslEnabled.trim()).toBe('t');  // true
-    expect(tlsVersion.trim()).toMatch(/^TLSv/);  // Should be TLS version like TLSv1.3
+    const parts = result.split('|');
+    const sslEnabled = parts[0];
+    const tlsVersion = parts[1];
+    expect(sslEnabled?.trim()).toBe('t');  // true
+    expect(tlsVersion?.trim()).toMatch(/^TLSv/);  // Should be TLS version like TLSv1.3
   });
 
   test('should allow connection without SSL when not required', async () => {

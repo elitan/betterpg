@@ -88,7 +88,7 @@ export async function setupCommand() {
     }
 
     if (pools.length === 1) {
-      pool = pools[0];
+      pool = pools[0]!; // Safe: we checked length === 1
       console.log(chalk.green('✓'), `Found pool: ${chalk.green(pool)}`);
     } else {
       console.log('Multiple pools found:');
@@ -219,17 +219,28 @@ export async function setupCommand() {
       console.log(chalk.green('✓'), 'User already in pgd group');
     }
 
+    // Get home directory for certificate path (must be absolute, no tilde expansion in sudoers)
+    const homeDir = await $`getent passwd ${actualUser}`.text().then(s => s.trim().split(':')[5]);
+
     // Create sudoers file
     const sudoersContent = `# pgd - PostgreSQL database branching tool
-# This file grants minimal sudo permissions for ZFS mount/unmount operations only
-# These operations require CAP_SYS_ADMIN capability on Linux
+# This file grants minimal sudo permissions for required operations
 
 # Allow pgd group members to run ZFS mount/unmount commands without password
 %pgd ALL=(ALL) NOPASSWD: /sbin/zfs mount *
 %pgd ALL=(ALL) NOPASSWD: /sbin/zfs unmount *
 
+# Allow chown for SSL certificates (PostgreSQL requires specific ownership)
+%pgd ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.pgd/certs/*/server.key
+%pgd ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.pgd/certs/*/server.crt
+
+# Allow rm for SSL certificate cleanup (files may be owned by UID 70)
+%pgd ALL=(ALL) NOPASSWD: /usr/bin/rm -rf ${homeDir}/.pgd/certs/*
+
 # Security notes:
 # - Only mount/unmount commands are allowed (not create, destroy, etc.)
+# - chown is restricted to certificate files only with specific UID:GID (70:70)
+# - rm is restricted to certificate directory only
 # - All other ZFS operations use delegation (no sudo required)
 # - This is much more secure than granting full sudo access
 `;
@@ -262,7 +273,7 @@ export async function setupCommand() {
   console.log(`  • ZFS pool: ${pool}`);
   console.log('  • ZFS delegation: create, destroy, snapshot, clone, promote, etc.');
   console.log('  • Groups: docker, pgd');
-  console.log('  • Sudoers: /etc/sudoers.d/pgd (ZFS mount/unmount only)');
+  console.log('  • Sudoers: /etc/sudoers.d/pgd (ZFS mount/unmount + cert ownership)');
   console.log();
   console.log(chalk.yellow('IMPORTANT: Log out and log back in now!'));
   console.log('Group membership (docker, pgd) requires a new login session.');
@@ -272,7 +283,9 @@ export async function setupCommand() {
   console.log('  2. Create first project: pgd project create myapp');
   console.log();
   console.log(chalk.green('Security Note:'));
-  console.log('pgd uses sudo ONLY for ZFS mount/unmount (Linux kernel limitation).');
+  console.log('pgd uses sudo only for:');
+  console.log('  • ZFS mount/unmount (Linux kernel limitation)');
+  console.log('  • Certificate ownership (PostgreSQL security requirement)');
   console.log('All other operations use ZFS delegation - much more secure than full sudo.');
   console.log();
 }
