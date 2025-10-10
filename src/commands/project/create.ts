@@ -5,6 +5,7 @@ import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { WALManager } from '../../managers/wal';
+import { CertManager } from '../../managers/cert';
 import { generateUUID, generatePassword } from '../../utils/helpers';
 import { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
@@ -104,6 +105,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   const zfs = new ZFSManager(pool, fullDatasetBase);
   const docker = new DockerManager();
   const wal = new WALManager();
+  const cert = new CertManager();
 
   // Use port 0 to let Docker dynamically assign an available port
   let port = 0;
@@ -132,6 +134,13 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Get dataset mountpoint
   const mountpoint = await zfs.getMountpoint(mainDatasetName);
+
+  // Generate SSL certificates
+  const certStart = Date.now();
+  process.stdout.write(chalk.dim('  ▸ Generate SSL certificates'));
+  const certPaths = await cert.generateCerts(name);
+  const certTime = ((Date.now() - certStart) / 1000).toFixed(1);
+  console.log(chalk.dim(`${' '.repeat(40 - 'Generate SSL certificates'.length)}${certTime}s`));
 
   // Generate credentials
   const password = generatePassword();
@@ -162,6 +171,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     port,
     dataPath: mountpoint,
     walArchivePath,
+    sslCertDir: certPaths.certDir,
     password,
     username: 'postgres',
     database: 'postgres',
@@ -201,6 +211,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     id: generateUUID(),
     name: name,
     dockerImage,
+    sslCertDir: certPaths.certDir,
     createdAt: new Date().toISOString(),
     credentials: {
       username: 'postgres',
@@ -214,6 +225,6 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   console.log();
   console.log('Connection ready:');
-  console.log(`  postgresql://postgres:${password}@localhost:${port}/postgres`);
+  console.log(`  postgresql://postgres:${password}@localhost:${port}/postgres?sslmode=require`);
   console.log();
 }

@@ -250,6 +250,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       port,
       dataPath: mountpoint,
       walArchivePath,
+      sslCertDir: sourceProject.sslCertDir,
       password: sourceProject.credentials.password,
       username: sourceProject.credentials.username,
       database: sourceProject.credentials.database,
@@ -303,6 +304,6 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   console.log();
   console.log('Connection ready:');
-  console.log(`  postgresql://${sourceProject.credentials.username}:${sourceProject.credentials.password}@localhost:${port}/${sourceProject.credentials.database}`);
+  console.log(`  postgresql://${sourceProject.credentials.username}:${sourceProject.credentials.password}@localhost:${port}/${sourceProject.credentials.database}?sslmode=require`);
   console.log();
 }

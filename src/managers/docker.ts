@@ -7,6 +7,7 @@ export interface PostgresConfig {
   port: number;
   dataPath: string;
   walArchivePath: string;
+  sslCertDir: string;  // Path to SSL certificates directory
   password: string;
   username: string;
   database: string;
@@ -46,6 +47,9 @@ export class DockerManager {
         '-c', 'max_wal_senders=3',
         '-c', 'wal_keep_size=1GB',
         '-c', 'restore_command=cp /wal-archive/%f %p',
+        '-c', 'ssl=on',
+        '-c', 'ssl_cert_file=/etc/ssl/certs/postgresql/server.crt',
+        '-c', 'ssl_key_file=/etc/ssl/certs/postgresql/server.key',
       ],
       ExposedPorts: {
         '5432/tcp': {},
@@ -62,6 +66,7 @@ export class DockerManager {
         Binds: [
           `${config.dataPath}:/var/lib/postgresql/data`,
           `${config.walArchivePath}:/wal-archive`,
+          `${config.sslCertDir}:/etc/ssl/certs/postgresql:ro`,
         ],
         RestartPolicy: {
           Name: 'unless-stopped',

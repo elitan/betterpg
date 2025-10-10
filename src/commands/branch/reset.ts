@@ -175,6 +175,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
     port: branch.port,
     dataPath: mountpoint,
     walArchivePath,
+    sslCertDir: project.sslCertDir,
     password: project.credentials.password,
     username: project.credentials.username,
     database: project.credentials.database,
@@ -202,6 +203,6 @@ export async function branchResetCommand(name: string, options: { force?: boolea
 
   console.log();
   console.log('Branch reset:');
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

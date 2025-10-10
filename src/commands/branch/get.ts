@@ -37,6 +37,6 @@ export async function branchGetCommand(name: string) {
   }
   console.log();
   console.log('Connection:');
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

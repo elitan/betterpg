@@ -51,6 +51,6 @@ export async function restartCommand(name: string) {
 
   console.log();
   console.log('Branch restarted:');
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}`);
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

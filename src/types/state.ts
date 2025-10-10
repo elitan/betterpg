@@ -13,6 +13,7 @@ export interface Project {
   name: string;
   dockerImage: string;           // Docker image used (e.g., postgres:17-alpine, ankane/pgvector:17)
   postgresVersion?: string;      // Optional, for display purposes only
+  sslCertDir: string;            // Path to SSL certificates directory
   createdAt: string;
   credentials: Credentials;
   branches: Branch[];

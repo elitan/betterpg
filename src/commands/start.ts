@@ -61,6 +61,6 @@ export async function startCommand(name: string) {
 
   console.log();
   console.log('Branch started:');
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}`);
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}?sslmode=require`);
   console.log();
 }
