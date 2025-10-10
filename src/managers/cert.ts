@@ -47,14 +47,14 @@ export class CertManager {
       -out ${paths.serverCert} \
       -subj "/CN=pgd-postgres/O=pgd/C=US"`.quiet();
 
-    // Set proper permissions and ownership for PostgreSQL inside Docker
-    // PostgreSQL alpine image runs as user 'postgres' with UID 70
-    // Set ownership to match PostgreSQL user in container
-    await $`sudo chown 70:70 ${paths.serverKey} ${paths.serverCert}`.quiet();
-
-    // Set proper permissions (PostgreSQL requires 0600 for private key)
+    // Set proper permissions BEFORE changing ownership
+    // (PostgreSQL requires 0600 for private key)
     await $`chmod 600 ${paths.serverKey}`.quiet();
     await $`chmod 644 ${paths.serverCert}`.quiet();
+
+    // Set ownership to match PostgreSQL user in container
+    // PostgreSQL alpine image runs as user 'postgres' with UID 70
+    await $`sudo chown 70:70 ${paths.serverKey} ${paths.serverCert}`.quiet();
 
     return paths;
   }

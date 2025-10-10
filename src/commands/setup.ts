@@ -154,7 +154,7 @@ export async function setupCommand() {
     console.log(`Granting permissions to user '${actualUser}'...`);
     await $`/usr/sbin/zfs allow ${actualUser} create,destroy,snapshot,clone,mount ${databasesDataset}`;
     await $`/usr/sbin/zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
-    await $`/usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint ${databasesDataset}`;
+    await $`/usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint,atime ${databasesDataset}`;
 
     console.log(chalk.green('✓'), 'ZFS permissions granted');
   } catch (error) {
