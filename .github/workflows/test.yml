@@ -55,6 +55,8 @@ jobs:
     - name: Run test suite
       run: ./scripts/test.sh
       timeout-minutes: 15
+      env:
+        BAIL_COUNT: 5
 
     - name: Cleanup
       if: always()

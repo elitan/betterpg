@@ -13,11 +13,17 @@ echo "Building pgd..."
 bun run build
 
 # Run tests with sudo sequentially
-# Timeout is configured in bunfig.toml (120s per test)
+# Timeout is configured in bunfig.toml (60s per test)
 # Tests are run sequentially to avoid resource contention on:
 # - State file locking (state.json)
 # - ZFS dataset operations
 # - Docker container startup (memory pressure on small machines)
 echo "Running tests with sudo..."
 BUN_PATH="$(which bun)"
-cd "$(dirname "$0")/.." && sudo "$BUN_PATH" test "$@"
+
+# Default to --bail (stop after first failure)
+# Can override with BAIL_COUNT env var (e.g., BAIL_COUNT=5 for CI)
+BAIL_FLAG="${BAIL_COUNT:+--bail=$BAIL_COUNT}"
+BAIL_FLAG="${BAIL_FLAG:---bail}"
+
+cd "$(dirname "$0")/.." && sudo "$BUN_PATH" test "$BAIL_FLAG" "$@"
