@@ -74,9 +74,9 @@ export class DockerManager {
       },
       Healthcheck: {
         Test: ['CMD-SHELL', 'pg_isready -U postgres'],
-        Interval: 5000000000,
-        Timeout: 3000000000,
-        Retries: 3,
+        Interval: 100000000,   // 100ms - fast health checks for quick branch creation
+        Timeout: 2000000000,   // 2s
+        Retries: 30,           // More retries since checks are more frequent
       },
     });
 
@@ -153,17 +153,17 @@ export class DockerManager {
       const container = this.docker.getContainer(containerID);
       const info = await container.inspect();
 
-      if (info.State.Health?.Status === 'healthy' || info.State.Status === 'running') {
-        if (!info.State.Health) {
-          await Bun.sleep(2000);
-          return;
-        }
-        if (info.State.Health.Status === 'healthy') {
-          return;
-        }
+      if (info.State.Health?.Status === 'healthy') {
+        return;
       }
 
-      await Bun.sleep(1000);
+      // No health check configured - wait briefly for stability
+      if (!info.State.Health && info.State.Status === 'running') {
+        await Bun.sleep(500);
+        return;
+      }
+
+      await Bun.sleep(100);  // Poll every 100ms for faster detection
     }
 
     throw new Error(`Container ${containerID} failed to become healthy within ${timeout}ms`);
