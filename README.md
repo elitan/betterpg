@@ -4,6 +4,11 @@
 
 Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/PtePt2wx7R)
+[![Twitter Follow](https://img.shields.io/twitter/follow/elitasson?style=social)](https://x.com/elitasson)
+[![GitHub Stars](https://img.shields.io/github/stars/elitan/pgd?style=social)](https://github.com/elitan/pgd)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## See it in action
 
 ```bash
@@ -535,6 +540,12 @@ sudo cp dist/pgd /usr/local/bin/
 **v0.4.0+:** Project/branch rename, remote WAL storage (S3/B2), schema diff, branch promotion, Web UI
 
 See [TODO.md](TODO.md) for full roadmap
+
+## Community
+
+Like this tool? Join the community:
+- Follow on X: [@elitasson](https://x.com/elitasson)
+- Join Discord: [https://discord.gg/PtePt2wx7R](https://discord.gg/PtePt2wx7R)
 
 ## Contributing
 
