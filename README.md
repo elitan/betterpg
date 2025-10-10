@@ -1,13 +1,23 @@
-# pgd
+<div align="center">
+  <h1>pgd</h1>
+  <h3>Instant PostgreSQL branching using ZFS snapshots</h3>
+  <p>Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.</p>
+  <a href="https://github.com/elitan/pgd/blob/main/LICENSE">
+    <img alt="MIT License" src="https://img.shields.io/github/license/elitan/pgd" />
+  </a>
+  <a href="https://github.com/elitan/pgd/stargazers">
+    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/elitan/pgd?style=social" />
+  </a>
+  <a href="https://discord.gg/PtePt2wx7R">
+    <img alt="Discord" src="https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white" />
+  </a>
+  <br />
+  <a href="https://x.com/elitasson">
+    <img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/elitasson?style=social" />
+  </a>
+</div>
 
-**Instant PostgreSQL branching using ZFS snapshots**
-
-Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.
-
-[![Discord](https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/PtePt2wx7R)
-[![Twitter Follow](https://img.shields.io/twitter/follow/elitasson?style=social)](https://x.com/elitasson)
-[![GitHub Stars](https://img.shields.io/github/stars/elitan/pgd?style=social)](https://github.com/elitan/pgd)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<br />
 
 ## See it in action
 
