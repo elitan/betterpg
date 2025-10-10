@@ -51,7 +51,7 @@ export async function query(
 export async function getState(): Promise<any> {
   // When running with sudo (UID 0), pgd creates state in /root
   const statePath = process.getuid?.() === 0
-    ? '/root/.local/share/pgd/state.json'
+    ? '/root/.pgd/state.json'
     : PATHS.STATE;
 
   const file = Bun.file(statePath);

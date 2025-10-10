@@ -7,6 +7,8 @@ import { ZFSManager } from '../managers/zfs';
 import { formatBytes } from '../utils/helpers';
 import { PATHS } from '../utils/paths';
 import { TOOL_NAME } from '../config/constants';
+import { getContainerName, getDatasetName } from '../utils/naming';
+import { parseNamespace } from '../utils/namespace';
 
 function formatUptime(startedAt: Date | null): string {
   if (!startedAt) return 'N/A';
@@ -103,8 +105,10 @@ export async function statusCommand() {
     // Add branches
     for (const branch of proj.branches) {
       // Get branch container status
+      const namespace = parseNamespace(branch.name);
+      const containerName = getContainerName(namespace.project, namespace.branch);
       let branchContainerStatus = null;
-      const branchContainerID = await docker.getContainerByName(branch.containerName);
+      const branchContainerID = await docker.getContainerByName(containerName);
       if (branchContainerID) {
         try {
           branchContainerStatus = await docker.getContainerStatus(branchContainerID);
@@ -120,13 +124,22 @@ export async function statusCommand() {
         ? formatUptime(branchContainerStatus.startedAt)
         : chalk.dim('—');
 
+      // Query size on-demand from ZFS
+      const datasetName = getDatasetName(namespace.project, namespace.branch);
+      let sizeBytes = 0;
+      try {
+        sizeBytes = await zfs.getUsedSpace(datasetName);
+      } catch {
+        // If dataset doesn't exist, show 0
+      }
+
       // Branch row with different columns
       instanceTable.push([
         branchStatusIcon,
         chalk.dim('  ↳ ') + branch.name,
         `${branchStatusText} | ${branchUptime}`,
         `Port ${branch.port}`,
-        formatBytes(branch.sizeBytes),
+        formatBytes(sizeBytes),
         formatDate(branch.createdAt)
       ]);
     }

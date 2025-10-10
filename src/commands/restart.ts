@@ -3,10 +3,14 @@ import chalk from 'chalk';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { PATHS } from '../utils/paths';
+import { getContainerName } from '../utils/naming';
+import { parseNamespace } from '../utils/namespace';
 
 
 
 export async function restartCommand(name: string) {
+  const namespace = parseNamespace(name);
+
   const state = new StateManager(PATHS.STATE);
   await state.load();
 
@@ -25,9 +29,10 @@ export async function restartCommand(name: string) {
   console.log(`Restarting ${chalk.cyan(name)}...`);
   console.log();
 
-  const containerID = await docker.getContainerByName(branch.containerName);
+  const containerName = getContainerName(namespace.project, namespace.branch);
+  const containerID = await docker.getContainerByName(containerName);
   if (!containerID) {
-    throw new Error(`Container '${branch.containerName}' not found`);
+    throw new Error(`Container '${containerName}' not found`);
   }
 
   const restartTime = Date.now();

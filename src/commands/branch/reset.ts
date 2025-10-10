@@ -6,6 +6,7 @@ import { StateManager } from '../../managers/state';
 import { formatTimestamp } from '../../utils/helpers';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
+import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export async function branchResetCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
@@ -64,14 +65,27 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   const docker = new DockerManager();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
+  // Compute parent branch names
+  const parentNamespace = parseNamespace(parentBranch.name);
+  const parentContainerName = getContainerName(parentNamespace.project, parentNamespace.branch);
+  const parentDatasetName = getDatasetName(parentNamespace.project, parentNamespace.branch);
+  const parentDatasetPath = getDatasetPath(stateData.zfsPool, stateData.zfsDatasetBase, parentNamespace.project, parentNamespace.branch);
+
+  // Compute current branch names
+  const containerName = getContainerName(namespace.project, namespace.branch);
+  const datasetName = getDatasetName(namespace.project, namespace.branch);
+
   // If force reset, clean up dependent branches first
   if (dependentBranches.length > 0 && options.force) {
     const cleanupStart = Date.now();
     process.stdout.write(chalk.dim('  ▸ Clean up dependent branches'));
 
     for (const depBranch of dependentBranches) {
+      const depNamespace = parseNamespace(depBranch.name);
+      const depContainerName = getContainerName(depNamespace.project, depNamespace.branch);
+
       // Stop and remove container
-      const depContainerID = await docker.getContainerByName(depBranch.containerName);
+      const depContainerID = await docker.getContainerByName(depContainerName);
       if (depContainerID) {
         await docker.stopContainer(depContainerID);
         await docker.removeContainer(depContainerID);
@@ -91,7 +105,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   // Stop and remove existing container
   const stopStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Stop container'));
-  const containerID = await docker.getContainerByName(branch.containerName);
+  const containerID = await docker.getContainerByName(containerName);
   if (containerID) {
     await docker.stopContainer(containerID);
     await docker.removeContainer(containerID);
@@ -100,12 +114,11 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopTime}s`));
 
   // Checkpoint parent before snapshot
-  const datasetName = `${namespace.project}-${namespace.branch}`;
   const snapshotName = formatTimestamp(new Date());
-  const fullSnapshotName = `${parentBranch.zfsDataset}@${snapshotName}`;
+  const fullSnapshotName = `${parentDatasetPath}@${snapshotName}`;
 
   if (parentBranch.status === 'running') {
-    const parentContainerID = await docker.getContainerByName(parentBranch.containerName);
+    const parentContainerID = await docker.getContainerByName(parentContainerName);
     if (parentContainerID) {
       try {
         const checkpointStart = Date.now();
@@ -122,7 +135,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
         // Create snapshot immediately after checkpoint
         const snapshotStart = Date.now();
         process.stdout.write(chalk.dim('  ▸ Create snapshot'));
-        await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
+        await zfs.createSnapshot(parentDatasetName, snapshotName);
         const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
         console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
       } catch (error) {
@@ -133,7 +146,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   } else {
     const snapshotStart = Date.now();
     process.stdout.write(chalk.dim('  ▸ Create snapshot'));
-    await zfs.createSnapshot(parentBranch.zfsDatasetName, snapshotName);
+    await zfs.createSnapshot(parentDatasetName, snapshotName);
     const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
     console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
   }
@@ -170,7 +183,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   const containerStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Start container'));
   const newContainerID = await docker.createContainer({
-    name: branch.containerName,
+    name: containerName,
     image: project.dockerImage,
     port: branch.port,
     dataPath: mountpoint,

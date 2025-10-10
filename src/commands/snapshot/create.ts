@@ -6,6 +6,7 @@ import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { generateUUID, formatTimestamp } from '../../utils/helpers';
 import { Snapshot } from '../../types/state';
+import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export interface SnapshotCreateOptions {
   label?: string;
@@ -40,14 +41,19 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   const stateData = state.getState();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
+  // Compute names
+  const containerName = getContainerName(target.project, target.branch);
+  const datasetName = getDatasetName(target.project, target.branch);
+  const datasetPath = getDatasetPath(stateData.zfsPool, stateData.zfsDatasetBase, target.project, target.branch);
+
   // If branch is running, execute CHECKPOINT before snapshot
   if (branch.status === 'running') {
     const { DockerManager } = await import('../../managers/docker');
     const docker = new DockerManager();
 
-    const containerID = await docker.getContainerByName(branch.containerName);
+    const containerID = await docker.getContainerByName(containerName);
     if (!containerID) {
-      throw new Error(`Container ${branch.containerName} not found`);
+      throw new Error(`Container ${containerName} not found`);
     }
 
     const spinner = ora('Running CHECKPOINT').start();
@@ -62,7 +68,6 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
 
   // Create ZFS snapshot
   const snapshotTimestamp = formatTimestamp(new Date());
-  const datasetName = branch.zfsDataset.split('/').pop() || '';
   const snapshotName = options.label
     ? `${snapshotTimestamp}-${options.label}`
     : snapshotTimestamp;
@@ -70,7 +75,7 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   const snapshotStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Create snapshot'));
   await zfs.createSnapshot(datasetName, snapshotName);
-  const fullSnapshotName = `${branch.zfsDataset}@${snapshotName}`;
+  const fullSnapshotName = `${datasetPath}@${snapshotName}`;
   const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
   console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
 

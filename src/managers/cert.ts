@@ -2,6 +2,7 @@ import { $ } from 'bun';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { CLI_NAME } from '../config/constants';
 
 export interface CertPaths {
   certDir: string;
@@ -12,7 +13,7 @@ export interface CertPaths {
 export class CertManager {
   private baseDir: string;
 
-  constructor(baseDir: string = join(process.env.HOME || '/root', '.local/share/pgd/certs')) {
+  constructor(baseDir: string = join(process.env.HOME || '/root', `.${CLI_NAME}/certs`)) {
     this.baseDir = baseDir;
   }
 

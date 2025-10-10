@@ -5,6 +5,7 @@ import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
+import { getContainerName, getDatasetName } from '../../utils/naming';
 
 export async function branchDeleteCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -37,7 +38,8 @@ export async function branchDeleteCommand(name: string) {
   // Stop and remove container
   const stopStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Stop container'));
-  const containerID = await docker.getContainerByName(branch.containerName);
+  const containerName = getContainerName(namespace.project, namespace.branch);
+  const containerID = await docker.getContainerByName(containerName);
   if (containerID) {
     await docker.stopContainer(containerID);
     await docker.removeContainer(containerID);
@@ -48,7 +50,7 @@ export async function branchDeleteCommand(name: string) {
   // Destroy ZFS dataset (use recursive to handle any dependent clones)
   const datasetStart = Date.now();
   process.stdout.write(chalk.dim('  ▸ Destroy dataset'));
-  const datasetName = `${namespace.project}-${namespace.branch}`; // Consistent <project>-<branch> naming
+  const datasetName = getDatasetName(namespace.project, namespace.branch);
   // Only destroy dataset if it exists - this handles cases where previous deletion attempts
   // were interrupted or failed partway through, leaving state entries without actual ZFS datasets
   if (await zfs.datasetExists(datasetName)) {

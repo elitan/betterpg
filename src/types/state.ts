@@ -4,7 +4,6 @@ export interface State {
   zfsPool: string;
   zfsDatasetBase: string;
   projects: Project[];
-  backups: Backup[];
   snapshots: Snapshot[];
 }
 
@@ -26,12 +25,8 @@ export interface Branch {
   parentBranchId: string | null;             // null for main branch
   isPrimary: boolean;                        // true for main branch, false for others
   snapshotName: string | null;               // null for main branch
-  zfsDataset: string;                        // Full ZFS path: pool/datasetBase/datasetName
-  zfsDatasetName: string;                    // Dataset name only: <project>-<branch>
-  containerName: string;
   port: number;
   createdAt: string;
-  sizeBytes: number;
   status: 'running' | 'stopped' | 'created';
 }
 
@@ -39,16 +34,6 @@ export interface Credentials {
   username: string;
   password: string;
   database: string;
-}
-
-export interface Backup {
-  id: string;
-  projectId: string;
-  type: 'base' | 'incremental';
-  timestamp: string;
-  location: string;
-  sizeBytes: number;
-  walPosition: string;
 }
 
 export interface Snapshot {
@@ -59,5 +44,4 @@ export interface Snapshot {
   zfsSnapshot: string; // Full ZFS snapshot name with @
   createdAt: string;
   label?: string;      // Optional user label
-  sizeBytes: number;
 }

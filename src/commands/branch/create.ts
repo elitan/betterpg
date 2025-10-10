@@ -11,6 +11,7 @@ import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/names
 import { parseRecoveryTime, formatDate } from '../../utils/time';
 import { Rollback } from '../../utils/rollback';
 import { CONTAINER_PREFIX } from '../../config/constants';
+import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export interface BranchCreateOptions {
   from?: string;
@@ -112,10 +113,18 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
     console.log(chalk.dim(`  Using snapshot: ${selectedSnapshot.label || snapshotName} (created ${formatDate(new Date(selectedSnapshot.createdAt))})`));
     console.log();
-  } else {
-    // Create new snapshot with appropriate consistency level
+  }
+
+  // Compute source branch names
+  const sourceNamespace = parseNamespace(source.full);
+  const sourceContainerName = getContainerName(sourceNamespace.project, sourceNamespace.branch);
+  const sourceDatasetName = getDatasetName(sourceNamespace.project, sourceNamespace.branch);
+  const sourceDatasetPath = getDatasetPath(stateData.zfsPool, stateData.zfsDatasetBase, sourceNamespace.project, sourceNamespace.branch);
+
+  // For non-PITR, create new snapshot with appropriate consistency level
+  if (!options.pitr) {
     snapshotName = formatTimestamp(new Date());
-    fullSnapshotName = `${sourceBranch.zfsDataset}@${snapshotName}`;
+    fullSnapshotName = `${sourceDatasetPath}@${snapshotName}`;
   }
 
   // Only create a NEW snapshot if not using PITR (PITR uses existing snapshots)
@@ -127,9 +136,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       // 2. CHECKPOINT ensures all data is flushed to disk
       // 3. This provides application-consistent snapshots which are safe for PostgreSQL
       // 4. No need for WAL replay on recovery
-      const containerID = await docker.getContainerByName(sourceBranch.containerName);
+      const containerID = await docker.getContainerByName(sourceContainerName);
       if (!containerID) {
-        throw new Error(`Container ${sourceBranch.containerName} not found`);
+        throw new Error(`Container ${sourceContainerName} not found`);
       }
 
       try {
@@ -143,7 +152,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
         // Create ZFS snapshot immediately after checkpoint
         const snapshotStart = Date.now();
         process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
-        await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
+        await zfs.createSnapshot(sourceDatasetName, snapshotName);
         createdSnapshot = true;
         const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
         const labelLength = `Snapshot ${snapshotName}`.length;
@@ -156,7 +165,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       // Database is stopped - direct snapshot
       const snapshotStart = Date.now();
       process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
-      await zfs.createSnapshot(sourceBranch.zfsDatasetName, snapshotName);
+      await zfs.createSnapshot(sourceDatasetName, snapshotName);
       createdSnapshot = true;
       const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
       const labelLength = `Snapshot ${snapshotName}`.length;
@@ -165,7 +174,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   }
 
   // Clone snapshot - use consistent <project>-<branch> naming
-  const targetDatasetName = `${target.project}-${target.branch}`;
+  const targetDatasetName = getDatasetName(target.project, target.branch);
+  const targetDatasetPath = getDatasetPath(stateData.zfsPool, stateData.zfsDatasetBase, target.project, target.branch);
+  const targetContainerName = getContainerName(target.project, target.branch);
   let mountpoint: string;
   let port: number;
   let containerID: string | undefined;
@@ -226,7 +237,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       process.stdout.write(chalk.dim('  ▸ Configure PITR recovery'));
 
       // Get source WAL archive path (shared across all branches of same project)
-      const sourceWALArchivePath = wal.getArchivePath(sourceBranch.zfsDatasetName);
+      const sourceWALArchivePath = wal.getArchivePath(sourceDatasetName);
 
       // Setup recovery configuration in the cloned dataset
       await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
@@ -239,13 +250,12 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     }
 
     // Create and start container
-    const containerName = `${CONTAINER_PREFIX}-${target.project}-${target.branch}`;
     const containerStart = Date.now();
     const containerLabel = recoveryTarget ? 'PostgreSQL WAL replay' : 'PostgreSQL ready';
     process.stdout.write(chalk.dim(`  ▸ ${containerLabel}`));
 
     containerID = await docker.createContainer({
-      name: containerName,
+      name: targetContainerName,
       image: dockerImage,
       port,
       dataPath: mountpoint,
@@ -281,9 +291,6 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       parentBranchId: sourceBranch.id,
       isPrimary: false,
       snapshotName: fullSnapshotName,
-      zfsDataset: `${stateData.zfsPool}/${stateData.zfsDatasetBase}/${targetDatasetName}`,
-      zfsDatasetName: targetDatasetName,
-      containerName,
       port,
       createdAt: new Date().toISOString(),
       sizeBytes,

@@ -4,6 +4,10 @@
 # Integration tests with multiple containers can take several minutes
 timeout = 1200000
 
+# Increase hook timeout to 60 seconds (default is 5 seconds)
+# Needed for beforeAll hooks that create projects and wait for PostgreSQL
+hookTimeout = 60000
+
 # Tests run sequentially (not concurrent) to avoid:
 # - State file locking contention (state.json)
 # - ZFS dataset operation conflicts

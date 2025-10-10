@@ -4,6 +4,7 @@ import { StateManager } from '../../managers/state';
 import { WALManager } from '../../managers/wal';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
+import { getDatasetName } from '../../utils/naming';
 
 export interface WALCleanupOptions {
   days?: number;
@@ -28,7 +29,7 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
     throw new Error(`Branch '${target.full}' not found`);
   }
 
-  const datasetName = branch.zfsDataset.split('/').pop() || '';
+  const datasetName = getDatasetName(target.project, target.branch);
   const wal = new WALManager();
 
   console.log();

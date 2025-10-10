@@ -16,6 +16,7 @@ import { getZFSPool } from '../../utils/zfs-pool';
 import { validateAllPermissions } from '../../utils/zfs-permissions';
 import { requireSetup } from '../../utils/setup-check';
 import * as fs from 'fs/promises';
+import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 interface CreateOptions {
   pool?: string;
@@ -112,7 +113,9 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Create ZFS dataset for main branch
   const mainBranchName = buildNamespace(name, 'main');
-  const mainDatasetName = `${name}-main`; // Use consistent naming: <project>-<branch>
+  const mainDatasetName = getDatasetName(name, 'main');
+  const mainDatasetPath = getDatasetPath(pool, fullDatasetBase, name, 'main');
+  const mainContainerName = getContainerName(name, 'main');
 
   const datasetStart = Date.now();
   process.stdout.write(chalk.dim(`  ▸ Create dataset ${mainBranchName}`));
@@ -144,7 +147,6 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Generate credentials
   const password = generatePassword();
-  const containerName = `${CONTAINER_PREFIX}-${name}-main`;
 
   // Pull PostgreSQL image if needed
   const imageExists = await docker.imageExists(dockerImage);
@@ -166,7 +168,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
 
   const containerID = await docker.createContainer({
-    name: containerName,
+    name: mainContainerName,
     image: dockerImage,
     port,
     dataPath: mountpoint,
@@ -197,9 +199,6 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     parentBranchId: null, // main has no parent
     isPrimary: true,
     snapshotName: null, // main has no snapshot
-    zfsDataset: `${pool}/${fullDatasetBase}/${mainDatasetName}`,
-    zfsDatasetName: mainDatasetName,
-    containerName,
     port,
     createdAt: new Date().toISOString(),
     sizeBytes,

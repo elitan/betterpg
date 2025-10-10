@@ -4,6 +4,7 @@ import { WALManager } from '../../managers/wal';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { formatRelativeTime } from '../../utils/time';
+import { getDatasetName } from '../../utils/naming';
 
 export async function walInfoCommand(branchName?: string) {
   const state = new StateManager(PATHS.STATE);
@@ -28,7 +29,7 @@ export async function walInfoCommand(branchName?: string) {
       throw new Error(`Branch '${target.full}' not found`);
     }
 
-    const datasetName = branch.zfsDataset.split('/').pop() || '';
+    const datasetName = getDatasetName(target.project, target.branch);
     const info = await wal.getArchiveInfo(datasetName);
 
     console.log(chalk.bold(`Branch: ${chalk.cyan(target.full)}`));
@@ -74,7 +75,8 @@ export async function walInfoCommand(branchName?: string) {
       console.log(chalk.bold(chalk.cyan(proj.name)));
 
       for (const branch of proj.branches) {
-        const datasetName = branch.zfsDataset.split('/').pop() || '';
+        const namespace = parseNamespace(branch.name);
+        const datasetName = getDatasetName(namespace.project, namespace.branch);
         const info = await wal.getArchiveInfo(datasetName);
 
         console.log(chalk.dim(`  ${branch.name}`));

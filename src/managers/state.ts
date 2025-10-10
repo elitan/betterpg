@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { State, Project, Branch, Backup } from '../types/state';
+import { State, Project, Branch, Snapshot } from '../types/state';
 
 export class StateManager {
   private state: State | null = null;
@@ -47,7 +47,6 @@ export class StateManager {
       zfsPool: pool,
       zfsDatasetBase: datasetBase,
       projects: [],
-      backups: [],
       snapshots: [],
     };
 
@@ -93,7 +92,6 @@ export class StateManager {
       zfsPool: pool,
       zfsDatasetBase: `${pool}/${datasetBase}`,
       projects: [],
-      backups: [],
       snapshots: [],
     };
 
@@ -251,37 +249,6 @@ export class StateManager {
   async listAllBranches(): Promise<Branch[]> {
     if (!this.state) throw new Error('State not loaded');
     return this.state.projects.flatMap(proj => proj.branches);
-  }
-
-
-  // Backup operations
-  async addBackup(backup: Backup): Promise<void> {
-    if (!this.state) throw new Error('State not loaded');
-    this.state.backups.push(backup);
-    await this.save();
-  }
-
-  async getBackupsForProject(projectID: string): Promise<Backup[]> {
-    if (!this.state) throw new Error('State not loaded');
-    return this.state.backups.filter(b => b.projectId === projectID);
-  }
-
-  async deleteOldBackups(retentionDays: number): Promise<Backup[]> {
-    if (!this.state) throw new Error('State not loaded');
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - retentionDays);
-
-    const toDelete = this.state.backups.filter(b =>
-      new Date(b.timestamp) < cutoff
-    );
-
-    this.state.backups = this.state.backups.filter(b =>
-      new Date(b.timestamp) >= cutoff
-    );
-
-    await this.save();
-    return toDelete;
   }
 
   // Snapshot operations

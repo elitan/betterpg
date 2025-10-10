@@ -1,12 +1,18 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
+import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
+import { getDatasetName } from '../../utils/naming';
+import { parseNamespace } from '../../utils/namespace';
 
 export async function branchListCommand(projectName?: string) {
   const state = new StateManager(PATHS.STATE);
   await state.load();
+
+  const stateData = state.getState();
+  const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   const projects = await state.listProjects();
 
@@ -41,7 +47,7 @@ export async function branchListCommand(projectName?: string) {
     children: BranchNode[];
   }
 
-  function renderBranch(node: BranchNode, depth: number = 0) {
+  async function renderBranch(node: BranchNode, depth: number = 0) {
     const branch = node.branch;
     const statusIcon = branch.status === 'running' ? chalk.green('●') : chalk.red('●');
     const statusText = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
@@ -52,17 +58,29 @@ export async function branchListCommand(projectName?: string) {
     const name = indent + branch.name;
     const type = branch.isPrimary ? chalk.dim(' (main)') : '';
 
+    // Query size on-demand from ZFS
+    const namespace = parseNamespace(branch.name);
+    const datasetName = getDatasetName(namespace.project, namespace.branch);
+    let sizeBytes = 0;
+    try {
+      sizeBytes = await zfs.getUsedSpace(datasetName);
+    } catch {
+      // If dataset doesn't exist, show 0
+    }
+
     table.push([
       statusIcon,
       name + type,
       statusText,
       port,
-      formatBytes(branch.sizeBytes),
+      formatBytes(sizeBytes),
       new Date(branch.createdAt).toLocaleString()
     ]);
 
     // Render children
-    node.children.forEach(child => renderBranch(child, depth + 1));
+    for (const child of node.children) {
+      await renderBranch(child, depth + 1);
+    }
   }
 
   // Process each project
@@ -92,7 +110,9 @@ export async function branchListCommand(projectName?: string) {
     }
 
     // Render tree
-    roots.forEach(root => renderBranch(root, 0));
+    for (const root of roots) {
+      await renderBranch(root, 0);
+    }
   }
 
   console.log();

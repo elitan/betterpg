@@ -50,9 +50,9 @@ export async function beforeAll(): Promise<void> {
     // Ignore errors
   }
 
-  // Remove state and config directories
+  // Remove state directory
   try {
-    await $`rm -rf ${PATHS.DATA_DIR} ${PATHS.CONFIG_DIR}`.quiet();
+    await $`rm -rf ${PATHS.DATA_DIR}`.quiet();
   } catch {
     // Ignore errors
   }
@@ -60,7 +60,7 @@ export async function beforeAll(): Promise<void> {
   // When running with sudo (UID 0), also clean /root directories
   if (process.getuid?.() === 0) {
     try {
-      await $`rm -rf /root/.local/share/pgd /root/.config/pgd`.quiet();
+      await $`rm -rf /root/.pgd`.quiet();
     } catch {
       // Ignore errors
     }
@@ -93,9 +93,9 @@ export async function afterAll(): Promise<void> {
     // Ignore errors
   }
 
-  // Remove state and config directories
+  // Remove state directory
   try {
-    await $`rm -rf ${PATHS.DATA_DIR} ${PATHS.CONFIG_DIR}`.quiet();
+    await $`rm -rf ${PATHS.DATA_DIR}`.quiet();
   } catch {
     // Ignore errors
   }
@@ -103,7 +103,7 @@ export async function afterAll(): Promise<void> {
   // When running with sudo (UID 0), also clean /root directories
   if (process.getuid?.() === 0) {
     try {
-      await $`rm -rf /root/.local/share/pgd /root/.config/pgd`.quiet();
+      await $`rm -rf /root/.pgd`.quiet();
     } catch {
       // Ignore errors
     }
