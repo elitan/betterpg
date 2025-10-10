@@ -346,7 +346,7 @@ pgd wal cleanup prod/main --days 7
 pgd wal cleanup prod/main --days 7 --dry-run
 ```
 
-**WAL location:** `~/.local/share/pgd/wal-archive/<dataset>/`
+**WAL location:** `~/.pgd/wal-archive/<dataset>/`
 </details>
 
 <details>
@@ -492,9 +492,9 @@ crontab -e
 4. Creates WAL archive directory
 
 **File locations:**
-- State: `~/.local/share/pgd/state.json`
-- State lock: `~/.local/share/pgd/state.json.lock`
-- WAL archive: `~/.local/share/pgd/wal-archive/<dataset>/`
+- State: `~/.pgd/state.json`
+- State lock: `~/.pgd/state.json.lock`
+- WAL archive: `~/.pgd/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/pgd/databases/<project>-<branch>`
 - Docker containers: `pgd-<project>-<branch>`
 </details>

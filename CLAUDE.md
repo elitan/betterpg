@@ -124,7 +124,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 ### Manager Classes
 
 **StateManager** (`src/managers/state.ts`):
-- Manages JSON state file at `~/.local/share/pgd/state.json`
+- Manages JSON state file at `~/.pgd/state.json`
 - Implements file locking to prevent concurrent modifications
 - Validates state integrity (unique names, namespaced branches, main branch exists)
 - State structure: projects[] with nested branches[]
@@ -147,7 +147,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
-- WAL archive location: `~/.local/share/pgd/wal-archive/<dataset>/`
+- WAL archive location: `~/.pgd/wal-archive/<dataset>/`
 - Key methods:
   - `ensureArchiveDir()` - Creates WAL archive directory with correct permissions
   - `getArchiveInfo()` - Returns file count, total size, oldest/newest timestamps
@@ -159,7 +159,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WAL Archiving Configuration:**
 - Enabled on all PostgreSQL containers via archive_command
-- WAL files archived to `~/.local/share/pgd/wal-archive/<dataset>/`
+- WAL files archived to `~/.pgd/wal-archive/<dataset>/`
 - Each branch has its own isolated WAL archive directory
 - Commands: `pgd wal info [branch]`, `pgd wal cleanup <branch> --days <n>`
 
@@ -268,9 +268,9 @@ This command:
 
 ## File Locations
 
-- State: `~/.local/share/pgd/state.json` (stores pool, dataset base, projects, branches, snapshots)
-- State lock: `~/.local/share/pgd/state.json.lock`
-- WAL archive: `~/.local/share/pgd/wal-archive/<dataset>/`
+- State: `~/.pgd/state.json` (stores pool, dataset base, projects, branches, snapshots)
+- State lock: `~/.pgd/state.json.lock`
+- WAL archive: `~/.pgd/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/pgd/databases/<project>-<branch>` (pool auto-detected)
 - Docker containers: `pgd-<project>-<branch>` (PostgreSQL databases)
 

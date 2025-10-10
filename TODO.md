@@ -130,7 +130,7 @@
 
 - [x] WAL archiving setup and configuration
   - Configured PostgreSQL archive_mode and archive_command in DockerManager
-  - Local WAL archive directory structure at `/var/lib/pgd/wal-archive/<dataset>/`
+  - Local WAL archive directory structure at `~/.pgd/wal-archive/<dataset>/`
   - Per-branch WAL archive isolation
 - [x] WAL archive monitoring and management
   - WALManager tracks archive size, file count, and age
@@ -305,10 +305,13 @@ User → CLI (src/index.ts)
 ```
 
 ### File Locations
-- Config: `/etc/pgd/config.yaml`
-- State: `/var/lib/pgd/state.json`
-- WAL Archive: `/var/lib/pgd/wal-archive/`
-- ZFS Base: `tank/pgd/databases/`
+- State: `~/.pgd/state.json`
+- State lock: `~/.pgd/state.json.lock`
+- WAL Archive: `~/.pgd/wal-archive/<dataset>/`
+- ZFS Base: `<pool>/pgd/databases/<project>-<branch>`
+- Docker containers: `pgd-<project>-<branch>`
+
+**Note:** No config file - uses hardcoded defaults in `src/config/defaults.ts`
 
 ---
 
