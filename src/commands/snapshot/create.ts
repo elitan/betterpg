@@ -1,4 +1,3 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
@@ -6,6 +5,8 @@ import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { generateUUID, formatTimestamp } from '../../utils/helpers';
 import type { Snapshot } from '../../types/state';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export interface SnapshotCreateOptions {
@@ -29,12 +30,18 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   // Find the branch
   const proj = await state.getProjectByName(target.project);
   if (!proj) {
-    throw new Error(`Project '${target.project}' not found`);
+    throw new UserError(
+      `Project '${target.project}' not found`,
+      "Run 'pgd project list' to see available projects"
+    );
   }
 
   const branch = proj.branches.find(b => b.name === target.full);
   if (!branch) {
-    throw new Error(`Branch '${target.full}' not found`);
+    throw new UserError(
+      `Branch '${target.full}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   // Get ZFS config from state
@@ -53,17 +60,12 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
 
     const containerID = await docker.getContainerByName(containerName);
     if (!containerID) {
-      throw new Error(`Container ${containerName} not found`);
+      throw new UserError(`Container ${containerName} not found`);
     }
 
-    const spinner = ora('Running CHECKPOINT').start();
-    try {
+    await withProgress('Checkpoint', async () => {
       await docker.execSQL(containerID, 'CHECKPOINT;', proj.credentials.username);
-      spinner.succeed('CHECKPOINT completed');
-    } catch (error: any) {
-      spinner.fail('CHECKPOINT failed');
-      throw error;
-    }
+    });
   }
 
   // Create ZFS snapshot
@@ -72,19 +74,15 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
     ? `${snapshotTimestamp}-${options.label}`
     : snapshotTimestamp;
 
-  const snapshotStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Create snapshot'));
-  await zfs.createSnapshot(datasetName, snapshotName);
-  const fullSnapshotName = `${datasetPath}@${snapshotName}`;
-  const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
+  const fullSnapshotName = await withProgress('Create snapshot', async () => {
+    await zfs.createSnapshot(datasetName, snapshotName);
+    return `${datasetPath}@${snapshotName}`;
+  });
 
   // Get snapshot size
-  const sizeStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Calculate size'));
-  const sizeBytes = await zfs.getSnapshotSize(fullSnapshotName);
-  const sizeTime = ((Date.now() - sizeStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Calculate size'.length)}${sizeTime}s`));
+  const sizeBytes = await withProgress('Calculate size', async () => {
+    return await zfs.getSnapshotSize(fullSnapshotName);
+  });
 
   // Create snapshot record
   const snapshot: Snapshot = {

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
+import { UserError } from '../../errors';
 
 export async function projectGetCommand(name: string) {
   const state = new StateManager(PATHS.STATE);
@@ -10,7 +11,10 @@ export async function projectGetCommand(name: string) {
 
   const project = await state.getProjectByName(name);
   if (!project) {
-    throw new Error(`Project '${name}' not found`);
+    throw new UserError(
+      `Project '${name}' not found`,
+      "Run 'pgd project list' to see available projects"
+    );
   }
 
   console.log();

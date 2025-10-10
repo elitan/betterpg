@@ -1,5 +1,6 @@
 import Dockerode from 'dockerode';
 import { BACKUP_LABEL_PREFIX } from '../config/constants';
+import { SystemError } from '../errors';
 
 export interface PostgresConfig {
   name: string;
@@ -140,7 +141,7 @@ export class DockerManager {
 
     const portBinding = info.NetworkSettings.Ports['5432/tcp'];
     if (!portBinding || !portBinding[0]?.HostPort) {
-      throw new Error('Container port binding not found');
+      throw new SystemError('Container port binding not found');
     }
 
     return parseInt(portBinding[0].HostPort, 10);
@@ -166,7 +167,7 @@ export class DockerManager {
       await Bun.sleep(100);  // Poll every 100ms for faster detection
     }
 
-    throw new Error(`Container ${containerID} failed to become healthy within ${timeout}ms`);
+    throw new SystemError(`Container ${containerID} failed to become healthy within ${timeout}ms`);
   }
 
   // Image management

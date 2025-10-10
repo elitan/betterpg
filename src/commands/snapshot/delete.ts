@@ -1,8 +1,9 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 
 export async function snapshotDeleteCommand(snapshotId: string) {
   console.log();
@@ -15,7 +16,10 @@ export async function snapshotDeleteCommand(snapshotId: string) {
   // Find the snapshot
   const snapshot = await state.getSnapshotById(snapshotId);
   if (!snapshot) {
-    throw new Error(`Snapshot not found: ${snapshotId}`);
+    throw new UserError(
+      `Snapshot not found: ${snapshotId}`,
+      "Run 'pgd snapshot list' to see available snapshots"
+    );
   }
 
   // Get ZFS config from state
@@ -23,9 +27,9 @@ export async function snapshotDeleteCommand(snapshotId: string) {
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
 
   // Delete ZFS snapshot
-  const spinner = ora('Deleting ZFS snapshot').start();
-  await zfs.destroySnapshot(snapshot.zfsSnapshot);
-  spinner.succeed('ZFS snapshot deleted');
+  await withProgress('Delete ZFS snapshot', async () => {
+    await zfs.destroySnapshot(snapshot.zfsSnapshot);
+  });
 
   // Remove from state
   await state.deleteSnapshot(snapshotId);

@@ -1,10 +1,11 @@
 import chalk from 'chalk';
-import ora from 'ora';
 import { StateManager } from '../../managers/state';
 import { WALManager } from '../../managers/wal';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { getDatasetName } from '../../utils/naming';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 
 export interface WALCleanupOptions {
   days?: number;
@@ -21,12 +22,18 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
 
   const proj = await state.getProjectByName(target.project);
   if (!proj) {
-    throw new Error(`Project '${target.project}' not found`);
+    throw new UserError(
+      `Project '${target.project}' not found`,
+      "Run 'pgd project list' to see available projects"
+    );
   }
 
   const branch = proj.branches.find(b => b.name === target.full);
   if (!branch) {
-    throw new Error(`Branch '${target.full}' not found`);
+    throw new UserError(
+      `Branch '${target.full}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   const datasetName = getDatasetName(target.project, target.branch);
@@ -42,11 +49,11 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
   console.log(chalk.dim(`Retention: ${retentionDays} days`));
   console.log();
 
-  const spinner = ora('Scanning WAL archive').start();
-
   // Get archive info before cleanup
-  const beforeInfo = await wal.getArchiveInfo(datasetName);
-  spinner.succeed(`Found ${beforeInfo.fileCount} WAL files`);
+  const beforeInfo = await withProgress('Scan WAL archive', async () => {
+    return await wal.getArchiveInfo(datasetName);
+  });
+  console.log(`Found ${beforeInfo.fileCount} WAL files`);
 
   if (beforeInfo.fileCount === 0) {
     console.log(chalk.dim('No WAL files to clean up'));
@@ -69,9 +76,10 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
       console.log(chalk.green('No files old enough to delete'));
     }
   } else {
-    const cleanupSpinner = ora('Cleaning up old WAL files').start();
-    const deletedCount = await wal.cleanupOldWALs(datasetName, retentionDays);
-    cleanupSpinner.succeed(`Deleted ${deletedCount} old WAL files`);
+    const deletedCount = await withProgress('Clean up old WAL files', async () => {
+      return await wal.cleanupOldWALs(datasetName, retentionDays);
+    });
+    console.log(`Deleted ${deletedCount} old WAL files`);
 
     // Get archive info after cleanup
     const afterInfo = await wal.getArchiveInfo(datasetName);

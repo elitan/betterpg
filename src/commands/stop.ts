@@ -1,12 +1,11 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { PATHS } from '../utils/paths';
 import { getContainerName } from '../utils/naming';
 import { parseNamespace } from '../utils/namespace';
-
-
+import { UserError } from '../errors';
+import { withProgress } from '../utils/progress';
 
 export async function stopCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -22,7 +21,10 @@ export async function stopCommand(name: string) {
   const branchResult = await state.getBranchByNamespace(name);
 
   if (!branchResult) {
-    throw new Error(`Branch '${name}' not found`);
+    throw new UserError(
+      `Branch '${name}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   const { branch, project } = branchResult;
@@ -41,14 +43,12 @@ export async function stopCommand(name: string) {
   const containerName = getContainerName(namespace.project, namespace.branch);
   const containerID = await docker.getContainerByName(containerName);
   if (!containerID) {
-    throw new Error(`Container '${containerName}' not found`);
+    throw new UserError(`Container '${containerName}' not found`);
   }
 
-  const stopTime = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Stop container'));
-  await docker.stopContainer(containerID);
-  const stopDuration = ((Date.now() - stopTime) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopDuration}s`));
+  await withProgress('Stop container', async () => {
+    await docker.stopContainer(containerID);
+  });
 
   // Update state
   branch.status = 'stopped';

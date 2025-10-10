@@ -1,16 +1,16 @@
 import { PATHS } from '../../utils/paths';
-import ora from 'ora';
 import chalk from 'chalk';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { WALManager } from '../../managers/wal';
 import { StateManager } from '../../managers/state';
-import { generateUUID, sanitizeName, formatTimestamp } from '../../utils/helpers';
+import { generateUUID, formatTimestamp } from '../../utils/helpers';
 import type { Branch } from '../../types/state';
-import { parseNamespace, buildNamespace, getMainBranch } from '../../utils/namespace';
+import { parseNamespace, getMainBranch } from '../../utils/namespace';
 import { parseRecoveryTime, formatDate } from '../../utils/time';
 import { Rollback } from '../../utils/rollback';
-import { CONTAINER_PREFIX } from '../../config/constants';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
 export interface BranchCreateOptions {
@@ -35,8 +35,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   // Validate source and target are in same project
   if (source.project !== target.project) {
-    throw new Error(
-      `Source and target must be in the same project. Source: ${source.project}, Target: ${target.project}`
+    throw new UserError(
+      `Source and target must be in the same project`,
+      `Source: ${source.project}, Target: ${target.project}`
     );
   }
 
@@ -58,18 +59,24 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   // Find source project and branch
   const sourceProject = await state.getProjectByName(source.project);
   if (!sourceProject) {
-    throw new Error(`Project '${source.project}' not found`);
+    throw new UserError(
+      `Project '${source.project}' not found`,
+      "Run 'pgd project list' to see available projects"
+    );
   }
 
   const sourceBranch = sourceProject.branches.find(b => b.name === source.full);
   if (!sourceBranch) {
-    throw new Error(`Source branch '${source.full}' not found`);
+    throw new UserError(
+      `Source branch '${source.full}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   // Check if target already exists
   const existingBranch = sourceProject.branches.find(b => b.name === target.full);
   if (existingBranch) {
-    throw new Error(`Branch '${target.full}' already exists`);
+    throw new UserError(`Branch '${target.full}' already exists`);
   }
 
   // Get ZFS config from state
@@ -97,8 +104,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     );
 
     if (validSnapshots.length === 0) {
-      throw new Error(
-        `No snapshots found before recovery target ${formatDate(recoveryTarget)}.\n` +
+      throw new UserError(
+        `No snapshots found before recovery target ${formatDate(recoveryTarget)}`,
         `Create a snapshot with: pgd snapshot create ${source.full} --label <name>`
       );
     }
@@ -112,7 +119,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     fullSnapshotName = selectedSnapshot.zfsSnapshot;
     const parts = fullSnapshotName.split('@');
     if (parts.length !== 2 || !parts[1]) {
-      throw new Error(`Invalid snapshot name format: ${fullSnapshotName}`);
+      throw new UserError(`Invalid snapshot name format: ${fullSnapshotName}`);
     }
     snapshotName = parts[1];
 
@@ -146,38 +153,25 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       // 4. No need for WAL replay on recovery
       const containerID = await docker.getContainerByName(sourceContainerName);
       if (!containerID) {
-        throw new Error(`Container ${sourceContainerName} not found`);
+        throw new UserError(`Container ${sourceContainerName} not found`);
       }
 
-      try {
-        const checkpointStart = Date.now();
-        process.stdout.write(chalk.dim('  ▸ Checkpoint'));
+      await withProgress('Checkpoint', async () => {
         // Force a checkpoint to ensure all data is written to disk
         await docker.execSQL(containerID, 'CHECKPOINT;', sourceProject.credentials.username);
-        const checkpointTime = ((Date.now() - checkpointStart) / 1000).toFixed(1);
-        console.log(chalk.dim(`${' '.repeat(40 - 'Checkpoint'.length)}${checkpointTime}s`));
+      });
 
-        // Create ZFS snapshot immediately after checkpoint
-        const snapshotStart = Date.now();
-        process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
+      // Create ZFS snapshot immediately after checkpoint
+      await withProgress(`Snapshot ${snapshotName}`, async () => {
         await zfs.createSnapshot(sourceDatasetName, snapshotName);
         createdSnapshot = true;
-        const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
-        const labelLength = `Snapshot ${snapshotName}`.length;
-        console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${snapshotTime}s`));
-      } catch (error: any) {
-        console.log(); // New line after incomplete progress line
-        throw error;
-      }
+      });
     } else {
       // Database is stopped - direct snapshot
-      const snapshotStart = Date.now();
-      process.stdout.write(chalk.dim(`  ▸ Snapshot ${snapshotName}`));
-      await zfs.createSnapshot(sourceDatasetName, snapshotName);
-      createdSnapshot = true;
-      const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
-      const labelLength = `Snapshot ${snapshotName}`.length;
-      console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${snapshotTime}s`));
+      await withProgress(`Snapshot ${snapshotName}`, async () => {
+        await zfs.createSnapshot(sourceDatasetName, snapshotName);
+        createdSnapshot = true;
+      });
     }
   }
 
@@ -190,11 +184,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   let containerID: string | undefined;
 
   try {
-    const cloneStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Clone dataset'));
-    await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
-    const cloneTime = ((Date.now() - cloneStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Clone dataset'.length)}${cloneTime}s`));
+    await withProgress('Clone dataset', async () => {
+      await zfs.cloneSnapshot(fullSnapshotName, targetDatasetName);
+    });
 
     // Rollback: destroy cloned dataset
     rollback.add(async () => {
@@ -209,11 +201,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     }
 
     // Mount the dataset (requires sudo on Linux due to kernel restrictions)
-    const mountStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Mount dataset'));
-    await zfs.mountDataset(targetDatasetName);
-    const mountTime = ((Date.now() - mountStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Mount dataset'.length)}${mountTime}s`));
+    await withProgress('Mount dataset', async () => {
+      await zfs.mountDataset(targetDatasetName);
+    });
 
     mountpoint = await zfs.getMountpoint(targetDatasetName);
 
@@ -224,12 +214,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     const dockerImage = sourceProject.dockerImage;
     const imageExists = await docker.imageExists(dockerImage);
     if (!imageExists) {
-      const pullStart = Date.now();
-      process.stdout.write(chalk.dim(`  ▸ Pull ${dockerImage}`));
-      await docker.pullImage(dockerImage);
-      const pullTime = ((Date.now() - pullStart) / 1000).toFixed(1);
-      const labelLength = `Pull ${dockerImage}`.length;
-      console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${pullTime}s`));
+      await withProgress(`Pull ${dockerImage}`, async () => {
+        await docker.pullImage(dockerImage);
+      });
     }
 
     // Create WAL archive directory for target branch
@@ -241,54 +228,46 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
     // If PITR is requested, setup recovery configuration
     if (recoveryTarget) {
-      const pitrStart = Date.now();
-      process.stdout.write(chalk.dim('  ▸ Configure PITR recovery'));
+      await withProgress('Configure PITR recovery', async () => {
+        // Get source WAL archive path (shared across all branches of same project)
+        const sourceWALArchivePath = wal.getArchivePath(sourceDatasetName);
 
-      // Get source WAL archive path (shared across all branches of same project)
-      const sourceWALArchivePath = wal.getArchivePath(sourceDatasetName);
+        // Setup recovery configuration in the cloned dataset
+        await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
 
-      // Setup recovery configuration in the cloned dataset
-      await wal.setupPITRecovery(mountpoint, sourceWALArchivePath, recoveryTarget);
-
-      // For PITR recovery, mount the SOURCE WAL archive so PostgreSQL can read archived WAL files
-      walArchivePath = sourceWALArchivePath;
-
-      const pitrTime = ((Date.now() - pitrStart) / 1000).toFixed(1);
-      console.log(chalk.dim(`${' '.repeat(40 - 'Configure PITR recovery'.length)}${pitrTime}s`));
+        // For PITR recovery, mount the SOURCE WAL archive so PostgreSQL can read archived WAL files
+        walArchivePath = sourceWALArchivePath;
+      });
     }
 
     // Create and start container
-    const containerStart = Date.now();
     const containerLabel = recoveryTarget ? 'PostgreSQL WAL replay' : 'PostgreSQL ready';
-    process.stdout.write(chalk.dim(`  ▸ ${containerLabel}`));
+    containerID = await withProgress(containerLabel, async () => {
+      const id = await docker.createContainer({
+        name: targetContainerName,
+        image: dockerImage,
+        port,
+        dataPath: mountpoint,
+        walArchivePath,
+        sslCertDir: sourceProject.sslCertDir,
+        password: sourceProject.credentials.password,
+        username: sourceProject.credentials.username,
+        database: sourceProject.credentials.database,
+      });
 
-    containerID = await docker.createContainer({
-      name: targetContainerName,
-      image: dockerImage,
-      port,
-      dataPath: mountpoint,
-      walArchivePath,
-      sslCertDir: sourceProject.sslCertDir,
-      password: sourceProject.credentials.password,
-      username: sourceProject.credentials.username,
-      database: sourceProject.credentials.database,
+      // Rollback: remove container
+      rollback.add(async () => {
+        await docker.removeContainer(id).catch(() => {});
+      });
+
+      await docker.startContainer(id);
+      await docker.waitForHealthy(id);
+
+      return id;
     });
-
-    // Rollback: remove container
-    rollback.add(async () => {
-      if (containerID) {
-        await docker.removeContainer(containerID).catch(() => {});
-      }
-    });
-
-    await docker.startContainer(containerID);
-    await docker.waitForHealthy(containerID);
 
     // Get the dynamically assigned port from Docker
     port = await docker.getContainerPort(containerID);
-
-    const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - containerLabel.length)}${containerTime}s`));
 
     const sizeBytes = await zfs.getUsedSpace(targetDatasetName);
 

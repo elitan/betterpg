@@ -5,6 +5,7 @@ import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { formatRelativeTime } from '../../utils/time';
 import { getDatasetName } from '../../utils/naming';
+import { UserError } from '../../errors';
 
 export async function walInfoCommand(branchName?: string) {
   const state = new StateManager(PATHS.STATE);
@@ -21,12 +22,18 @@ export async function walInfoCommand(branchName?: string) {
     const target = parseNamespace(branchName);
     const proj = await state.getProjectByName(target.project);
     if (!proj) {
-      throw new Error(`Project '${target.project}' not found`);
+      throw new UserError(
+        `Project '${target.project}' not found`,
+        "Run 'pgd project list' to see available projects"
+      );
     }
 
     const branch = proj.branches.find(b => b.name === target.full);
     if (!branch) {
-      throw new Error(`Branch '${target.full}' not found`);
+      throw new UserError(
+        `Branch '${target.full}' not found`,
+        "Run 'pgd branch list' to see available branches"
+      );
     }
 
     const datasetName = getDatasetName(target.project, target.branch);

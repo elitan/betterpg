@@ -1,6 +1,4 @@
-import ora from 'ora';
 import chalk from 'chalk';
-import { $ } from 'bun';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
@@ -10,11 +8,12 @@ import { generateUUID, generatePassword } from '../../utils/helpers';
 import type { Project, Branch } from '../../types/state';
 import { PATHS } from '../../utils/paths';
 import { buildNamespace, validateName } from '../../utils/namespace';
-import { CONTAINER_PREFIX } from '../../config/constants';
 import { DEFAULTS } from '../../config/defaults';
 import { getZFSPool } from '../../utils/zfs-pool';
 import { validateAllPermissions } from '../../utils/zfs-permissions';
 import { requireSetup } from '../../utils/setup-check';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 import * as fs from 'fs/promises';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 
@@ -33,7 +32,10 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Validate flags
   if (options.version && options.image) {
-    throw new Error('Cannot specify both --version and --image. Use one or the other.');
+    throw new UserError(
+      'Cannot specify both --version and --image',
+      'Use one or the other'
+    );
   }
 
   // Determine Docker image to use
@@ -57,45 +59,35 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Auto-detect or validate ZFS pool
   let pool: string;
   if (options.pool) {
-    const poolStart = Date.now();
-    process.stdout.write(chalk.dim(`  ▸ Validate ZFS pool ${options.pool}`));
-    pool = await getZFSPool(options.pool);
-    const poolTime = ((Date.now() - poolStart) / 1000).toFixed(1);
-    const labelLength = `Validate ZFS pool ${options.pool}`.length;
-    console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${poolTime}s`));
+    pool = await withProgress(`Validate ZFS pool ${options.pool}`, async () => {
+      return await getZFSPool(options.pool);
+    });
   } else {
-    const poolStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Detect ZFS pool'));
-    pool = await getZFSPool();
-    const poolTime = ((Date.now() - poolStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Detect ZFS pool'.length)}${poolTime}s`));
+    pool = await withProgress('Detect ZFS pool', async () => {
+      return await getZFSPool();
+    });
   }
 
   // Validate permissions before proceeding
-  const permStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Validate permissions'));
-  await validateAllPermissions(pool, DEFAULTS.zfs.datasetBase);
-  const permTime = ((Date.now() - permStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Validate permissions'.length)}${permTime}s`));
+  await withProgress('Validate permissions', async () => {
+    await validateAllPermissions(pool, DEFAULTS.zfs.datasetBase);
+  });
 
   // Auto-initialize state if needed (first project create)
   if (!state.isInitialized()) {
-    const initStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Initialize pgd'));
+    await withProgress('Initialize pgd', async () => {
+      // Create WAL archive directory
+      await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
 
-    // Create WAL archive directory
-    await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
-
-    // Initialize state
-    await state.autoInitialize(pool, DEFAULTS.zfs.datasetBase);
-    const initTime = ((Date.now() - initStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Initialize pgd'.length)}${initTime}s`));
+      // Initialize state
+      await state.autoInitialize(pool, DEFAULTS.zfs.datasetBase);
+    });
   }
 
   // Check if project already exists
   const existing = await state.getProjectByName(name);
   if (existing) {
-    throw new Error(`Project '${name}' already exists`);
+    throw new UserError(`Project '${name}' already exists`);
   }
 
   // Get ZFS config from state
@@ -117,33 +109,26 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   const mainDatasetPath = getDatasetPath(pool, fullDatasetBase, name, 'main');
   const mainContainerName = getContainerName(name, 'main');
 
-  const datasetStart = Date.now();
-  process.stdout.write(chalk.dim(`  ▸ Create dataset ${mainBranchName}`));
-  await zfs.createDataset(mainDatasetName, {
-    compression: DEFAULTS.zfs.compression,
-    recordsize: DEFAULTS.zfs.recordsize,
-    atime: DEFAULTS.zfs.atime,
+  await withProgress(`Create dataset ${mainBranchName}`, async () => {
+    await zfs.createDataset(mainDatasetName, {
+      compression: DEFAULTS.zfs.compression,
+      recordsize: DEFAULTS.zfs.recordsize,
+      atime: DEFAULTS.zfs.atime,
+    });
   });
-  const datasetTime = ((Date.now() - datasetStart) / 1000).toFixed(1);
-  const datasetLabel = `Create dataset ${mainBranchName}`.length;
-  console.log(chalk.dim(`${' '.repeat(40 - datasetLabel)}${datasetTime}s`));
 
   // Mount the dataset (requires sudo on Linux due to kernel restrictions)
-  const mountStart = Date.now();
-  process.stdout.write(chalk.dim(`  ▸ Mount dataset`));
-  await zfs.mountDataset(mainDatasetName);
-  const mountTime = ((Date.now() - mountStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Mount dataset'.length)}${mountTime}s`));
+  await withProgress('Mount dataset', async () => {
+    await zfs.mountDataset(mainDatasetName);
+  });
 
   // Get dataset mountpoint
   const mountpoint = await zfs.getMountpoint(mainDatasetName);
 
   // Generate SSL certificates
-  const certStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Generate SSL certificates'));
-  const certPaths = await cert.generateCerts(name);
-  const certTime = ((Date.now() - certStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Generate SSL certificates'.length)}${certTime}s`));
+  const certPaths = await withProgress('Generate SSL certificates', async () => {
+    return await cert.generateCerts(name);
+  });
 
   // Generate credentials
   const password = generatePassword();
@@ -151,12 +136,9 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   // Pull PostgreSQL image if needed
   const imageExists = await docker.imageExists(dockerImage);
   if (!imageExists) {
-    const pullStart = Date.now();
-    process.stdout.write(chalk.dim(`  ▸ Pull ${dockerImage}`));
-    await docker.pullImage(dockerImage);
-    const pullTime = ((Date.now() - pullStart) / 1000).toFixed(1);
-    const pullLabel = `Pull ${dockerImage}`.length;
-    console.log(chalk.dim(`${' '.repeat(40 - pullLabel)}${pullTime}s`));
+    await withProgress(`Pull ${dockerImage}`, async () => {
+      await docker.pullImage(dockerImage);
+    });
   }
 
   // Create WAL archive directory
@@ -164,29 +146,27 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   const walArchivePath = wal.getArchivePath(mainDatasetName);
 
   // Create and start Docker container for main branch
-  const containerStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
+  const containerID = await withProgress('PostgreSQL ready', async () => {
+    const id = await docker.createContainer({
+      name: mainContainerName,
+      image: dockerImage,
+      port,
+      dataPath: mountpoint,
+      walArchivePath,
+      sslCertDir: certPaths.certDir,
+      password,
+      username: 'postgres',
+      database: 'postgres',
+    });
 
-  const containerID = await docker.createContainer({
-    name: mainContainerName,
-    image: dockerImage,
-    port,
-    dataPath: mountpoint,
-    walArchivePath,
-    sslCertDir: certPaths.certDir,
-    password,
-    username: 'postgres',
-    database: 'postgres',
+    await docker.startContainer(id);
+    await docker.waitForHealthy(id);
+
+    return id;
   });
-
-  await docker.startContainer(containerID);
-  await docker.waitForHealthy(containerID);
 
   // Get the dynamically assigned port from Docker
   port = await docker.getContainerPort(containerID);
-
-  const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${containerTime}s`));
 
   // Get dataset size
   const sizeBytes = await zfs.getUsedSpace(mainDatasetName);

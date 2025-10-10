@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import type { State, Project, Branch, Snapshot } from '../types/state';
+import { UserError, SystemError } from '../errors';
 
 export class StateManager {
   private state: State | null = null;
@@ -21,7 +22,7 @@ export class StateManager {
         // Return without error - state will be auto-initialized on first project create
         return;
       }
-      throw new Error(`Failed to load state: ${error.message}`);
+      throw new SystemError(`Failed to load state: ${error.message}`);
     }
   }
 
@@ -103,7 +104,7 @@ export class StateManager {
     if (!this.state) throw new Error('State not loaded');
 
     if (this.state.projects.some(p => p.name === proj.name)) {
-      throw new Error(`Project '${proj.name}' already exists`);
+      throw new UserError(`Project '${proj.name}' already exists`);
     }
 
     this.state.projects.push(proj);
@@ -133,7 +134,7 @@ export class StateManager {
 
     const index = this.state.projects.findIndex(p => p.id === proj.id);
     if (index === -1) {
-      throw new Error(`Project ${proj.id} not found`);
+      throw new UserError(`Project ${proj.id} not found`);
     }
 
     this.state.projects[index] = proj;
@@ -148,7 +149,7 @@ export class StateManager {
     );
 
     if (index === -1) {
-      throw new Error(`Project '${nameOrID}' not found`);
+      throw new UserError(`Project '${nameOrID}' not found`);
     }
 
     this.state.projects.splice(index, 1);
@@ -166,11 +167,11 @@ export class StateManager {
 
     const proj = this.state.projects.find(p => p.id === projectID);
     if (!proj) {
-      throw new Error(`Project ${projectID} not found`);
+      throw new UserError(`Project ${projectID} not found`);
     }
 
     if (proj.branches.some(b => b.name === branch.name)) {
-      throw new Error(`Branch '${branch.name}' already exists`);
+      throw new UserError(`Branch '${branch.name}' already exists`);
     }
 
     proj.branches.push(branch);
@@ -217,12 +218,12 @@ export class StateManager {
 
     const proj = this.state.projects.find(p => p.id === projectID);
     if (!proj) {
-      throw new Error(`Project ${projectID} not found`);
+      throw new UserError(`Project ${projectID} not found`);
     }
 
     const index = proj.branches.findIndex(b => b.id === branch.id);
     if (index === -1) {
-      throw new Error(`Branch ${branch.id} not found`);
+      throw new UserError(`Branch ${branch.id} not found`);
     }
 
     proj.branches[index] = branch;
@@ -234,12 +235,12 @@ export class StateManager {
 
     const proj = this.state.projects.find(p => p.id === projectID);
     if (!proj) {
-      throw new Error(`Project ${projectID} not found`);
+      throw new UserError(`Project ${projectID} not found`);
     }
 
     const index = proj.branches.findIndex(b => b.id === branchID);
     if (index === -1) {
-      throw new Error(`Branch ${branchID} not found`);
+      throw new UserError(`Branch ${branchID} not found`);
     }
 
     proj.branches.splice(index, 1);
@@ -277,7 +278,7 @@ export class StateManager {
     if (!this.state) throw new Error('State not loaded');
     const index = this.state.snapshots.findIndex(s => s.id === id);
     if (index === -1) {
-      throw new Error(`Snapshot not found: ${id}`);
+      throw new UserError(`Snapshot not found: ${id}`);
     }
     this.state.snapshots.splice(index, 1);
     await this.save();

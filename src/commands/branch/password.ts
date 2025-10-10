@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
+import { UserError } from '../../errors';
 
 export async function branchPasswordCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -11,7 +12,10 @@ export async function branchPasswordCommand(name: string) {
 
   const result = await state.getBranchByNamespace(name);
   if (!result) {
-    throw new Error(`Branch '${name}' not found`);
+    throw new UserError(
+      `Branch '${name}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   const { branch, project } = result;

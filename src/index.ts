@@ -25,6 +25,7 @@ import { restartCommand } from './commands/restart';
 import { statusCommand } from './commands/status';
 import { doctorCommand } from './commands/doctor';
 import { setupCommand } from './commands/setup';
+import { wrapCommand } from './utils/command-wrapper';
 import packageJson from '../package.json';
 
 const program = new Command();
@@ -50,42 +51,27 @@ projectCommand
   .option('--pool <name>', 'ZFS pool to use (auto-detected if not specified)')
   .option('--pg-version <version>', 'PostgreSQL version (e.g., 17, 16)')
   .option('--image <image>', 'Custom Docker image (e.g., ankane/pgvector:17)')
-  .action(async (name: string, options: { pool?: string; pgVersion?: string; image?: string }) => {
-    try {
-      // Map pgVersion to version for backwards compat
-      const opts = { ...options, version: options.pgVersion };
-      await projectCreateCommand(name, opts);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string, options: { pool?: string; pgVersion?: string; image?: string }) => {
+    // Map pgVersion to version for backwards compat
+    const opts = { ...options, version: options.pgVersion };
+    await projectCreateCommand(name, opts);
+  }));
 
 projectCommand
   .command('list')
   .alias('ls')
   .description('List all projects')
-  .action(async () => {
-    try {
-      await projectListCommand();
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async () => {
+    await projectListCommand();
+  }));
 
 projectCommand
   .command('get')
   .description('Get details about a project')
   .argument('<name>', 'project name')
-  .action(async (name: string) => {
-    try {
-      await projectGetCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await projectGetCommand(name);
+  }));
 
 projectCommand
   .command('delete')
@@ -93,14 +79,9 @@ projectCommand
   .description('Delete a project and all its branches')
   .argument('<name>', 'project name')
   .option('-f, --force', 'force delete even if branches exist')
-  .action(async (name: string, options: { force?: boolean }) => {
-    try {
-      await projectDeleteCommand(name, options);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string, options: { force?: boolean }) => {
+    await projectDeleteCommand(name, options);
+  }));
 
 
 // ============================================================================
@@ -118,83 +99,53 @@ branchCommand
   .argument('<name>', 'branch name in format: <project>/<branch>')
   .option('--from <parent>', 'parent branch (defaults to <project>/main)')
   .option('--pitr <time>', 'recover to point in time (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
-  .action(async (name: string, options: { from?: string; pitr?: string }) => {
-    try {
-      await branchCreateCommand(name, options);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string, options: { from?: string; pitr?: string }) => {
+    await branchCreateCommand(name, options);
+  }));
 
 branchCommand
   .command('list')
   .alias('ls')
   .description('List branches')
   .argument('[project]', 'project name (optional, lists all if not specified)')
-  .action(async (project?: string) => {
-    try {
-      await branchListCommand(project);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (project?: string) => {
+    await branchListCommand(project);
+  }));
 
 branchCommand
   .command('get')
   .description('Get details about a branch')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await branchGetCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await branchGetCommand(name);
+  }));
 
 branchCommand
   .command('delete')
   .alias('rm')
   .description('Delete a branch')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await branchDeleteCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await branchDeleteCommand(name);
+  }));
 
 branchCommand
   .command('reset')
   .description('Reset branch to parent\'s current state')
   .argument('<name>', 'branch name in format: <project>/<branch>')
   .option('-f, --force', 'force reset even if dependent branches exist (will destroy them)')
-  .action(async (name: string, options: { force?: boolean }) => {
-    try {
-      await branchResetCommand(name, options);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string, options: { force?: boolean }) => {
+    await branchResetCommand(name, options);
+  }));
 
 branchCommand
   .command('password')
   .alias('pass')
   .description('Show connection details and password for a branch')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await branchPasswordCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await branchPasswordCommand(name);
+  }));
 
 // ============================================================================
 // WAL commands
@@ -208,14 +159,9 @@ walCommand
   .command('info')
   .description('Show WAL archive status')
   .argument('[branch]', 'branch name in format: <project>/<branch> (optional, shows all if not specified)')
-  .action(async (branch?: string) => {
-    try {
-      await walInfoCommand(branch);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (branch?: string) => {
+    await walInfoCommand(branch);
+  }));
 
 walCommand
   .command('cleanup')
@@ -223,17 +169,12 @@ walCommand
   .argument('<branch>', 'branch name in format: <project>/<branch>')
   .option('--days <days>', 'retention period in days (default: 7)', '7')
   .option('--dry-run', 'show what would be deleted without actually deleting')
-  .action(async (branch: string, options: { days?: string; dryRun?: boolean }) => {
-    try {
-      await walCleanupCommand(branch, {
-        days: options.days ? parseInt(options.days, 10) : 7,
-        dryRun: options.dryRun,
-      });
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (branch: string, options: { days?: string; dryRun?: boolean }) => {
+    await walCleanupCommand(branch, {
+      days: options.days ? parseInt(options.days, 10) : 7,
+      dryRun: options.dryRun,
+    });
+  }));
 
 // ============================================================================
 // Snapshot commands
@@ -249,42 +190,27 @@ snapshotCommand
   .description('Create a snapshot of a branch')
   .argument('<branch>', 'branch name in format: <project>/<branch>')
   .option('--label <label>', 'optional label for the snapshot')
-  .action(async (branch: string, options: { label?: string }) => {
-    try {
-      await snapshotCreateCommand(branch, options);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (branch: string, options: { label?: string }) => {
+    await snapshotCreateCommand(branch, options);
+  }));
 
 snapshotCommand
   .command('list')
   .alias('ls')
   .description('List snapshots')
   .argument('[branch]', 'branch name in format: <project>/<branch> (optional, lists all if not specified)')
-  .action(async (branch?: string) => {
-    try {
-      await snapshotListCommand(branch);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (branch?: string) => {
+    await snapshotListCommand(branch);
+  }));
 
 snapshotCommand
   .command('delete')
   .alias('rm')
   .description('Delete a snapshot')
   .argument('<snapshot-id>', 'snapshot ID')
-  .action(async (snapshotId: string) => {
-    try {
-      await snapshotDeleteCommand(snapshotId);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (snapshotId: string) => {
+    await snapshotDeleteCommand(snapshotId);
+  }));
 
 snapshotCommand
   .command('cleanup')
@@ -293,18 +219,13 @@ snapshotCommand
   .option('--days <days>', 'retention period in days (default: 30)', '30')
   .option('--dry-run', 'show what would be deleted without actually deleting')
   .option('--all', 'cleanup snapshots across all branches')
-  .action(async (branch: string | undefined, options: { days?: string; dryRun?: boolean; all?: boolean }) => {
-    try {
-      await snapshotCleanupCommand(branch, {
-        days: options.days ? parseInt(options.days, 10) : 30,
-        dryRun: options.dryRun,
-        all: options.all,
-      });
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (branch: string | undefined, options: { days?: string; dryRun?: boolean; all?: boolean }) => {
+    await snapshotCleanupCommand(branch, {
+      days: options.days ? parseInt(options.days, 10) : 30,
+      dryRun: options.dryRun,
+      all: options.all,
+    });
+  }));
 
 // ============================================================================
 // Lifecycle commands
@@ -314,40 +235,25 @@ program
   .command('start')
   .description('Start a branch')
   .argument('<name>', 'name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await startCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await startCommand(name);
+  }));
 
 program
   .command('stop')
   .description('Stop a branch')
   .argument('<name>', 'name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await stopCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await stopCommand(name);
+  }));
 
 program
   .command('restart')
   .description('Restart a branch')
   .argument('<name>', 'name in format: <project>/<branch>')
-  .action(async (name: string) => {
-    try {
-      await restartCommand(name);
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async (name: string) => {
+    await restartCommand(name);
+  }));
 
 // ============================================================================
 // Global commands
@@ -357,37 +263,22 @@ program
   .command('status')
   .alias('ls')
   .description('Show status of all projects and branches')
-  .action(async () => {
-    try {
-      await statusCommand();
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async () => {
+    await statusCommand();
+  }));
 
 program
   .command('doctor')
   .description('Run health checks and diagnostics')
-  .action(async () => {
-    try {
-      await doctorCommand();
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async () => {
+    await doctorCommand();
+  }));
 
 program
   .command('setup')
   .description('One-time setup: grant ZFS permissions and configure Docker (requires sudo)')
-  .action(async () => {
-    try {
-      await setupCommand();
-    } catch (error: any) {
-      console.error(chalk.red('✗'), error.message);
-      process.exit(1);
-    }
-  });
+  .action(wrapCommand(async () => {
+    await setupCommand();
+  }));
 
 program.parse();

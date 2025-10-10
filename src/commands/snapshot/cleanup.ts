@@ -1,9 +1,10 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 
 export interface SnapshotCleanupOptions {
   days: number;
@@ -23,7 +24,10 @@ export async function snapshotCleanupCommand(
     console.log(chalk.bold(`Cleaning up snapshots for ${chalk.cyan(target.full)}`));
     console.log(chalk.dim(`Retention: ${options.days} days`));
   } else {
-    throw new Error('Must specify branch name or use --all flag');
+    throw new UserError(
+      'Must specify branch name or use --all flag',
+      "Usage: 'pgd snapshot cleanup <project>/<branch> --days <n>' or 'pgd snapshot cleanup --all --days <n>'"
+    );
   }
 
   if (options.dryRun) {
@@ -42,26 +46,34 @@ export async function snapshotCleanupCommand(
 
   if (options.all) {
     // Clean up snapshots across all branches
-    const spinner = ora('Finding old snapshots').start();
-    deleted = await state.deleteOldSnapshots(undefined, options.days, options.dryRun);
-    spinner.succeed(`Found ${deleted.length} snapshot(s) to delete`);
+    deleted = await withProgress('Find old snapshots', async () => {
+      return await state.deleteOldSnapshots(undefined, options.days, options.dryRun);
+    });
+    console.log(`Found ${deleted.length} snapshot(s) to delete`);
   } else if (branchName) {
     // Clean up snapshots for specific branch
     const target = parseNamespace(branchName);
 
     const proj = await state.getProjectByName(target.project);
     if (!proj) {
-      throw new Error(`Project '${target.project}' not found`);
+      throw new UserError(
+        `Project '${target.project}' not found`,
+        "Run 'pgd project list' to see available projects"
+      );
     }
 
     const branch = proj.branches.find(b => b.name === target.full);
     if (!branch) {
-      throw new Error(`Branch '${target.full}' not found`);
+      throw new UserError(
+        `Branch '${target.full}' not found`,
+        "Run 'pgd branch list' to see available branches"
+      );
     }
 
-    const spinner = ora('Finding old snapshots').start();
-    deleted = await state.deleteOldSnapshots(branch.name, options.days, options.dryRun);
-    spinner.succeed(`Found ${deleted.length} snapshot(s) to delete`);
+    deleted = await withProgress('Find old snapshots', async () => {
+      return await state.deleteOldSnapshots(branch.name, options.days, options.dryRun);
+    });
+    console.log(`Found ${deleted.length} snapshot(s) to delete`);
   }
 
   if (deleted.length === 0) {
@@ -86,15 +98,17 @@ export async function snapshotCleanupCommand(
 
   if (!options.dryRun) {
     // Delete the actual ZFS snapshots
-    const deleteSpinner = ora('Deleting ZFS snapshots').start();
-    for (const snap of deleted) {
-      try {
-        await zfs.destroySnapshot(snap.zfsSnapshot);
-      } catch (error: any) {
-        deleteSpinner.warn(`Failed to delete snapshot ${snap.id}: ${error.message}`);
+    await withProgress('Delete ZFS snapshots', async () => {
+      for (const snap of deleted) {
+        try {
+          await zfs.destroySnapshot(snap.zfsSnapshot);
+        } catch (error: any) {
+          console.log();
+          console.log(chalk.yellow(`Warning: Failed to delete snapshot ${snap.id}: ${error.message}`));
+        }
       }
-    }
-    deleteSpinner.succeed(`Deleted ${deleted.length} snapshot(s)`);
+    });
+    console.log(`Deleted ${deleted.length} snapshot(s)`);
   }
 
   console.log();

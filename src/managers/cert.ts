@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { CLI_NAME } from '../config/constants';
+import { SystemError } from '../errors';
 
 export interface CertPaths {
   certDir: string;
@@ -52,7 +53,7 @@ export class CertManager {
     try {
       await $`openssl genrsa -out ${paths.serverKey} 2048`.quiet();
     } catch (error: any) {
-      throw new Error(`Failed to generate private key: ${error.message}`);
+      throw new SystemError(`Failed to generate private key: ${error.message}`);
     }
 
     // Generate self-signed certificate (valid for 10 years)
@@ -62,7 +63,7 @@ export class CertManager {
         -out ${paths.serverCert} \
         -subj "/CN=pgd-postgres/O=pgd/C=US"`.quiet();
     } catch (error: any) {
-      throw new Error(`Failed to generate certificate: ${error.message}`);
+      throw new SystemError(`Failed to generate certificate: ${error.message}`);
     }
 
     // Set proper permissions BEFORE changing ownership
@@ -71,7 +72,7 @@ export class CertManager {
       await $`chmod 600 ${paths.serverKey}`.quiet();
       await $`chmod 644 ${paths.serverCert}`.quiet();
     } catch (error: any) {
-      throw new Error(`Failed to set permissions: ${error.message}`);
+      throw new SystemError(`Failed to set permissions: ${error.message}`);
     }
 
     // Set ownership to match PostgreSQL user in container

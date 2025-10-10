@@ -1,12 +1,11 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { DockerManager } from '../managers/docker';
 import { StateManager } from '../managers/state';
 import { PATHS } from '../utils/paths';
 import { getContainerName } from '../utils/naming';
 import { parseNamespace } from '../utils/namespace';
-
-
+import { UserError } from '../errors';
+import { withProgress } from '../utils/progress';
 
 export async function startCommand(name: string) {
   // Parse namespace
@@ -23,7 +22,10 @@ export async function startCommand(name: string) {
   const branchResult = await state.getBranchByNamespace(name);
 
   if (!branchResult) {
-    throw new Error(`Branch '${name}' not found`);
+    throw new UserError(
+      `Branch '${name}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   const { branch, project } = branchResult;
@@ -42,20 +44,16 @@ export async function startCommand(name: string) {
   const containerName = getContainerName(namespace.project, namespace.branch);
   const containerID = await docker.getContainerByName(containerName);
   if (!containerID) {
-    throw new Error(`Container '${containerName}' not found`);
+    throw new UserError(`Container '${containerName}' not found`);
   }
 
-  const startTime = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Start container'));
-  await docker.startContainer(containerID);
-  const startDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Start container'.length)}${startDuration}s`));
+  await withProgress('Start container', async () => {
+    await docker.startContainer(containerID);
+  });
 
-  const readyTime = Date.now();
-  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
-  await docker.waitForHealthy(containerID);
-  const readyDuration = ((Date.now() - readyTime) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${readyDuration}s`));
+  await withProgress('PostgreSQL ready', async () => {
+    await docker.waitForHealthy(containerID);
+  });
 
   // Get the actual port (Docker may reassign on restart)
   const actualPort = await docker.getContainerPort(containerID);

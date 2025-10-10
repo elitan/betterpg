@@ -1,4 +1,3 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { ZFSManager } from '../../managers/zfs';
 import { DockerManager } from '../../managers/docker';
@@ -7,6 +6,8 @@ import { formatTimestamp } from '../../utils/helpers';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 
 export async function branchResetCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
@@ -16,27 +17,36 @@ export async function branchResetCommand(name: string, options: { force?: boolea
 
   const result = await state.getBranchByNamespace(name);
   if (!result) {
-    throw new Error(`Branch '${name}' not found`);
+    throw new UserError(
+      `Branch '${name}' not found`,
+      "Run 'pgd branch list' to see available branches"
+    );
   }
 
   const { branch, project } = result;
 
   // Prevent resetting main branch
   if (branch.isPrimary) {
-    throw new Error(`Cannot reset main branch. Main branch has no parent.`);
+    throw new UserError(
+      `Cannot reset main branch. Main branch has no parent.`,
+      `Main branches cannot be reset as they have no parent to reset from`
+    );
   }
 
   // Find parent branch
   const parentBranch = project.branches.find(b => b.id === branch.parentBranchId);
   if (!parentBranch) {
-    throw new Error(`Parent branch not found for '${name}'`);
+    throw new UserError(
+      `Parent branch not found for '${name}'`,
+      `The parent branch may have been deleted`
+    );
   }
 
   // Check for dependent branches (branches that have this branch as parent)
   const dependentBranches = project.branches.filter(b => b.parentBranchId === branch.id);
   if (dependentBranches.length > 0 && !options.force) {
     const dependentNames = dependentBranches.map(b => `  • ${b.name}`).join('\n');
-    throw new Error(
+    throw new UserError(
       `Cannot reset '${name}' - the following branches depend on it:\n\n` +
       `${dependentNames}\n\n` +
       `Resetting will destroy all dependent branches due to ZFS clone dependencies.\n` +
@@ -77,41 +87,35 @@ export async function branchResetCommand(name: string, options: { force?: boolea
 
   // If force reset, clean up dependent branches first
   if (dependentBranches.length > 0 && options.force) {
-    const cleanupStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Clean up dependent branches'));
+    await withProgress('Clean up dependent branches', async () => {
+      for (const depBranch of dependentBranches) {
+        const depNamespace = parseNamespace(depBranch.name);
+        const depContainerName = getContainerName(depNamespace.project, depNamespace.branch);
 
-    for (const depBranch of dependentBranches) {
-      const depNamespace = parseNamespace(depBranch.name);
-      const depContainerName = getContainerName(depNamespace.project, depNamespace.branch);
+        // Stop and remove container
+        const depContainerID = await docker.getContainerByName(depContainerName);
+        if (depContainerID) {
+          await docker.stopContainer(depContainerID);
+          await docker.removeContainer(depContainerID);
+        }
 
-      // Stop and remove container
-      const depContainerID = await docker.getContainerByName(depContainerName);
-      if (depContainerID) {
-        await docker.stopContainer(depContainerID);
-        await docker.removeContainer(depContainerID);
+        // Clean up snapshots from state
+        await state.deleteSnapshotsForBranch(depBranch.name);
+
+        // Remove branch from state (will be destroyed with ZFS dataset)
+        await state.deleteBranch(project.id, depBranch.id);
       }
-
-      // Clean up snapshots from state
-      await state.deleteSnapshotsForBranch(depBranch.name);
-
-      // Remove branch from state (will be destroyed with ZFS dataset)
-      await state.deleteBranch(project.id, depBranch.id);
-    }
-
-    const cleanupTime = ((Date.now() - cleanupStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Clean up dependent branches'.length)}${cleanupTime}s`));
+    });
   }
 
   // Stop and remove existing container
-  const stopStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Stop container'));
-  const containerID = await docker.getContainerByName(containerName);
-  if (containerID) {
-    await docker.stopContainer(containerID);
-    await docker.removeContainer(containerID);
-  }
-  const stopTime = ((Date.now() - stopStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Stop container'.length)}${stopTime}s`));
+  await withProgress('Stop container', async () => {
+    const containerID = await docker.getContainerByName(containerName);
+    if (containerID) {
+      await docker.stopContainer(containerID);
+      await docker.removeContainer(containerID);
+    }
+  });
 
   // Checkpoint parent before snapshot
   const snapshotName = formatTimestamp(new Date());
@@ -120,58 +124,40 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   if (parentBranch.status === 'running') {
     const parentContainerID = await docker.getContainerByName(parentContainerName);
     if (parentContainerID) {
-      try {
-        const checkpointStart = Date.now();
-        process.stdout.write(chalk.dim(`  ▸ Checkpoint ${parentBranch.name}`));
+      await withProgress(`Checkpoint ${parentBranch.name}`, async () => {
         await docker.execSQL(
           parentContainerID,
           "CHECKPOINT;",
           project.credentials.username
         );
-        const checkpointTime = ((Date.now() - checkpointStart) / 1000).toFixed(1);
-        const labelLength = `Checkpoint ${parentBranch.name}`.length;
-        console.log(chalk.dim(`${' '.repeat(40 - labelLength)}${checkpointTime}s`));
+      });
 
-        // Create snapshot immediately after checkpoint
-        const snapshotStart = Date.now();
-        process.stdout.write(chalk.dim('  ▸ Create snapshot'));
+      // Create snapshot immediately after checkpoint
+      await withProgress('Create snapshot', async () => {
         await zfs.createSnapshot(parentDatasetName, snapshotName);
-        const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
-        console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
-      } catch (error) {
-        console.log(); // New line after incomplete progress
-        throw error;
-      }
+      });
     }
   } else {
-    const snapshotStart = Date.now();
-    process.stdout.write(chalk.dim('  ▸ Create snapshot'));
-    await zfs.createSnapshot(parentDatasetName, snapshotName);
-    const snapshotTime = ((Date.now() - snapshotStart) / 1000).toFixed(1);
-    console.log(chalk.dim(`${' '.repeat(40 - 'Create snapshot'.length)}${snapshotTime}s`));
+    await withProgress('Create snapshot', async () => {
+      await zfs.createSnapshot(parentDatasetName, snapshotName);
+    });
   }
 
   // Unmount and destroy existing ZFS dataset (with -R flag to destroy any remaining clones)
-  const destroyStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Destroy old dataset'));
-  await zfs.unmountDataset(datasetName);
-  await zfs.destroyDataset(datasetName, true);
-  const destroyTime = ((Date.now() - destroyStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Destroy old dataset'.length)}${destroyTime}s`));
+  await withProgress('Destroy old dataset', async () => {
+    await zfs.unmountDataset(datasetName);
+    await zfs.destroyDataset(datasetName, true);
+  });
 
   // Clone the new snapshot
-  const cloneStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Clone new snapshot'));
-  await zfs.cloneSnapshot(fullSnapshotName, datasetName);
-  const cloneTime = ((Date.now() - cloneStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Clone new snapshot'.length)}${cloneTime}s`));
+  await withProgress('Clone new snapshot', async () => {
+    await zfs.cloneSnapshot(fullSnapshotName, datasetName);
+  });
 
   // Mount the dataset (requires sudo on Linux due to kernel restrictions)
-  const mountStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Mount dataset'));
-  await zfs.mountDataset(datasetName);
-  const mountTime = ((Date.now() - mountStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Mount dataset'.length)}${mountTime}s`));
+  await withProgress('Mount dataset', async () => {
+    await zfs.mountDataset(datasetName);
+  });
 
   const mountpoint = await zfs.getMountpoint(datasetName);
 
@@ -180,29 +166,26 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   await Bun.write(walArchivePath + '/.keep', '');
 
   // Recreate container with same port (use project's docker image)
-  const containerStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ Start container'));
-  const newContainerID = await docker.createContainer({
-    name: containerName,
-    image: project.dockerImage,
-    port: branch.port,
-    dataPath: mountpoint,
-    walArchivePath,
-    sslCertDir: project.sslCertDir,
-    password: project.credentials.password,
-    username: project.credentials.username,
-    database: project.credentials.database,
+  await withProgress('Start container', async () => {
+    const newContainerID = await docker.createContainer({
+      name: containerName,
+      image: project.dockerImage,
+      port: branch.port,
+      dataPath: mountpoint,
+      walArchivePath,
+      sslCertDir: project.sslCertDir,
+      password: project.credentials.password,
+      username: project.credentials.username,
+      database: project.credentials.database,
+    });
+
+    await docker.startContainer(newContainerID);
+    await docker.waitForHealthy(newContainerID);
   });
 
-  await docker.startContainer(newContainerID);
-  await docker.waitForHealthy(newContainerID);
-  const containerTime = ((Date.now() - containerStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'Start container'.length)}${containerTime}s`));
-
-  const pgStart = Date.now();
-  process.stdout.write(chalk.dim('  ▸ PostgreSQL ready'));
-  const pgTime = ((Date.now() - pgStart) / 1000).toFixed(1);
-  console.log(chalk.dim(`${' '.repeat(40 - 'PostgreSQL ready'.length)}${pgTime}s`));
+  await withProgress('PostgreSQL ready', async () => {
+    // PostgreSQL is already ready from waitForHealthy
+  });
 
   // Clean up orphaned snapshots for this branch (ZFS snapshots were destroyed with dataset)
   await state.deleteSnapshotsForBranch(branch.name);

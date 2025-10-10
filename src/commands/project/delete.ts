@@ -1,4 +1,3 @@
-import ora from 'ora';
 import chalk from 'chalk';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
@@ -6,6 +5,8 @@ import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { getContainerName, getDatasetName } from '../../utils/naming';
 import { parseNamespace } from '../../utils/namespace';
+import { UserError } from '../../errors';
+import { withProgress } from '../../utils/progress';
 
 export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
   console.log();
@@ -17,7 +18,10 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
 
   const project = await state.getProjectByName(name);
   if (!project) {
-    throw new Error(`Project '${name}' not found`);
+    throw new UserError(
+      `Project '${name}' not found`,
+      "Run 'pgd project list' to see available projects"
+    );
   }
 
   // Check if project has non-main branches
@@ -44,31 +48,30 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   for (const branch of branchesToDelete) {
     const namespace = parseNamespace(branch.name);
     const containerName = getContainerName(namespace.project, namespace.branch);
-    const spinner = ora(`Removing branch: ${branch.name}`).start();
 
-    // Stop and remove container
-    const containerID = await docker.getContainerByName(containerName);
-    if (containerID) {
-      await docker.stopContainer(containerID);
-      await docker.removeContainer(containerID);
-    }
-
-    spinner.succeed(`Removed container: ${containerName}`);
+    await withProgress(`Remove branch: ${branch.name}`, async () => {
+      // Stop and remove container
+      const containerID = await docker.getContainerByName(containerName);
+      if (containerID) {
+        await docker.stopContainer(containerID);
+        await docker.removeContainer(containerID);
+      }
+    });
   }
 
   // Destroy ZFS datasets for all branches
-  const spinner = ora('Destroying ZFS datasets').start();
-  for (const branch of branchesToDelete) {
-    const namespace = parseNamespace(branch.name);
-    const datasetName = getDatasetName(namespace.project, namespace.branch);
-    // Only destroy dataset if it exists - this handles cases where previous deletion attempts
-    // were interrupted or failed partway through, leaving state entries without actual ZFS datasets
-    if (await zfs.datasetExists(datasetName)) {
-      await zfs.unmountDataset(datasetName);
-      await zfs.destroyDataset(datasetName, true);
+  await withProgress('Destroy ZFS datasets', async () => {
+    for (const branch of branchesToDelete) {
+      const namespace = parseNamespace(branch.name);
+      const datasetName = getDatasetName(namespace.project, namespace.branch);
+      // Only destroy dataset if it exists - this handles cases where previous deletion attempts
+      // were interrupted or failed partway through, leaving state entries without actual ZFS datasets
+      if (await zfs.datasetExists(datasetName)) {
+        await zfs.unmountDataset(datasetName);
+        await zfs.destroyDataset(datasetName, true);
+      }
     }
-  }
-  spinner.succeed('ZFS datasets destroyed');
+  });
 
   // Remove from state
   await state.deleteProject(project.name);
