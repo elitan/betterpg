@@ -1,7 +1,7 @@
 <div align="center">
-  <h1>Velo</h1>
-  <h3>Instant PostgreSQL branching using ZFS snapshots</h3>
-  <p>Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.</p>
+  <img src="assets/readme-hero.png" alt="Velo - Postgres with instant branching" />
+  <br />
+  <br />
   <a href="https://github.com/elitan/pgd/blob/main/LICENSE">
     <img alt="MIT License" src="https://img.shields.io/github/license/elitan/pgd" />
   </a>
