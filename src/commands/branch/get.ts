@@ -23,7 +23,7 @@ export async function branchGetCommand(name: string) {
   const { branch, project } = result;
 
   console.log();
-  console.log(`Branch: ${chalk.cyan(name)}`);
+  console.log(chalk.bold(`Branch: ${name}`));
   console.log();
   console.log(chalk.dim('  Status       '), branch.status === 'running' ? 'running' : 'stopped');
   console.log(chalk.dim('  Port         '), branch.port.toString());
@@ -40,7 +40,7 @@ export async function branchGetCommand(name: string) {
     console.log(chalk.dim('  Snapshot     '), snapshotShortName);
   }
   console.log();
-  console.log('Connection:');
+  console.log(chalk.bold('Connection:'));
   console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

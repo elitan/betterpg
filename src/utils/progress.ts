@@ -1,9 +1,11 @@
 import chalk from 'chalk';
+import ora from 'ora';
 
 /**
- * Displays a progress line with timing for async operations.
+ * Displays a spinner while running, then shows a checkmark and timing when complete.
  *
- * Format: "  ▸ Label                                 1.2s"
+ * Format while running: "  ⠋ Label..."
+ * Format when done:     "  ✔ Label                                 1.2s"
  *
  * Usage:
  * ```typescript
@@ -28,18 +30,28 @@ export async function withProgress<T>(
   fn: () => Promise<T>,
   maxLabelWidth = 40
 ): Promise<T> {
+  const spinner = ora({
+    text: label,
+    prefixText: ' ',
+    color: 'white',
+  }).start();
+
   const start = Date.now();
-  process.stdout.write(chalk.dim(`  ▸ ${label}`));
 
   try {
     const result = await fn();
     const time = ((Date.now() - start) / 1000).toFixed(1);
     const padding = ' '.repeat(Math.max(0, maxLabelWidth - label.length));
-    console.log(chalk.dim(`${padding}${time}s`));
+    spinner.stopAndPersist({
+      symbol: chalk.dim('✔'),
+      text: chalk.dim(`${label}${padding}${time + 's'}`),
+    });
     return result;
   } catch (error) {
-    // Print newline after incomplete progress line
-    console.log();
+    spinner.stopAndPersist({
+      symbol: chalk.dim('✖'),
+      text: chalk.dim(label),
+    });
     throw error;
   }
 }

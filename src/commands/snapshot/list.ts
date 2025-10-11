@@ -16,7 +16,7 @@ export async function snapshotListCommand(branchName?: string) {
   if (branchName) {
     const target = parseNamespace(branchName);
     snapshots = await state.getSnapshotsForBranch(target.full);
-    title = `Snapshots for ${chalk.cyan(target.full)}`;
+    title = `Snapshots for ${target.full}`;
   } else {
     snapshots = await state.getAllSnapshots();
     title = 'All Snapshots';
@@ -38,7 +38,7 @@ export async function snapshotListCommand(branchName?: string) {
   const table = new Table({
     head: ['ID', 'Branch', 'Label', 'Created', 'Size'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });

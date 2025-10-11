@@ -10,7 +10,7 @@ import { withProgress } from '../../utils/progress';
 
 export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
   console.log();
-  console.log(`Deleting project ${chalk.cyan(name)}...`);
+  console.log(`Deleting project ${chalk.bold(name)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -27,12 +27,12 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   // Check if project has non-main branches
   const nonMainBranches = project.branches.filter(b => !b.isPrimary);
   if (nonMainBranches.length > 0 && !options.force) {
-    console.log(chalk.yellow(`Project '${name}' has ${nonMainBranches.length} branch(es):`));
+    console.log(`Project '${chalk.bold(name)}' has ${nonMainBranches.length} branch(es):`);
     for (const branch of nonMainBranches) {
       console.log(chalk.dim(`  - ${branch.name}`));
     }
     console.log();
-    console.log(chalk.yellow('Use --force to delete project and all branches'));
+    console.log(`Use ${chalk.bold('--force')} to delete project and all branches`);
     process.exit(1);
   }
 
@@ -77,6 +77,6 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   await state.deleteProject(project.name);
 
   console.log();
-  console.log(chalk.green.bold(`✓ Project '${name}' deleted successfully!`));
+  console.log(chalk.bold(`Project '${name}' deleted`));
   console.log();
 }

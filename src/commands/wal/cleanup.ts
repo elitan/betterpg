@@ -41,11 +41,11 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
 
   console.log();
   if (dryRun) {
-    console.log(chalk.bold(chalk.yellow('WAL Cleanup (Dry Run)')));
+    console.log(chalk.bold('WAL Cleanup (Dry Run)'));
   } else {
     console.log(chalk.bold('WAL Cleanup'));
   }
-  console.log(chalk.dim(`Branch: ${chalk.cyan(target.full)}`));
+  console.log(chalk.dim(`Branch: ${target.full}`));
   console.log(chalk.dim(`Retention: ${retentionDays} days`));
   console.log();
 
@@ -70,10 +70,10 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
 
     if (info.oldestTimestamp && info.oldestTimestamp < beforeDate) {
       // Estimate based on timestamps
-      console.log(chalk.yellow(`Would delete WAL files older than ${beforeDate.toISOString()}`));
-      console.log(chalk.dim('Run without --dry-run to perform cleanup'));
+      console.log(`Would delete WAL files older than ${beforeDate.toISOString()}`);
+      console.log(chalk.dim(`Run without ${chalk.bold('--dry-run')} to perform cleanup`));
     } else {
-      console.log(chalk.green('No files old enough to delete'));
+      console.log('No files old enough to delete');
     }
   } else {
     const deletedCount = await withProgress('Clean up old WAL files', async () => {

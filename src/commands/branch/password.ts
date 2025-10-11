@@ -21,15 +21,15 @@ export async function branchPasswordCommand(name: string) {
   const { branch, project } = result;
 
   console.log();
-  console.log(chalk.bold('Connection details for ') + chalk.cyan(name));
+  console.log(chalk.bold(`Connection details for ${name}`));
   console.log();
   console.log(chalk.dim('  Host:    '), 'localhost');
   console.log(chalk.dim('  Port:    '), branch.port);
   console.log(chalk.dim('  Database:'), project.credentials.database);
   console.log(chalk.dim('  Username:'), project.credentials.username);
-  console.log(chalk.dim('  Password:'), chalk.yellow(project.credentials.password));
+  console.log(chalk.dim('  Password:'), project.credentials.password);
   console.log();
   console.log(chalk.bold('Connection string:'));
-  console.log(chalk.cyan(`postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`));
+  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
   console.log();
 }

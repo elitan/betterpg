@@ -45,7 +45,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   let recoveryTarget: Date | undefined;
 
   console.log();
-  console.log(`Creating ${chalk.cyan(target.full)} from ${chalk.cyan(source.full)}...`);
+  console.log(`Creating ${chalk.bold(target.full)} from ${chalk.bold(source.full)}...`);
 
   if (options.pitr) {
     recoveryTarget = parseRecoveryTime(options.pitr);
@@ -106,7 +106,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     if (validSnapshots.length === 0) {
       throw new UserError(
         `No snapshots found before recovery target ${formatDate(recoveryTarget)}`,
-        `Create a snapshot with: pgd snapshot create ${source.full} --label <name>`
+        `Create a snapshot with: pgd snapshot create ${source.full} ${chalk.bold('--label')} <name>`
       );
     }
 
@@ -298,7 +298,9 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   }
 
   console.log();
-  console.log('Connection ready:');
+  console.log(chalk.bold(`Branch '${target.full}' created`));
+  console.log();
+  console.log(chalk.bold('Connection ready:'));
   console.log(`  postgresql://${sourceProject.credentials.username}:${sourceProject.credentials.password}@localhost:${port}/${sourceProject.credentials.database}?sslmode=require`);
   console.log();
 }

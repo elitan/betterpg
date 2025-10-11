@@ -51,17 +51,16 @@ export async function statusCommand() {
   const poolTable = new Table({
     head: ['Pool', 'Health', 'Size', 'Used', 'Free'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });
 
   const usagePercent = ((poolStatus.allocated / poolStatus.size) * 100).toFixed(1);
-  const healthColor = poolStatus.health === 'ONLINE' ? chalk.green : chalk.red;
 
   poolTable.push([
     chalk.bold(poolStatus.name),
-    healthColor(poolStatus.health),
+    poolStatus.health,
     formatBytes(poolStatus.size),
     `${formatBytes(poolStatus.allocated)} ${chalk.dim(`(${usagePercent}%)`)}`,
     formatBytes(poolStatus.free)
@@ -86,7 +85,7 @@ export async function statusCommand() {
   const instanceTable = new Table({
     head: ['', 'Name', 'Type', 'Image', 'Branches', 'Created'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });
@@ -94,9 +93,9 @@ export async function statusCommand() {
   for (const proj of projects) {
     // Project row - only show project-level info
     instanceTable.push([
-      chalk.blue('●'),
+      '●',
       chalk.bold(proj.name),
-      chalk.blue('project'),
+      'project',
       chalk.dim(proj.dockerImage),
       proj.branches.length.toString(),
       formatDate(proj.createdAt)
@@ -118,8 +117,8 @@ export async function statusCommand() {
       }
 
       const actualBranchStatus = branchContainerStatus ? branchContainerStatus.state : branch.status;
-      const branchStatusIcon = actualBranchStatus === 'running' ? chalk.green('●') : chalk.red('●');
-      const branchStatusText = actualBranchStatus === 'running' ? chalk.green('running') : chalk.red(actualBranchStatus);
+      const branchStatusIcon = actualBranchStatus === 'running' ? '●' : '○';
+      const branchStatusText = actualBranchStatus === 'running' ? 'running' : actualBranchStatus;
       const branchUptime = branchContainerStatus?.state === 'running' && branchContainerStatus.startedAt
         ? formatUptime(branchContainerStatus.startedAt)
         : chalk.dim('—');

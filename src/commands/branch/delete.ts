@@ -12,7 +12,7 @@ export async function branchDeleteCommand(name: string) {
   const namespace = parseNamespace(name);
 
   console.log();
-  console.log(`Deleting ${chalk.cyan(name)}...`);
+  console.log(`Deleting ${chalk.bold(name)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -72,6 +72,6 @@ export async function branchDeleteCommand(name: string) {
   await state.deleteBranch(project.id, branch.id);
 
   console.log();
-  console.log('Branch deleted');
+  console.log(chalk.bold('Branch deleted'));
   console.log();
 }

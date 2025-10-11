@@ -3,6 +3,7 @@
 - never create markdown (`.md`) files after you are done. Never!
 - never use emojis unless told to do so.
 - i know i'm absolutly right. no need to tell me.
+- **NEVER use sudo when running pgd commands** (except for the one-time `sudo pgd setup` command). After setup, all commands run without sudo using ZFS delegation and Docker permissions.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 

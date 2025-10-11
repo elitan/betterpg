@@ -38,7 +38,7 @@ export async function startCommand(name: string) {
   }
 
   console.log();
-  console.log(`Starting ${chalk.cyan(name)}...`);
+  console.log(`Starting ${chalk.bold(name)}...`);
   console.log();
 
   const containerName = getContainerName(namespace.project, namespace.branch);
@@ -64,7 +64,9 @@ export async function startCommand(name: string) {
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log('Branch started:');
+  console.log(chalk.bold('Branch started'));
+  console.log();
+  console.log(chalk.bold('Connection ready:'));
   console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

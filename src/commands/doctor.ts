@@ -97,20 +97,15 @@ export async function doctorCommand() {
 
 function printResults(results: CheckResult[]) {
   for (const result of results) {
-    const icon = result.status === 'pass' ? chalk.green('✓')
-      : result.status === 'fail' ? chalk.red('✗')
-      : result.status === 'warn' ? chalk.yellow('⚠')
-      : chalk.blue('ℹ');
+    const icon = result.status === 'pass' ? '✓'
+      : result.status === 'fail' ? '✗'
+      : result.status === 'warn' ? '⚠'
+      : 'ℹ';
 
     console.log(`${icon} ${result.name}`);
 
     if (result.message) {
-      const color = result.status === 'pass' ? chalk.dim
-        : result.status === 'fail' ? chalk.red
-        : result.status === 'warn' ? chalk.yellow
-        : chalk.dim;
-
-      console.log(`  ${color(result.message)}`);
+      console.log(`  ${chalk.dim(result.message)}`);
     }
 
     if (result.details && result.details.length > 0) {
@@ -129,24 +124,24 @@ function printSummary(allResults: CheckResult[]) {
 
   console.log();
   console.log(chalk.bold('Summary:'));
-  console.log(`  ${chalk.green('✓')} Passed: ${passed}`);
-  if (warnings > 0) console.log(`  ${chalk.yellow('⚠')} Warnings: ${warnings}`);
-  if (failed > 0) console.log(`  ${chalk.red('✗')} Failed: ${failed}`);
-  if (info > 0) console.log(`  ${chalk.blue('ℹ')} Info: ${info}`);
+  console.log(`  ✓ Passed: ${passed}`);
+  if (warnings > 0) console.log(`  ⚠ Warnings: ${warnings}`);
+  if (failed > 0) console.log(`  ✗ Failed: ${failed}`);
+  if (info > 0) console.log(`  ℹ Info: ${info}`);
 
   console.log();
 
   if (failed > 0) {
-    console.log(chalk.red('✗ Issues detected. Please fix the failed checks above.'));
+    console.log('✗ Issues detected. Please fix the failed checks above.');
     console.log();
     console.log('Common fixes:');
     console.log('  • Run setup: sudo pgd setup');
     console.log('  • Create ZFS pool: sudo zpool create tank /dev/sdb');
     console.log('  • Log out and back in (for group changes)');
   } else if (warnings > 0) {
-    console.log(chalk.yellow('⚠ pgd is functional but has warnings. Review above.'));
+    console.log('⚠ pgd is functional but has warnings. Review above.');
   } else {
-    console.log(chalk.green('✓ All checks passed! pgd is ready to use.'));
+    console.log('✓ All checks passed! pgd is ready to use.');
   }
   console.log();
 }
@@ -284,7 +279,7 @@ async function checkZFSPool(): Promise<CheckResult> {
         name: 'ZFS Pool',
         status: 'warn',
         message: `Found ${poolList.length} pools: ${poolList.join(', ')}`,
-        details: ['Specify pool when creating project: pgd project create myapp --pool <name>'],
+        details: [`Specify pool when creating project: pgd project create myapp ${chalk.bold('--pool')} <name>`],
       };
     }
   } catch (error) {

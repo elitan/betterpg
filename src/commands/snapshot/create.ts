@@ -18,9 +18,9 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
 
   console.log();
   if (options.label) {
-    console.log(`Creating snapshot of ${chalk.cyan(target.full)} (${chalk.dim(options.label)})...`);
+    console.log(`Creating snapshot of ${chalk.bold(target.full)} (${chalk.dim(options.label)})...`);
   } else {
-    console.log(`Creating snapshot of ${chalk.cyan(target.full)}...`);
+    console.log(`Creating snapshot of ${chalk.bold(target.full)}...`);
   }
   console.log();
 
@@ -99,7 +99,8 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   await state.addSnapshot(snapshot);
 
   console.log();
-  console.log('Snapshot created:');
+  console.log(chalk.bold('Snapshot created'));
+  console.log();
   console.log(`  ID: ${snapshot.id}`);
   console.log(`  Name: ${snapshotName}`);
   console.log();

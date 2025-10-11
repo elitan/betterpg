@@ -28,7 +28,7 @@ export async function restartCommand(name: string) {
   const { branch, project } = branchResult;
 
   console.log();
-  console.log(`Restarting ${chalk.cyan(name)}...`);
+  console.log(`Restarting ${chalk.bold(name)}...`);
   console.log();
 
   const containerName = getContainerName(namespace.project, namespace.branch);
@@ -53,7 +53,9 @@ export async function restartCommand(name: string) {
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log('Branch restarted:');
+  console.log(chalk.bold('Branch restarted'));
+  console.log();
+  console.log(chalk.bold('Connection ready:'));
   console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

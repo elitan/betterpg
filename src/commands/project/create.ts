@@ -49,7 +49,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   }
 
   console.log();
-  console.log(`Creating project ${chalk.cyan(name)}...`);
+  console.log(`Creating project ${chalk.bold(name)}...`);
   console.log();
 
   // Load state
@@ -204,7 +204,9 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
   await state.addProject(project);
 
   console.log();
-  console.log('Connection ready:');
+  console.log(chalk.bold(`Project '${name}' created`));
+  console.log();
+  console.log(chalk.bold('Connection ready:'));
   console.log(`  postgresql://postgres:${password}@localhost:${port}/postgres?sslmode=require`);
   console.log();
 }

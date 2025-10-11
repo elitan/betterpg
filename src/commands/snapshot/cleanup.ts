@@ -21,17 +21,17 @@ export async function snapshotCleanupCommand(
     console.log(chalk.bold(`Cleaning up snapshots older than ${options.days} days (all branches)`));
   } else if (branchName) {
     const target = parseNamespace(branchName);
-    console.log(chalk.bold(`Cleaning up snapshots for ${chalk.cyan(target.full)}`));
+    console.log(chalk.bold(`Cleaning up snapshots for ${target.full}`));
     console.log(chalk.dim(`Retention: ${options.days} days`));
   } else {
     throw new UserError(
-      'Must specify branch name or use --all flag',
-      "Usage: 'pgd snapshot cleanup <project>/<branch> --days <n>' or 'pgd snapshot cleanup --all --days <n>'"
+      `Must specify branch name or use ${chalk.bold('--all')} flag`,
+      `Usage: 'pgd snapshot cleanup <project>/<branch> ${chalk.bold('--days')} <n>' or 'pgd snapshot cleanup ${chalk.bold('--all')} ${chalk.bold('--days')} <n>'`
     );
   }
 
   if (options.dryRun) {
-    console.log(chalk.yellow('Dry run - no snapshots will be deleted'));
+    console.log('Dry run - no snapshots will be deleted');
   }
   console.log();
 
@@ -77,7 +77,7 @@ export async function snapshotCleanupCommand(
   }
 
   if (deleted.length === 0) {
-    console.log(chalk.green('No snapshots to clean up'));
+    console.log('No snapshots to clean up');
     console.log();
     return;
   }
@@ -104,7 +104,7 @@ export async function snapshotCleanupCommand(
           await zfs.destroySnapshot(snap.zfsSnapshot);
         } catch (error: any) {
           console.log();
-          console.log(chalk.yellow(`Warning: Failed to delete snapshot ${snap.id}: ${error.message}`));
+          console.log(`Warning: Failed to delete snapshot ${snap.id}: ${error.message}`);
         }
       }
     });
@@ -112,6 +112,6 @@ export async function snapshotCleanupCommand(
   }
 
   console.log();
-  console.log(chalk.green.bold(`✓ Cleanup ${options.dryRun ? 'preview' : 'complete'}!`));
+  console.log(chalk.bold(`Cleanup ${options.dryRun ? 'preview' : 'complete'}`));
   console.log();
 }

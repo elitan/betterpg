@@ -10,14 +10,14 @@ export async function projectListCommand() {
   const projects = await state.listProjects();
 
   if (projects.length === 0) {
-    console.log(chalk.dim('No projects found. Create one with:'), chalk.cyan('pgd project create <name>'));
+    console.log(chalk.dim('No projects found. Create one with: pgd project create <name>'));
     return;
   }
 
   const table = new Table({
     head: ['Name', 'Branches', 'Running', 'Image', 'Created'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });

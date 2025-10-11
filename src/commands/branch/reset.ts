@@ -50,20 +50,20 @@ export async function branchResetCommand(name: string, options: { force?: boolea
       `Cannot reset '${name}' - the following branches depend on it:\n\n` +
       `${dependentNames}\n\n` +
       `Resetting will destroy all dependent branches due to ZFS clone dependencies.\n` +
-      `Either delete the dependent branches first, or use --force to proceed anyway.\n\n` +
-      `${chalk.yellow('Warning:')} Using --force will permanently delete all dependent branches!`
+      `Either delete the dependent branches first, or use ${chalk.bold('--force')} to proceed anyway.\n\n` +
+      `Warning: Using ${chalk.bold('--force')} will permanently delete all dependent branches!`
     );
   }
 
   console.log();
-  console.log(`Resetting ${chalk.cyan(name)} to ${chalk.cyan(parentBranch.name)}...`);
+  console.log(`Resetting ${chalk.bold(name)} to ${chalk.bold(parentBranch.name)}...`);
 
   if (dependentBranches.length > 0 && options.force) {
     console.log();
-    console.log(chalk.yellow('Warning: Force reset enabled!'));
-    console.log(chalk.yellow('The following dependent branches will be destroyed:'));
+    console.log('Warning: Force reset enabled!');
+    console.log('The following dependent branches will be destroyed:');
     dependentBranches.forEach(b => {
-      console.log(chalk.yellow(`  • ${b.name}`));
+      console.log(`  • ${b.name}`);
     });
   }
 
@@ -166,8 +166,8 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   await Bun.write(walArchivePath + '/.keep', '');
 
   // Recreate container with same port (use project's docker image)
-  await withProgress('Start container', async () => {
-    const newContainerID = await docker.createContainer({
+  const newContainerID = await withProgress('Start container', async () => {
+    const id = await docker.createContainer({
       name: containerName,
       image: project.dockerImage,
       port: branch.port,
@@ -179,12 +179,12 @@ export async function branchResetCommand(name: string, options: { force?: boolea
       database: project.credentials.database,
     });
 
-    await docker.startContainer(newContainerID);
-    await docker.waitForHealthy(newContainerID);
+    await docker.startContainer(id);
+    return id;
   });
 
   await withProgress('PostgreSQL ready', async () => {
-    // PostgreSQL is already ready from waitForHealthy
+    await docker.waitForHealthy(newContainerID);
   });
 
   // Clean up orphaned snapshots for this branch (ZFS snapshots were destroyed with dataset)
@@ -198,7 +198,9 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log('Branch reset:');
+  console.log(chalk.bold('Branch reset'));
+  console.log();
+  console.log(chalk.bold('Connection ready:'));
   console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
   console.log();
 }

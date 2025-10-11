@@ -40,7 +40,7 @@ export async function branchListCommand(projectName?: string) {
   const table = new Table({
     head: ['', 'Branch', 'Status', 'Port', 'Size', 'Created'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });
@@ -53,8 +53,8 @@ export async function branchListCommand(projectName?: string) {
 
   async function renderBranch(node: BranchNode, depth: number = 0) {
     const branch = node.branch;
-    const statusIcon = branch.status === 'running' ? chalk.green('●') : chalk.red('●');
-    const statusText = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
+    const statusIcon = branch.status === 'running' ? '●' : '○';
+    const statusText = branch.status === 'running' ? 'running' : 'stopped';
     const port = branch.status === 'running' ? `Port ${branch.port}` : '-';
 
     // Build name with tree structure

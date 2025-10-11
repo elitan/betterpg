@@ -39,7 +39,7 @@ export async function walInfoCommand(branchName?: string) {
     const datasetName = getDatasetName(target.project, target.branch);
     const info = await wal.getArchiveInfo(datasetName);
 
-    console.log(chalk.bold(`Branch: ${chalk.cyan(target.full)}`));
+    console.log(chalk.bold(`Branch: ${target.full}`));
     console.log();
     console.log(chalk.dim('Archive path:  '), info.path);
     console.log(chalk.dim('File count:    '), info.fileCount);
@@ -60,11 +60,11 @@ export async function walInfoCommand(branchName?: string) {
     // Check integrity
     const integrity = await wal.verifyArchiveIntegrity(datasetName);
     if (integrity.valid) {
-      console.log(chalk.green('✓ No gaps detected in WAL archive'));
+      console.log('✓ No gaps detected in WAL archive');
     } else {
-      console.log(chalk.yellow('⚠ Gaps detected in WAL archive:'));
+      console.log('⚠ Gaps detected in WAL archive:');
       for (const gap of integrity.gaps) {
-        console.log(chalk.dim('  -'), chalk.yellow(gap));
+        console.log(chalk.dim('  -'), gap);
       }
     }
     console.log();
@@ -79,7 +79,7 @@ export async function walInfoCommand(branchName?: string) {
     }
 
     for (const proj of projects) {
-      console.log(chalk.bold(chalk.cyan(proj.name)));
+      console.log(chalk.bold(proj.name));
 
       for (const branch of proj.branches) {
         const namespace = parseNamespace(branch.name);

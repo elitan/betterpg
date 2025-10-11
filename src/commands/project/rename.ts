@@ -6,7 +6,7 @@ import { buildNamespace } from '../../utils/namespace';
 
 export async function projectRenameCommand(oldName: string, newName: string) {
   console.log();
-  console.log(`Renaming project ${chalk.cyan(oldName)} to ${chalk.cyan(newName)}...`);
+  console.log(`Renaming project ${chalk.bold(oldName)} to ${chalk.bold(newName)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -20,7 +20,7 @@ export async function projectRenameCommand(oldName: string, newName: string) {
   // Sanitize new name
   const sanitizedNewName = sanitizeName(newName);
   if (sanitizedNewName !== newName) {
-    console.log(chalk.yellow(`Sanitized name: ${newName} → ${sanitizedNewName}`));
+    console.log(`Sanitized name: ${newName} → ${sanitizedNewName}`);
   }
 
   // Check if new name already exists
@@ -29,8 +29,8 @@ export async function projectRenameCommand(oldName: string, newName: string) {
     throw new Error(`Project '${sanitizedNewName}' already exists`);
   }
 
-  console.log(chalk.yellow('Warning: Renaming requires stopping all branches, updating containers, and restarting.'));
-  console.log(chalk.yellow('This feature is not yet implemented.'));
+  console.log('Warning: Renaming requires stopping all branches, updating containers, and restarting.');
+  console.log('This feature is not yet implemented.');
   console.log();
   console.log(chalk.dim('Workaround: Create a new project and migrate data manually.'));
   console.log();

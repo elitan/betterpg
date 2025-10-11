@@ -18,7 +18,7 @@ export async function projectGetCommand(name: string) {
   }
 
   console.log();
-  console.log(chalk.bold(`Project: ${chalk.cyan(name)}`));
+  console.log(chalk.bold(`Project: ${name}`));
   console.log();
 
   // Project info
@@ -46,15 +46,15 @@ export async function projectGetCommand(name: string) {
   const branchTable = new Table({
     head: ['Name', 'Type', 'Status', 'Port', 'Size'],
     style: {
-      head: ['cyan'],
+      head: [],
       border: ['gray']
     }
   });
 
   for (const branch of project.branches) {
     const branchName = branch.name.split('/')[1]; // Get branch name without project prefix
-    const type = branch.isPrimary ? chalk.blue('main') : chalk.yellow('branch');
-    const status = branch.status === 'running' ? chalk.green('running') : chalk.red('stopped');
+    const type = branch.isPrimary ? 'main' : 'branch';
+    const status = branch.status === 'running' ? 'running' : 'stopped';
 
     branchTable.push([
       branch.isPrimary ? chalk.bold(branchName) : branchName,

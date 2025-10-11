@@ -37,7 +37,7 @@ export async function stopCommand(name: string) {
   }
 
   console.log();
-  console.log(`Stopping ${chalk.cyan(name)}...`);
+  console.log(`Stopping ${chalk.bold(name)}...`);
   console.log();
 
   const containerName = getContainerName(namespace.project, namespace.branch);
@@ -55,6 +55,6 @@ export async function stopCommand(name: string) {
   await state.updateBranch(project.id, branch);
 
   console.log();
-  console.log('Branch stopped');
+  console.log(chalk.bold('Branch stopped'));
   console.log();
 }

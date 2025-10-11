@@ -7,7 +7,7 @@ import { withProgress } from '../../utils/progress';
 
 export async function snapshotDeleteCommand(snapshotId: string) {
   console.log();
-  console.log(`Deleting snapshot ${chalk.cyan(snapshotId)}...`);
+  console.log(`Deleting snapshot ${chalk.bold(snapshotId)}...`);
   console.log();
 
   const state = new StateManager(PATHS.STATE);
@@ -35,6 +35,6 @@ export async function snapshotDeleteCommand(snapshotId: string) {
   await state.deleteSnapshot(snapshotId);
 
   console.log();
-  console.log(chalk.green.bold('✓ Snapshot deleted successfully!'));
+  console.log(chalk.bold('Snapshot deleted'));
   console.log();
 }

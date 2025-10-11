@@ -12,7 +12,7 @@ export async function setupCommand() {
 
   if (!isRoot) {
     console.log();
-    console.log(chalk.red('✗ This command must be run with sudo'));
+    console.log('✗ This command must be run with sudo');
     console.log();
     console.log('Usage:');
     console.log('  sudo pgd setup');
@@ -32,7 +32,7 @@ export async function setupCommand() {
 
   if (!actualUser || actualUser === 'root') {
     console.log();
-    console.log(chalk.red('✗ Could not determine target user'));
+    console.log('✗ Could not determine target user');
     console.log('Please run with sudo as a regular user, not as root directly');
     console.log();
     process.exit(1);
@@ -42,11 +42,11 @@ export async function setupCommand() {
   console.log(chalk.bold('pgd Permission Setup'));
   console.log(chalk.dim('═'.repeat(60)));
   console.log();
-  console.log(`User: ${chalk.green(actualUser)}`);
+  console.log(`User: ${chalk.bold(actualUser)}`);
   console.log();
 
   // Step 1: Check ZFS
-  console.log(chalk.yellow('[1/5]'), 'Checking ZFS installation...');
+  console.log(chalk.bold('[1/5]'), 'Checking ZFS installation...');
 
   try {
     // Try standard locations for ZFS binaries
@@ -57,9 +57,9 @@ export async function setupCommand() {
       // Fallback to PATH-based command
       await $`zpool status`.quiet();
     }
-    console.log(chalk.green('✓'), 'ZFS is installed');
+    console.log('✓', 'ZFS is installed');
   } catch (error) {
-    console.log(chalk.red('✗'), 'ZFS is not installed');
+    console.log('✗', 'ZFS is not installed');
     console.log();
     console.log('Install ZFS first:');
     console.log('  Ubuntu/Debian: sudo apt install zfsutils-linux');
@@ -69,7 +69,7 @@ export async function setupCommand() {
   console.log();
 
   // Step 2: Detect ZFS pool
-  console.log(chalk.yellow('[2/5]'), 'Detecting ZFS pools...');
+  console.log(chalk.bold('[2/5]'), 'Detecting ZFS pools...');
 
   let pool: string;
   try {
@@ -78,7 +78,7 @@ export async function setupCommand() {
     const pools = poolsOutput.trim().split('\n').filter(p => p);
 
     if (pools.length === 0) {
-      console.log(chalk.red('✗'), 'No ZFS pools found');
+      console.log('✗', 'No ZFS pools found');
       console.log();
       console.log('Create a ZFS pool first:');
       console.log('  Testing: sudo truncate -s 10G /tmp/zfs-pool.img && sudo zpool create tank /tmp/zfs-pool.img');
@@ -89,7 +89,7 @@ export async function setupCommand() {
 
     if (pools.length === 1) {
       pool = pools[0]!; // Safe: we checked length === 1
-      console.log(chalk.green('✓'), `Found pool: ${chalk.green(pool)}`);
+      console.log('✓', `Found pool: ${pool}`);
     } else {
       console.log('Multiple pools found:');
       pools.forEach((p, i) => console.log(`  ${i + 1}. ${p}`));
@@ -107,21 +107,21 @@ export async function setupCommand() {
       const input = new TextDecoder().decode(value).trim();
 
       if (!pools.includes(input)) {
-        console.log(chalk.red('✗'), `Pool '${input}' not found`);
+        console.log('✗', `Pool '${input}' not found`);
         process.exit(1);
       }
 
       pool = input;
-      console.log(chalk.green('✓'), `Using pool: ${chalk.green(pool)}`);
+      console.log('✓', `Using pool: ${pool}`);
     }
   } catch (error) {
-    console.log(chalk.red('✗'), 'Failed to detect ZFS pools');
+    console.log('✗', 'Failed to detect ZFS pools');
     process.exit(1);
   }
   console.log();
 
   // Step 3: Grant ZFS permissions
-  console.log(chalk.yellow('[3/5]'), 'Granting ZFS delegation permissions...');
+  console.log(chalk.bold('[3/5]'), 'Granting ZFS delegation permissions...');
 
   try {
     // Check if delegation is enabled
@@ -156,16 +156,16 @@ export async function setupCommand() {
     await $`/usr/sbin/zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
     await $`/usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint,atime ${databasesDataset}`;
 
-    console.log(chalk.green('✓'), 'ZFS permissions granted');
+    console.log('✓', 'ZFS permissions granted');
   } catch (error) {
-    console.log(chalk.red('✗'), 'Failed to grant ZFS permissions');
+    console.log('✗', 'Failed to grant ZFS permissions');
     console.error(error);
     process.exit(1);
   }
   console.log();
 
   // Step 4: Configure Docker
-  console.log(chalk.yellow('[4/5]'), 'Configuring Docker access...');
+  console.log(chalk.bold('[4/5]'), 'Configuring Docker access...');
 
   try {
     await $`command -v docker`.quiet();
@@ -184,28 +184,28 @@ export async function setupCommand() {
     if (!groups.includes('docker')) {
       console.log(`Adding user '${actualUser}' to docker group...`);
       await $`usermod -aG docker ${actualUser}`;
-      console.log(chalk.green('✓'), 'User added to docker group');
+      console.log('✓', 'User added to docker group');
     } else {
-      console.log(chalk.green('✓'), 'User already in docker group');
+      console.log('✓', 'User already in docker group');
     }
   } catch (error) {
-    console.log(chalk.yellow('⚠'), 'Docker not installed (optional)');
+    console.log('⚠', 'Docker not installed (optional)');
     console.log('Install Docker before using pgd: https://docs.docker.com/engine/install/');
   }
   console.log();
 
   // Step 5: Install sudoers config
-  console.log(chalk.yellow('[5/5]'), 'Installing sudoers configuration...');
+  console.log(chalk.bold('[5/5]'), 'Installing sudoers configuration...');
 
   try {
     // Create pgd group if needed
     try {
       await $`getent group pgd`.quiet();
-      console.log(chalk.green('✓'), 'pgd group exists');
+      console.log('✓', 'pgd group exists');
     } catch (error) {
       console.log('Creating pgd group...');
       await $`groupadd pgd`;
-      console.log(chalk.green('✓'), 'pgd group created');
+      console.log('✓', 'pgd group created');
     }
 
     // Add user to pgd group
@@ -214,9 +214,9 @@ export async function setupCommand() {
     if (!pgdGroups.includes('pgd')) {
       console.log(`Adding user '${actualUser}' to pgd group...`);
       await $`usermod -aG pgd ${actualUser}`;
-      console.log(chalk.green('✓'), 'User added to pgd group');
+      console.log('✓', 'User added to pgd group');
     } else {
-      console.log(chalk.green('✓'), 'User already in pgd group');
+      console.log('✓', 'User already in pgd group');
     }
 
     // Get home directory for certificate path (must be absolute, no tilde expansion in sudoers)
@@ -251,14 +251,14 @@ export async function setupCommand() {
     // Verify sudoers syntax
     try {
       await $`visudo -c -f /etc/sudoers.d/pgd`.quiet();
-      console.log(chalk.green('✓'), 'Sudoers configuration installed');
+      console.log('✓', 'Sudoers configuration installed');
     } catch (error) {
-      console.log(chalk.red('✗'), 'Sudoers syntax error');
+      console.log('✗', 'Sudoers syntax error');
       await $`rm /etc/sudoers.d/pgd`;
       process.exit(1);
     }
   } catch (error) {
-    console.log(chalk.red('✗'), 'Failed to configure sudoers');
+    console.log('✗', 'Failed to configure sudoers');
     console.error(error);
     process.exit(1);
   }
@@ -266,7 +266,7 @@ export async function setupCommand() {
 
   // Success!
   console.log(chalk.dim('═'.repeat(60)));
-  console.log(chalk.green('✓ Setup Complete!'));
+  console.log(chalk.bold('✓ Setup Complete!'));
   console.log(chalk.dim('═'.repeat(60)));
   console.log();
   console.log('Configuration summary:');
@@ -275,14 +275,14 @@ export async function setupCommand() {
   console.log('  • Groups: docker, pgd');
   console.log('  • Sudoers: /etc/sudoers.d/pgd (ZFS mount/unmount + cert ownership)');
   console.log();
-  console.log(chalk.yellow('IMPORTANT: Log out and log back in now!'));
+  console.log(chalk.bold('IMPORTANT: Log out and log back in now!'));
   console.log('Group membership (docker, pgd) requires a new login session.');
   console.log();
-  console.log(chalk.yellow('After re-logging in:'));
+  console.log(chalk.bold('After re-logging in:'));
   console.log('  1. Verify setup: pgd doctor');
   console.log('  2. Create first project: pgd project create myapp');
   console.log();
-  console.log(chalk.green('Security Note:'));
+  console.log(chalk.bold('Security Note:'));
   console.log('pgd uses sudo only for:');
   console.log('  • ZFS mount/unmount (Linux kernel limitation)');
   console.log('  • Certificate ownership (PostgreSQL security requirement)');
