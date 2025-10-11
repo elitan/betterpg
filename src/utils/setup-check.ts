@@ -49,20 +49,20 @@ export async function isSetupComplete(): Promise<boolean> {
       return false;
     }
 
-    // Check 4: User is in pgd group
+    // Check 4: User is in velo group
     try {
       const groups = await $`groups`.text();
-      if (!groups.includes('pgd')) {
+      if (!groups.includes(CLI_NAME)) {
         return false;
       }
     } catch (error) {
       return false;
     }
 
-    // We intentionally skip checking if /etc/sudoers.d/pgd exists because:
+    // We intentionally skip checking if /etc/sudoers.d/${CLI_NAME} exists because:
     // - Regular users cannot read sudoers files (they have mode 0440, root-only readable)
     // - The test would always fail even when setup is complete
-    // - Verifying pgd group membership (above) is sufficient proof that setup ran successfully
+    // - Verifying ${CLI_NAME} group membership (above) is sufficient proof that setup ran successfully
     // - If the sudoers file is somehow missing, ZFS mount/unmount operations will fail with clear sudo errors
 
     return true;
@@ -81,7 +81,7 @@ export function displaySetupError(): never {
   console.log(`${CLI_NAME} requires one-time setup to configure permissions.`);
   console.log();
   console.log('Run the following command:');
-  console.log(chalk.cyan(`  sudo ${CLI_NAME} setup`));
+  console.log(chalk.cyan(`  ${CLI_NAME} setup`));
   console.log();
   console.log('This will:');
   console.log('  • Detect ZFS pool');

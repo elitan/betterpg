@@ -6,36 +6,18 @@ import { DEFAULTS } from '../config/defaults';
 
 /**
  * Setup command - grants ZFS permissions and configures Docker access
- * This must be run with sudo as it modifies system permissions
+ * This command runs as a normal user and uses sudo internally for operations that need elevated privileges
  */
 export async function setupCommand() {
-  // Check if running as root/sudo
-  const isRoot = process.getuid && process.getuid() === 0;
-
-  if (!isRoot) {
-    console.log();
-    console.log('✗ This command must be run with sudo');
-    console.log();
-    console.log('Usage:');
-    console.log(`  sudo ${CLI_NAME} setup`);
-    console.log();
-    console.log('This one-time setup will:');
-    console.log('  • Detect ZFS pool');
-    console.log('  • Grant ZFS delegation permissions');
-    console.log('  • Add user to docker group');
-    console.log(`  • Create ${CLI_NAME} group`);
-    console.log('  • Install minimal sudoers config for mount/unmount');
-    console.log();
-    process.exit(1);
-  }
-
-  // Get the actual user (not root)
-  const actualUser = process.env.SUDO_USER || process.env.USER;
+  // Get the current user
+  const actualUser = process.env.USER;
 
   if (!actualUser || actualUser === 'root') {
     console.log();
-    console.log('✗ Could not determine target user');
-    console.log('Please run with sudo as a regular user, not as root directly');
+    console.log('✗ Please run this command as a regular user, not as root');
+    console.log();
+    console.log('Usage:');
+    console.log(`  ${CLI_NAME} setup`);
     console.log();
     process.exit(1);
   }
@@ -54,10 +36,10 @@ export async function setupCommand() {
     // Try standard locations for ZFS binaries
     // Bun's $ shell in compiled binaries might not have PATH set correctly
     try {
-      await $`/usr/sbin/zpool status`.quiet();
+      await $`sudo /usr/sbin/zpool status`.quiet();
     } catch (error) {
       // Fallback to PATH-based command
-      await $`zpool status`.quiet();
+      await $`sudo zpool status`.quiet();
     }
     console.log('✓', 'ZFS is installed');
   } catch (error) {
@@ -76,7 +58,7 @@ export async function setupCommand() {
   let pool: string;
   try {
     // Use full path to ensure it works in compiled binary
-    const poolsOutput = await $`/usr/sbin/zpool list -H -o name`.text();
+    const poolsOutput = await $`sudo /usr/sbin/zpool list -H -o name`.text();
     const pools = poolsOutput.trim().split('\n').filter(p => p);
 
     if (pools.length === 0) {
@@ -127,36 +109,36 @@ export async function setupCommand() {
 
   try {
     // Check if delegation is enabled
-    const delegation = await $`/usr/sbin/zpool get -H -o value delegation ${pool}`.text();
+    const delegation = await $`sudo /usr/sbin/zpool get -H -o value delegation ${pool}`.text();
 
     if (delegation.trim() !== 'on') {
       console.log('Enabling ZFS delegation on pool...');
-      await $`/usr/sbin/zpool set delegation=on ${pool}`;
+      await $`sudo /usr/sbin/zpool set delegation=on ${pool}`;
     }
 
     // Create base dataset if needed
     const baseDataset = `${pool}/${CLI_NAME}`;
     try {
-      await $`/usr/sbin/zfs list ${baseDataset}`.quiet();
+      await $`sudo /usr/sbin/zfs list ${baseDataset}`.quiet();
     } catch (error) {
       console.log(`Creating base dataset: ${baseDataset}`);
-      await $`/usr/sbin/zfs create ${baseDataset}`;
+      await $`sudo /usr/sbin/zfs create ${baseDataset}`;
     }
 
     // Create databases dataset if needed
     const databasesDataset = `${pool}/${DEFAULTS.zfs.datasetBase}`;
     try {
-      await $`/usr/sbin/zfs list ${databasesDataset}`.quiet();
+      await $`sudo /usr/sbin/zfs list ${databasesDataset}`.quiet();
     } catch (error) {
       console.log(`Creating databases dataset: ${databasesDataset}`);
-      await $`/usr/sbin/zfs create ${databasesDataset}`;
+      await $`sudo /usr/sbin/zfs create ${databasesDataset}`;
     }
 
     // Grant permissions
     console.log(`Granting permissions to user '${actualUser}'...`);
-    await $`/usr/sbin/zfs allow ${actualUser} create,destroy,snapshot,clone,mount ${databasesDataset}`;
-    await $`/usr/sbin/zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
-    await $`/usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint,atime ${databasesDataset}`;
+    await $`sudo /usr/sbin/zfs allow ${actualUser} create,destroy,snapshot,clone,mount ${databasesDataset}`;
+    await $`sudo /usr/sbin/zfs allow ${actualUser} promote,send,receive ${databasesDataset}`;
+    await $`sudo /usr/sbin/zfs allow ${actualUser} compression,recordsize,mountpoint,atime ${databasesDataset}`;
 
     console.log('✓', 'ZFS permissions granted');
   } catch (error) {
@@ -177,7 +159,7 @@ export async function setupCommand() {
       await $`getent group docker`.quiet();
     } catch (error) {
       console.log('Creating docker group...');
-      await $`groupadd docker`;
+      await $`sudo groupadd docker`;
     }
 
     // Check if user is in docker group
@@ -185,7 +167,7 @@ export async function setupCommand() {
 
     if (!groups.includes('docker')) {
       console.log(`Adding user '${actualUser}' to docker group...`);
-      await $`usermod -aG docker ${actualUser}`;
+      await $`sudo usermod -aG docker ${actualUser}`;
       console.log('✓', 'User added to docker group');
     } else {
       console.log('✓', 'User already in docker group');
@@ -206,7 +188,7 @@ export async function setupCommand() {
       console.log('✓', `${CLI_NAME} group exists`);
     } catch (error) {
       console.log(`Creating ${CLI_NAME} group...`);
-      await $`groupadd ${CLI_NAME}`;
+      await $`sudo groupadd ${CLI_NAME}`;
       console.log('✓', `${CLI_NAME} group created`);
     }
 
@@ -215,7 +197,7 @@ export async function setupCommand() {
 
     if (!groups.includes(CLI_NAME)) {
       console.log(`Adding user '${actualUser}' to ${CLI_NAME} group...`);
-      await $`usermod -aG ${CLI_NAME} ${actualUser}`;
+      await $`sudo usermod -aG ${CLI_NAME} ${actualUser}`;
       console.log('✓', `User added to ${CLI_NAME} group`);
     } else {
       console.log('✓', `User already in ${CLI_NAME} group`);
@@ -248,16 +230,19 @@ export async function setupCommand() {
 # - This is much more secure than granting full sudo access
 `;
 
-    await fs.writeFile(sudoersPath, sudoersContent);
-    await $`chmod 0440 ${sudoersPath}`;
+    // Write sudoers file with sudo
+    const tmpFile = `/tmp/${CLI_NAME}-sudoers-${Date.now()}`;
+    await fs.writeFile(tmpFile, sudoersContent);
+    await $`sudo mv ${tmpFile} ${sudoersPath}`;
+    await $`sudo chmod 0440 ${sudoersPath}`;
 
     // Verify sudoers syntax
     try {
-      await $`visudo -c -f ${sudoersPath}`.quiet();
+      await $`sudo visudo -c -f ${sudoersPath}`.quiet();
       console.log('✓', 'Sudoers configuration installed');
     } catch (error) {
       console.log('✗', 'Sudoers syntax error');
-      await $`rm ${sudoersPath}`;
+      await $`sudo rm ${sudoersPath}`;
       process.exit(1);
     }
   } catch (error) {
