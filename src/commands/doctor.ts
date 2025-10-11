@@ -59,6 +59,7 @@ export async function doctorCommand() {
     await checkDockerInstalled(),
     await checkDockerRunning(),
     await checkDockerPermissions(),
+    await checkVeloGroup(),
     await checkDockerImages(),
   ];
   allResults.push(...dockerResults);
@@ -136,7 +137,7 @@ function printSummary(allResults: CheckResult[]) {
     console.log('✗ Issues detected. Please fix the failed checks above.');
     console.log();
     console.log('Common fixes:');
-    console.log(`  • Run setup: sudo ${CLI_NAME} setup`);
+    console.log(`  • Run setup: ${CLI_NAME} setup`);
     console.log('  • Create ZFS pool: sudo zpool create tank /dev/sdb');
     console.log('  • Log out and back in (for group changes)');
   } else if (warnings > 0) {
@@ -331,7 +332,7 @@ async function checkZFSPermissions(): Promise<CheckResult> {
         status: 'fail',
         message: 'ZFS permissions not configured',
         details: [
-          `Run setup: sudo ${CLI_NAME} setup`,
+          `Run setup: ${CLI_NAME} setup`,
           'This grants ZFS delegation permissions to your user',
         ],
       };
@@ -470,6 +471,46 @@ async function checkDockerPermissions(): Promise<CheckResult> {
       name: 'Docker Permissions',
       status: 'fail',
       message: 'Unable to check permissions',
+    };
+  }
+}
+
+async function checkVeloGroup(): Promise<CheckResult> {
+  try {
+    // Skip check if running as root
+    if (process.getuid && process.getuid() === 0) {
+      return {
+        name: `${CLI_NAME} Group`,
+        status: 'warn',
+        message: 'Running as root - group check skipped',
+      };
+    }
+
+    const groups = await $`groups`.text();
+    const hasVeloGroup = groups.includes(CLI_NAME);
+
+    if (hasVeloGroup) {
+      return {
+        name: `${CLI_NAME} Group`,
+        status: 'pass',
+        message: `User in ${CLI_NAME} group`,
+      };
+    } else {
+      return {
+        name: `${CLI_NAME} Group`,
+        status: 'fail',
+        message: `Not in ${CLI_NAME} group`,
+        details: [
+          `Run setup: ${CLI_NAME} setup`,
+          'Then log out and back in',
+        ],
+      };
+    }
+  } catch (error) {
+    return {
+      name: `${CLI_NAME} Group`,
+      status: 'fail',
+      message: 'Unable to check group membership',
     };
   }
 }

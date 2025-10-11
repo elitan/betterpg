@@ -182,6 +182,14 @@ export async function setupCommand() {
   console.log(chalk.bold('[5/5]'), 'Installing sudoers configuration...');
 
   try {
+    // Remove old sudoers file if it exists (to avoid ownership issues)
+    const sudoersPath = `/etc/sudoers.d/${CLI_NAME}`;
+    try {
+      await $`sudo rm -f ${sudoersPath}`.quiet();
+    } catch (error) {
+      // Ignore errors if file doesn't exist
+    }
+
     // Create group if needed
     try {
       await $`getent group ${CLI_NAME}`.quiet();
@@ -207,7 +215,6 @@ export async function setupCommand() {
     const homeDir = await $`getent passwd ${actualUser}`.text().then(s => s.trim().split(':')[5]);
 
     // Create sudoers file
-    const sudoersPath = `/etc/sudoers.d/${CLI_NAME}`;
     const sudoersContent = `# ${TOOL_NAME} - PostgreSQL database branching tool
 # This file grants minimal sudo permissions for required operations
 
@@ -234,6 +241,7 @@ export async function setupCommand() {
     const tmpFile = `/tmp/${CLI_NAME}-sudoers-${Date.now()}`;
     await fs.writeFile(tmpFile, sudoersContent);
     await $`sudo mv ${tmpFile} ${sudoersPath}`;
+    await $`sudo chown root:root ${sudoersPath}`;
     await $`sudo chmod 0440 ${sudoersPath}`;
 
     // Verify sudoers syntax

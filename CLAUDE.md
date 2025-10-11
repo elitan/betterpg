@@ -3,7 +3,7 @@
 - never create markdown (`.md`) files after you are done. Never!
 - never use emojis unless told to do so.
 - i know i'm absolutly right. no need to tell me.
-- **NEVER use sudo when running velo commands** (except for the one-time `sudo velo setup` command). After setup, all commands run without sudo using ZFS delegation and Docker permissions.
+- **NEVER use sudo when running velo commands**. After setup, all commands run without sudo using ZFS delegation and Docker permissions.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -30,16 +30,19 @@ bun install
 # Build the CLI
 bun run build
 
-# Run directly (development)
+# Link for development (one-time setup)
+bun link
+
+# After linking, just rebuild to update the binary
+bun run build  # The symlink automatically points to updated dist/velo
+
+# Run directly (development, without building)
 bun run src/index.ts
 # or
 bun run dev
 
-# Install globally
-sudo cp dist/velo /usr/local/bin/
-
 # Setup permissions (one-time, required before use)
-sudo velo setup
+velo setup
 
 # Run tests (cleans up first, then runs in parallel)
 bun run test           # Runs all tests via ./scripts/test.sh
@@ -239,7 +242,7 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 **One-time setup required:**
 ```bash
-sudo velo setup
+velo setup
 ```
 
 This command:
@@ -329,7 +332,7 @@ When modifying branching logic:
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
 - ZFS pool must exist before running setup (auto-detected)
-- One-time permission setup required (`sudo velo setup`)
+- One-time permission setup required (`velo setup`)
 - Mount/unmount operations require sudo due to Linux kernel CAP_SYS_ADMIN requirement
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)
