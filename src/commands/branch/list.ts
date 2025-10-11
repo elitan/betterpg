@@ -38,7 +38,7 @@ export async function branchListCommand(projectName?: string) {
 
   // Create table
   const table = new Table({
-    head: ['', 'Branch', 'Status', 'Port', 'Size', 'Created'],
+    head: ['', 'Branch', 'Status', 'Port', 'Size'],
     style: {
       head: [],
       border: ['gray']
@@ -53,17 +53,18 @@ export async function branchListCommand(projectName?: string) {
 
   async function renderBranch(node: BranchNode, depth: number = 0) {
     const branch = node.branch;
-    const statusIcon = branch.status === 'running' ? '●' : '○';
+    const statusIcon = branch.status === 'running' ? '●' : '';
     const statusText = branch.status === 'running' ? 'running' : 'stopped';
-    const port = branch.status === 'running' ? `Port ${branch.port}` : '-';
+    const port = branch.status === 'running' ? branch.port.toString() : '-';
 
     // Build name with tree structure
-    const indent = depth > 0 ? '  ↳ ' : '';
-    const name = indent + branch.name;
+    const indent = depth > 0 ? '  '.repeat(depth) + '↳ ' : '';
+    const namespace = parseNamespace(branch.name);
+    const displayName = depth > 0 ? namespace.branch : branch.name;
+    const name = indent + displayName;
     const type = branch.isPrimary ? chalk.dim(' (main)') : '';
 
     // Query size on-demand from ZFS
-    const namespace = parseNamespace(branch.name);
     const datasetName = getDatasetName(namespace.project, namespace.branch);
     let sizeBytes = 0;
     try {
@@ -77,8 +78,7 @@ export async function branchListCommand(projectName?: string) {
       name + type,
       statusText,
       port,
-      formatBytes(sizeBytes),
-      new Date(branch.createdAt).toLocaleString()
+      formatBytes(sizeBytes)
     ]);
 
     // Render children

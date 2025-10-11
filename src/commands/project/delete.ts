@@ -30,9 +30,51 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   const nonMainBranches = project.branches.filter(b => !b.isPrimary);
   if (nonMainBranches.length > 0 && !options.force) {
     console.log(`Project '${chalk.bold(name)}' has ${nonMainBranches.length} branch(es):`);
-    for (const branch of nonMainBranches) {
-      console.log(chalk.dim(`  - ${branch.name}`));
+
+    // Build tree structure
+    interface BranchNode {
+      branch: any;
+      children: BranchNode[];
     }
+
+    const branchMap = new Map<string, BranchNode>();
+    const roots: BranchNode[] = [];
+
+    // Create nodes for all branches (including main for parent lookups)
+    for (const branch of project.branches) {
+      branchMap.set(branch.id, { branch, children: [] });
+    }
+
+    // Build parent-child relationships
+    for (const branch of project.branches) {
+      const node = branchMap.get(branch.id)!;
+      if (branch.parentBranchId) {
+        const parent = branchMap.get(branch.parentBranchId);
+        if (parent) {
+          parent.children.push(node);
+        } else {
+          roots.push(node);
+        }
+      } else {
+        roots.push(node);
+      }
+    }
+
+    // Render tree (only non-main branches)
+    function renderBranch(node: BranchNode, depth: number = 0) {
+      if (!node.branch.isPrimary) {
+        const indent = depth > 0 ? '  '.repeat(depth) + '↳ ' : '  ';
+        console.log(chalk.dim(`${indent}${node.branch.name}`));
+      }
+      for (const child of node.children) {
+        renderBranch(child, node.branch.isPrimary ? depth : depth + 1);
+      }
+    }
+
+    for (const root of roots) {
+      renderBranch(root, 0);
+    }
+
     console.log();
     console.log(`Use ${chalk.bold('--force')} to delete project and all branches`);
     process.exit(1);
