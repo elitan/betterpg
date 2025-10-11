@@ -28,7 +28,7 @@ $ pgd project create demo
 Creating project demo...
   ▸ Detect ZFS pool                         0.0s
   ▸ Validate permissions                    0.0s
-  ▸ Create dataset demo/main                0.0s
+  ▸ Create dataset demo-main                0.0s
   ▸ Mount dataset                           0.0s
   ▸ PostgreSQL ready                        6.2s
 
@@ -74,6 +74,15 @@ Connection ready:
 ```bash
 # Check status - two isolated databases running
 $ pgd status
+
+pgd Status
+
+ZFS Pool
+┌──────┬────────┬─────────┬─────────────────┬─────────┐
+│ Pool │ Health │ Size    │ Used            │ Free    │
+├──────┼────────┼─────────┼─────────────────┼─────────┤
+│ tank │ ONLINE │ 9.50 GB │ 22.41 MB (0.2%) │ 9.48 GB │
+└──────┴────────┴─────────┴─────────────────┴─────────┘
 
 Projects (1)
 ┌───┬───────────────┬───────────────┬────────────────────┬───────────┬─────────────────────┐
@@ -130,10 +139,10 @@ $ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
 ```
 
 ```bash
-# Sync dev back to main's current state
-$ pgd branch sync demo/dev
+# Reset dev back to main's current state
+$ pgd branch reset demo/dev
 
-Syncing demo/dev with demo/main...
+Resetting demo/dev to demo/main...
   ▸ Stop container                          0.2s
   ▸ Checkpoint demo/main                    0.1s
   ▸ Create snapshot                         0.0s
@@ -163,12 +172,12 @@ $ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
 - [✓] Created full database copy in 0.1s (Checkpoint + ZFS snapshot + clone + mount)
 - [✓] Each branch is isolated (changes don't leak between branches)
 - [✓] Branches are 127 KB via ZFS copy-on-write (not full copies)
-- [✓] Sync resets branch to parent (like `git reset --hard origin/main`)
+- [✓] Reset resets branch to parent (like `git reset --hard origin/main`)
 
 **Think of it like Git for databases:**
 - `pgd project create` = `git init`
 - `pgd branch create` = `git branch` (complete database instance)
-- `pgd branch sync` = `git reset --hard origin/main`
+- `pgd branch reset` = `git reset --hard origin/main`
 
 ## Why pgd?
 
@@ -276,17 +285,19 @@ sudo zpool create tank mirror /dev/sdb /dev/sdc
 ```bash
 # Create project (auto-creates <project>/main branch)
 pgd project create myapp
-pgd project create legacy --pg-version 14
-pgd project create vectordb --image ankane/pgvector:17
-pgd project create myapp --pool tank2  # If multiple ZFS pools
+pgd proj create legacy --pg-version 14
+pgd proj create vectordb --image ankane/pgvector:17
+pgd proj create myapp --pool tank2  # If multiple ZFS pools
 
 # List/view/delete
-pgd project list
+pgd project list     # or: pgd proj ls
 pgd project get myapp
-pgd project delete myapp --force
+pgd project delete myapp --force     # or: pgd proj rm myapp --force
 ```
 
 **Docker image inheritance:** All branches inherit parent project's Docker image
+
+**Aliases:** `project` can be shortened to `proj`, `list` to `ls`, `delete` to `rm`
 </details>
 
 <details>
@@ -295,17 +306,22 @@ pgd project delete myapp --force
 ```bash
 # Create branch (application-consistent, uses CHECKPOINT)
 pgd branch create prod/dev
-pgd branch create prod/feature --from prod/dev
+pgd br create prod/feature --from prod/dev
 
 # List/view/delete
-pgd branch list
-pgd branch list prod  # Specific project
+pgd branch list              # or: pgd br ls
+pgd branch list prod         # Specific project
 pgd branch get prod/dev
-pgd branch delete prod/dev
+pgd branch delete prod/dev   # or: pgd br rm prod/dev
 
 # Reset branch to parent's current state
 pgd branch reset prod/dev
+
+# Show connection details and password
+pgd branch password prod/dev   # or: pgd br pass prod/dev
 ```
+
+**Aliases:** `branch` can be shortened to `br`, `list` to `ls`, `delete` to `rm`, `password` to `pass`
 </details>
 
 <details>
@@ -314,11 +330,12 @@ pgd branch reset prod/dev
 ```bash
 # Create snapshot (application-consistent, uses CHECKPOINT)
 pgd snapshot create prod/main --label "before-migration"
+# or: pgd snap create prod/main --label "before-migration"
 
 # List/delete
-pgd snapshot list
-pgd snapshot list prod/main
-pgd snapshot delete <snapshot-id>
+pgd snapshot list                      # or: pgd snap ls
+pgd snapshot list prod/main            # or: pgd snap ls prod/main
+pgd snapshot delete <snapshot-id>      # or: pgd snap rm <snapshot-id>
 
 # Cleanup old snapshots
 pgd snapshot cleanup prod/main --days 30
@@ -327,6 +344,8 @@ pgd snapshot cleanup prod/main --days 30 --dry-run
 ```
 
 **Best practice:** Automate snapshots via cron for PITR
+
+**Aliases:** `snapshot` can be shortened to `snap`, `list` to `ls`, `delete` to `rm`
 </details>
 
 <details>
@@ -369,13 +388,15 @@ pgd wal cleanup prod/main --days 7 --dry-run
 
 ```bash
 # View all projects and branches
-pgd status
+pgd status     # or: pgd ls
 
 # Start/stop/restart branches
 pgd start prod/dev
 pgd stop prod/dev
 pgd restart prod/dev
 ```
+
+**Aliases:** `status` can be shortened to `ls`
 </details>
 
 <details>
@@ -383,12 +404,13 @@ pgd restart prod/dev
 
 ```bash
 # Get connection details
-pgd status
+pgd status                      # Overview of all projects and branches
+pgd branch password prod/dev    # Show full connection string with password
 
 # Connect with psql
 psql -h localhost -p <port> -U <username> -d <database>
 
-# Or use connection string from status
+# Or use connection string
 psql postgresql://<username>:<password>@localhost:<port>/<database>
 ```
 </details>
@@ -416,11 +438,26 @@ pgd doctor
 
 **Example output:**
 ```
-✓ Operating System: Ubuntu 24.04.3 LTS
-✓ ZFS Installation: zfs-2.2.2
-✓ ZFS Permissions: Delegation configured
-✓ Docker Daemon: Running
-✓ Projects: 3 project(s), 7 branch(es)
+pgd Health Check
+════════════════════════════════════════════════════════════
+
+System Information
+────────────────────────────────────────────────────────────
+✓ Operating System
+  Ubuntu 24.04.3 LTS
+✓ Bun Runtime
+  v1.2.23
+ℹ pgd Version
+  v0.3.4
+
+ZFS Configuration
+────────────────────────────────────────────────────────────
+✓ ZFS Installation
+  zfs-2.2.2-0ubuntu9.4
+✓ ZFS Pool
+  Using pool: tank
+✓ ZFS Permissions
+  Delegation configured for tank/pgd/databases
 
 Summary: ✓ All checks passed! pgd is ready to use.
 ```
