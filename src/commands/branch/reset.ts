@@ -8,6 +8,7 @@ import { parseNamespace } from '../../utils/namespace';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 export async function branchResetCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
@@ -197,10 +198,19 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   branch.snapshotName = fullSnapshotName;
   await state.updateBranch(project.id, branch);
 
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold('Branch reset'));
   console.log();
-  console.log(chalk.bold('Connection ready:'));
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
+  console.log(chalk.bold('Connection:'));
+  console.log(formatConnectionString(
+    project.credentials.username,
+    project.credentials.password,
+    branch.port,
+    project.credentials.database,
+    publicIP
+  ));
   console.log();
 }

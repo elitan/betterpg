@@ -5,6 +5,7 @@ import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
+import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 export async function branchGetCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -39,8 +40,17 @@ export async function branchGetCommand(name: string) {
     const snapshotShortName = branch.snapshotName.split('@')[1];
     console.log(chalk.dim('  Snapshot     '), snapshotShortName);
   }
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold('Connection:'));
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}?sslmode=require`);
+  console.log(formatConnectionString(
+    project.credentials.username,
+    project.credentials.password,
+    branch.port,
+    project.credentials.database,
+    publicIP
+  ));
   console.log();
 }

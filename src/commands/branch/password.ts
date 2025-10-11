@@ -3,6 +3,7 @@ import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
+import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 export async function branchPasswordCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -20,6 +21,9 @@ export async function branchPasswordCommand(name: string) {
 
   const { branch, project } = result;
 
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold(`Connection details for ${name}`));
   console.log();
@@ -29,7 +33,13 @@ export async function branchPasswordCommand(name: string) {
   console.log(chalk.dim('  Username:'), project.credentials.username);
   console.log(chalk.dim('  Password:'), project.credentials.password);
   console.log();
-  console.log(chalk.bold('Connection string:'));
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${branch.port}/${project.credentials.database}`);
+  console.log(chalk.bold('Connection:'));
+  console.log(formatConnectionString(
+    project.credentials.username,
+    project.credentials.password,
+    branch.port,
+    project.credentials.database,
+    publicIP
+  ));
   console.log();
 }

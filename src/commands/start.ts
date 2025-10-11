@@ -6,6 +6,7 @@ import { getContainerName } from '../utils/naming';
 import { parseNamespace } from '../utils/namespace';
 import { UserError } from '../errors';
 import { withProgress } from '../utils/progress';
+import { getPublicIP, formatConnectionString } from '../utils/network';
 
 export async function startCommand(name: string) {
   // Parse namespace
@@ -63,10 +64,19 @@ export async function startCommand(name: string) {
   branch.port = actualPort;
   await state.updateBranch(project.id, branch);
 
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold('Branch started'));
   console.log();
-  console.log(chalk.bold('Connection ready:'));
-  console.log(`  postgresql://${project.credentials.username}:${project.credentials.password}@localhost:${actualPort}/${project.credentials.database}?sslmode=require`);
+  console.log(chalk.bold('Connection:'));
+  console.log(formatConnectionString(
+    project.credentials.username,
+    project.credentials.password,
+    actualPort,
+    project.credentials.database,
+    publicIP
+  ));
   console.log();
 }

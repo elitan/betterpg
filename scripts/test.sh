@@ -26,4 +26,4 @@ BUN_PATH="$(which bun)"
 BAIL_FLAG="${BAIL_COUNT:+--bail=$BAIL_COUNT}"
 BAIL_FLAG="${BAIL_FLAG:---bail}"
 
-cd "$(dirname "$0")/.." && sudo "$BUN_PATH" test "$BAIL_FLAG" "$@"
+cd "$(dirname "$0")/.." && sudo NODE_ENV=test "$BUN_PATH" test "$BAIL_FLAG" "$@"

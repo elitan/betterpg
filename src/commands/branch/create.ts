@@ -12,6 +12,7 @@ import { Rollback } from '../../utils/rollback';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
+import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 export interface BranchCreateOptions {
   from?: string;
@@ -298,10 +299,19 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     throw error;
   }
 
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold(`Branch '${target.full}' created`));
   console.log();
-  console.log(chalk.bold('Connection ready:'));
-  console.log(`  postgresql://${sourceProject.credentials.username}:${sourceProject.credentials.password}@localhost:${port}/${sourceProject.credentials.database}?sslmode=require`);
+  console.log(chalk.bold('Connection:'));
+  console.log(formatConnectionString(
+    sourceProject.credentials.username,
+    sourceProject.credentials.password,
+    port,
+    sourceProject.credentials.database,
+    publicIP
+  ));
   console.log();
 }

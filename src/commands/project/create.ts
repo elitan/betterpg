@@ -16,6 +16,7 @@ import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
 import * as fs from 'fs/promises';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
+import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 interface CreateOptions {
   pool?: string;
@@ -204,10 +205,19 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   await state.addProject(project);
 
+  // Get public IP for remote connection info
+  const publicIP = await getPublicIP();
+
   console.log();
   console.log(chalk.bold(`Project '${name}' created`));
   console.log();
-  console.log(chalk.bold('Connection ready:'));
-  console.log(`  postgresql://postgres:${password}@localhost:${port}/postgres?sslmode=require`);
+  console.log(chalk.bold('Connection:'));
+  console.log(formatConnectionString(
+    'postgres',
+    password,
+    port,
+    'postgres',
+    publicIP
+  ));
   console.log();
 }
