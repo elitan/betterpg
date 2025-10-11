@@ -4,7 +4,7 @@ export function generateUUID(): string {
   return crypto.randomUUID();
 }
 
-export function generatePassword(length = 32): string {
+export function generatePassword(length = 12): string {
   // Use only alphanumeric characters to avoid shell escaping issues
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = randomBytes(length);
