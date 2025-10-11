@@ -7,6 +7,7 @@ import { parseNamespace } from '../utils/namespace';
 import { UserError } from '../errors';
 import { withProgress } from '../utils/progress';
 import { getPublicIP, formatConnectionString } from '../utils/network';
+import { CLI_NAME } from '../config/constants';
 
 export async function restartCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -22,7 +23,7 @@ export async function restartCommand(name: string) {
   if (!branchResult) {
     throw new UserError(
       `Branch '${name}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 

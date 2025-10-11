@@ -4,6 +4,7 @@ import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
 import { formatBytes } from '../../utils/helpers';
 import { UserError } from '../../errors';
+import { CLI_NAME } from '../../config/constants';
 
 export async function projectGetCommand(name: string) {
   const state = new StateManager(PATHS.STATE);
@@ -13,7 +14,7 @@ export async function projectGetCommand(name: string) {
   if (!project) {
     throw new UserError(
       `Project '${name}' not found`,
-      "Run 'pgd project list' to see available projects"
+      `Run '${CLI_NAME} project list' to see available projects`
     );
   }
 

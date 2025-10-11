@@ -1,8 +1,9 @@
 import { $ } from 'bun';
 import chalk from 'chalk';
+import { CLI_NAME } from '../config/constants';
 
 /**
- * Required ZFS permissions for pgd to operate without sudo
+ * Required ZFS permissions to operate without sudo
  */
 const REQUIRED_PERMISSIONS = [
   'create',
@@ -82,18 +83,18 @@ export async function validateZFSPermissions(pool: string, datasetBase: string):
     console.error();
     console.error(chalk.red.bold('✗ Missing ZFS Permissions'));
     console.error();
-    console.error(chalk.yellow('pgd requires ZFS delegation permissions to operate without sudo.'));
+    console.error(chalk.yellow(`${CLI_NAME} requires ZFS delegation permissions to operate without sudo.`));
     console.error();
     console.error(chalk.bold('To fix this, run the one-time setup:'));
     console.error();
-    console.error(chalk.cyan('  sudo pgd setup'));
+    console.error(chalk.cyan(`  sudo ${CLI_NAME} setup`));
     console.error();
     console.error(chalk.dim('This will grant the necessary ZFS permissions to your user account.'));
     console.error(chalk.dim(`Dataset: ${pool}/${datasetBase}`));
     console.error(chalk.dim(`User: ${username}`));
     console.error();
 
-    throw new Error('ZFS permissions not configured. Run: sudo pgd setup');
+    throw new Error(`ZFS permissions not configured. Run: sudo ${CLI_NAME} setup`);
   }
 }
 
@@ -129,22 +130,22 @@ export async function validateDockerPermissions(): Promise<void> {
     console.error();
     console.error(chalk.red.bold('✗ Missing Docker Permissions'));
     console.error();
-    console.error(chalk.yellow('pgd requires Docker access without sudo.'));
+    console.error(chalk.yellow(`${CLI_NAME} requires Docker access without sudo.`));
     console.error();
     console.error(chalk.bold('To fix this, run the one-time setup:'));
     console.error();
-    console.error(chalk.cyan('  sudo pgd setup'));
+    console.error(chalk.cyan(`  sudo ${CLI_NAME} setup`));
     console.error();
     console.error(chalk.dim('Then log out and log back in for the docker group to take effect.'));
     console.error(chalk.dim(`User: ${username}`));
     console.error();
 
-    throw new Error('Docker permissions not configured. Run: sudo pgd setup and re-login.');
+    throw new Error(`Docker permissions not configured. Run: sudo ${CLI_NAME} setup and re-login.`);
   }
 }
 
 /**
- * Validate all required permissions for pgd
+ * Validate all required permissions
  */
 export async function validateAllPermissions(pool: string, datasetBase: string): Promise<void> {
   await validateDockerPermissions();

@@ -9,6 +9,7 @@ import { getContainerName, getDatasetName } from '../../utils/naming';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { CLI_NAME } from '../../config/constants';
 
 export async function projectDeleteCommand(name: string, options: { force?: boolean }) {
   console.log();
@@ -22,7 +23,7 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
   if (!project) {
     throw new UserError(
       `Project '${name}' not found`,
-      "Run 'pgd project list' to see available projects"
+      `Run '${CLI_NAME} project list' to see available projects`
     );
   }
 

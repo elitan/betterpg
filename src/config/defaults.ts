@@ -1,5 +1,5 @@
 /**
- * Hardcoded defaults for pgd
+ * Hardcoded defaults for velo
  * These are sensible defaults that work for most use cases
  */
 
@@ -8,7 +8,7 @@ export const DEFAULTS = {
     compression: 'lz4',        // Fast compression, good for databases
     recordsize: '8k',          // PostgreSQL page size
     atime: 'off',              // Disable access time tracking for performance
-    datasetBase: 'pgd/databases',
+    datasetBase: 'velo/databases',
   },
   postgres: {
     defaultVersion: '17',

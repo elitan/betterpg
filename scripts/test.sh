@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test runner for pgd
+# Test runner for velo
 # Tests require sudo for ZFS and Docker operations
 
 set -e
@@ -9,7 +9,7 @@ echo "Cleaning up existing test artifacts..."
 sudo "$(dirname "$0")/cleanup.sh"
 
 # Build the binary
-echo "Building pgd..."
+echo "Building velo..."
 bun run build
 
 # Run tests with sudo sequentially

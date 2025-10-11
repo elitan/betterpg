@@ -7,6 +7,7 @@ import { DEFAULTS } from '../config/defaults';
 import { getZFSPool } from '../utils/zfs-pool';
 import { validateAllPermissions } from '../utils/zfs-permissions';
 import * as fs from 'fs/promises';
+import { CLI_NAME } from '../config/constants';
 
 interface CheckResult {
   name: string;
@@ -17,7 +18,7 @@ interface CheckResult {
 
 export async function doctorCommand() {
   console.log();
-  console.log(chalk.bold('pgd Health Check'));
+  console.log(chalk.bold(`${CLI_NAME} Health Check`));
   console.log(chalk.dim('═'.repeat(60)));
   console.log();
 
@@ -64,8 +65,8 @@ export async function doctorCommand() {
   printResults(dockerResults);
   console.log();
 
-  // pgd State
-  console.log(chalk.bold('pgd State'));
+  // State
+  console.log(chalk.bold(`${CLI_NAME} State`));
   console.log(chalk.dim('─'.repeat(60)));
 
   const stateResults = [
@@ -135,13 +136,13 @@ function printSummary(allResults: CheckResult[]) {
     console.log('✗ Issues detected. Please fix the failed checks above.');
     console.log();
     console.log('Common fixes:');
-    console.log('  • Run setup: sudo pgd setup');
+    console.log(`  • Run setup: sudo ${CLI_NAME} setup`);
     console.log('  • Create ZFS pool: sudo zpool create tank /dev/sdb');
     console.log('  • Log out and back in (for group changes)');
   } else if (warnings > 0) {
-    console.log('⚠ pgd is functional but has warnings. Review above.');
+    console.log(`⚠ ${CLI_NAME} is functional but has warnings. Review above.`);
   } else {
-    console.log('✓ All checks passed! pgd is ready to use.');
+    console.log(`✓ All checks passed! ${CLI_NAME} is ready to use.`);
   }
   console.log();
 }
@@ -163,7 +164,7 @@ async function checkOS(): Promise<CheckResult> {
       return {
         name: 'Operating System',
         status: 'fail',
-        message: `Detected ${os}. pgd requires Linux.`,
+        message: `Detected ${os}. ${CLI_NAME} requires Linux.`,
       };
     }
   } catch (error) {
@@ -197,13 +198,13 @@ async function checkPgdVersion(): Promise<CheckResult> {
     const packageJson = await Bun.file('package.json').text();
     const pkg = JSON.parse(packageJson);
     return {
-      name: 'pgd Version',
+      name: `${CLI_NAME} Version`,
       status: 'info',
       message: `v${pkg.version}`,
     };
   } catch (error) {
     return {
-      name: 'pgd Version',
+      name: `${CLI_NAME} Version`,
       status: 'info',
       message: 'Unable to detect version',
     };
@@ -279,7 +280,7 @@ async function checkZFSPool(): Promise<CheckResult> {
         name: 'ZFS Pool',
         status: 'warn',
         message: `Found ${poolList.length} pools: ${poolList.join(', ')}`,
-        details: [`Specify pool when creating project: pgd project create myapp ${chalk.bold('--pool')} <name>`],
+        details: [`Specify pool when creating project: ${CLI_NAME} project create myapp ${chalk.bold('--pool')} <name>`],
       };
     }
   } catch (error) {
@@ -330,7 +331,7 @@ async function checkZFSPermissions(): Promise<CheckResult> {
         status: 'fail',
         message: 'ZFS permissions not configured',
         details: [
-          'Run setup: sudo pgd setup',
+          `Run setup: sudo ${CLI_NAME} setup`,
           'This grants ZFS delegation permissions to your user',
         ],
       };
@@ -578,7 +579,7 @@ async function checkProjects(): Promise<CheckResult> {
         name: 'Projects',
         status: 'info',
         message: 'No projects yet',
-        details: ['Create first project: pgd project create myapp'],
+        details: [`Create first project: ${CLI_NAME} project create myapp`],
       };
     }
 
@@ -590,7 +591,7 @@ async function checkProjects(): Promise<CheckResult> {
         name: 'Projects',
         status: 'info',
         message: 'No projects',
-        details: ['Create first project: pgd project create myapp'],
+        details: [`Create first project: ${CLI_NAME} project create myapp`],
       };
     }
 
@@ -618,21 +619,21 @@ async function checkContainers(): Promise<CheckResult> {
   try {
     const docker = new DockerManager();
     const allContainers = await docker.listContainers();
-    const pgdContainers = allContainers.filter(c => c.name.startsWith('pgd-'));
+    const cliContainers = allContainers.filter(c => c.name.startsWith(`${CLI_NAME}-`));
 
-    if (pgdContainers.length === 0) {
+    if (cliContainers.length === 0) {
       return {
         name: 'Docker Containers',
         status: 'info',
-        message: 'No pgd containers',
+        message: `No ${CLI_NAME} containers`,
       };
     }
 
-    const running = pgdContainers.filter(c => c.state === 'running').length;
-    const stopped = pgdContainers.length - running;
+    const running = cliContainers.filter(c => c.state === 'running').length;
+    const stopped = cliContainers.length - running;
 
-    const details = pgdContainers.map(c => {
-      const name = c.name.replace('pgd-', '');
+    const details = cliContainers.map(c => {
+      const name = c.name.replace(`${CLI_NAME}-`, '');
       const stateIcon = c.state === 'running' ? '●' : '○';
       return `${stateIcon} ${name} (${c.state})`;
     });

@@ -6,6 +6,7 @@ import { parseNamespace } from '../../utils/namespace';
 import { getDatasetName } from '../../utils/naming';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { CLI_NAME } from '../../config/constants';
 
 export interface WALCleanupOptions {
   days?: number;
@@ -24,7 +25,7 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
   if (!proj) {
     throw new UserError(
       `Project '${target.project}' not found`,
-      "Run 'pgd project list' to see available projects"
+      `Run '${CLI_NAME} project list' to see available projects`
     );
   }
 
@@ -32,7 +33,7 @@ export async function walCleanupCommand(branchName: string, options: WALCleanupO
   if (!branch) {
     throw new UserError(
       `Branch '${target.full}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 

@@ -4,6 +4,7 @@ import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
 import { getPublicIP, formatConnectionString } from '../../utils/network';
+import { CLI_NAME } from '../../config/constants';
 
 export async function branchPasswordCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -15,7 +16,7 @@ export async function branchPasswordCommand(name: string) {
   if (!result) {
     throw new UserError(
       `Branch '${name}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 

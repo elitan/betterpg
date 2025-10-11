@@ -5,6 +5,7 @@ import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { CLI_NAME } from '../../config/constants';
 
 export interface SnapshotCleanupOptions {
   days: number;
@@ -26,7 +27,7 @@ export async function snapshotCleanupCommand(
   } else {
     throw new UserError(
       `Must specify branch name or use ${chalk.bold('--all')} flag`,
-      `Usage: 'pgd snapshot cleanup <project>/<branch> ${chalk.bold('--days')} <n>' or 'pgd snapshot cleanup ${chalk.bold('--all')} ${chalk.bold('--days')} <n>'`
+      `Usage: '${CLI_NAME} snapshot cleanup <project>/<branch> ${chalk.bold('--days')} <n>' or '${CLI_NAME} snapshot cleanup ${chalk.bold('--all')} ${chalk.bold('--days')} <n>'`
     );
   }
 
@@ -58,7 +59,7 @@ export async function snapshotCleanupCommand(
     if (!proj) {
       throw new UserError(
         `Project '${target.project}' not found`,
-        "Run 'pgd project list' to see available projects"
+        `Run '${CLI_NAME} project list' to see available projects`
       );
     }
 
@@ -66,7 +67,7 @@ export async function snapshotCleanupCommand(
     if (!branch) {
       throw new UserError(
         `Branch '${target.full}' not found`,
-        "Run 'pgd branch list' to see available branches"
+        `Run '${CLI_NAME} branch list' to see available branches`
       );
     }
 

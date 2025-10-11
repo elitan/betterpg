@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>pgd</h1>
+  <h1>Velo</h1>
   <h3>Instant PostgreSQL branching using ZFS snapshots</h3>
   <p>Clone your database in 0.1 seconds. Each branch is a complete, isolated PostgreSQL instance.</p>
   <a href="https://github.com/elitan/pgd/blob/main/LICENSE">
@@ -23,7 +23,7 @@
 
 ```bash
 # Create project with PostgreSQL 17 (auto-creates demo/main branch)
-$ pgd project create demo
+$ velo project create demo
 
 Creating project demo...
   ▸ Detect ZFS pool                         0.0s
@@ -56,7 +56,7 @@ EOF
 
 ```bash
 # Create branch in 0.1s (copies entire database via ZFS snapshot)
-$ pgd branch create demo/dev
+$ velo branch create demo/dev
 
 Creating demo/dev from demo/main...
   ▸ Checkpoint                              0.1s
@@ -73,9 +73,9 @@ Connection ready:
 
 ```bash
 # Check status - two isolated databases running
-$ pgd status
+$ velo status
 
-pgd Status
+Velo Status
 
 ZFS Pool
 ┌──────┬────────┬─────────┬─────────────────┬─────────┐
@@ -140,7 +140,7 @@ $ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"  # Dev
 
 ```bash
 # Reset dev back to main's current state
-$ pgd branch reset demo/dev
+$ velo branch reset demo/dev
 
 Resetting demo/dev to demo/main...
   ▸ Stop container                          0.2s
@@ -175,11 +175,11 @@ $ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
 - [✓] Reset resets branch to parent (like `git reset --hard origin/main`)
 
 **Think of it like Git for databases:**
-- `pgd project create` = `git init`
+- `velo project create` = `git init`
 - `pgd branch create` = `git branch` (complete database instance)
 - `pgd branch reset` = `git reset --hard origin/main`
 
-## Why pgd?
+## Why Velo?
 
 **Perfect for:**
 - Testing migrations on production data before applying
@@ -202,10 +202,10 @@ sudo apt install zfsutils-linux
 curl -fsSL https://get.docker.com | sh
 curl -fsSL https://bun.sh/install | bash
 
-# Install pgd
-git clone https://github.com/elitan/pgd.git && cd pgd
+# Install Velo
+git clone https://github.com/elitan/pgd.git && cd velo
 bun install && bun run build
-sudo cp dist/pgd /usr/local/bin/
+sudo cp dist/velo /usr/local/bin/
 ```
 
 ### One-Time Setup (Required per server)
@@ -219,20 +219,20 @@ zpool list  # Check existing pools
 # For production: sudo zpool create tank /dev/sdb
 
 # 2. Run pgd setup (grants permissions, configures Docker)
-sudo pgd setup
+sudo velo setup
 
 # 3. Log out and log back in (required for group membership to take effect)
 
-# 4. Verify setup and start using pgd:
+# 4. Verify setup and start using Velo:
 pgd doctor              # Check if everything is configured correctly
-pgd project create myapp
+velo project create myapp
 ```
 
-**What `pgd setup` does:**
+**What `velo setup` does:**
 - Auto-detects ZFS pool (or prompts if multiple exist)
 - Grants ZFS delegation permissions (90% of operations run without sudo)
 - Adds user to docker group
-- Creates `pgd` group and adds current user
+- Creates `velo` group and adds current user
 - Installs minimal sudoers config for mount/unmount operations only
 
 **Security:** Only mount/unmount require sudo (Linux kernel limitation). All other operations use ZFS delegation.
@@ -240,7 +240,7 @@ pgd project create myapp
 **Troubleshooting:** Run `pgd doctor` to diagnose configuration issues. The command checks:
 - System requirements (OS, Bun, Docker, ZFS)
 - Permissions (ZFS delegation, Docker group)
-- pgd state (projects, branches, containers)
+- Velo state (projects, branches, containers)
 - File permissions and directory structure
 
 <details>
@@ -248,14 +248,14 @@ pgd project create myapp
 
 **Permission setup** (one-time, required before first use):
 ```bash
-sudo pgd setup
+sudo velo setup
 ```
 
 The setup command:
 1. Auto-detects ZFS pool (or prompts if multiple exist)
 2. Grants ZFS delegation permissions (90% of operations run without sudo)
 3. Adds user to docker group
-4. Creates `pgd` group and adds current user
+4. Creates `velo` group and adds current user
 5. Installs minimal sudoers config for mount/unmount operations only
 
 **Security model:**
@@ -284,7 +284,7 @@ sudo zpool create tank mirror /dev/sdb /dev/sdc
 
 ```bash
 # Create project (auto-creates <project>/main branch)
-pgd project create myapp
+velo project create myapp
 pgd proj create legacy --pg-version 14
 pgd proj create vectordb --image ankane/pgvector:17
 pgd proj create myapp --pool tank2  # If multiple ZFS pools
@@ -385,7 +385,7 @@ pgd wal cleanup prod/main --days 7
 pgd wal cleanup prod/main --days 7 --dry-run
 ```
 
-**WAL location:** `~/.pgd/wal-archive/<dataset>/`
+**WAL location:** `~/.velo/wal-archive/<dataset>/`
 </details>
 
 <details>
@@ -427,7 +427,7 @@ pgd doctor
 - System requirements (OS, Bun, Docker, ZFS)
 - ZFS configuration (pool, permissions, datasets)
 - Docker configuration (daemon, permissions, images)
-- pgd state (projects, branches, containers)
+- Velo state (projects, branches, containers)
 - File permissions and directory structure
 
 **Use cases:**
@@ -438,7 +438,7 @@ pgd doctor
 
 **Example output:**
 ```
-pgd Health Check
+Velo Health Check
 ════════════════════════════════════════════════════════════
 
 System Information
@@ -447,7 +447,7 @@ System Information
   Ubuntu 24.04.3 LTS
 ✓ Bun Runtime
   v1.2.23
-ℹ pgd Version
+ℹ Velo Version
   v0.3.4
 
 ZFS Configuration
@@ -457,9 +457,9 @@ ZFS Configuration
 ✓ ZFS Pool
   Using pool: tank
 ✓ ZFS Permissions
-  Delegation configured for tank/pgd/databases
+  Delegation configured for tank/velo/databases
 
-Summary: ✓ All checks passed! pgd is ready to use.
+Summary: ✓ All checks passed! Velo is ready to use.
 ```
 </details>
 
@@ -512,16 +512,16 @@ Create regular snapshots via cron for fine-grained PITR:
 crontab -e
 
 # Hourly snapshots (business hours)
-0 9-17 * * 1-5 /usr/local/bin/pgd snapshot create prod/main --label "hourly-$(date +\%Y\%m\%d-\%H00)"
+0 9-17 * * 1-5 /usr/local/bin/velo snapshot create prod/main --label "hourly-$(date +\%Y\%m\%d-\%H00)"
 
 # Daily snapshots at 2 AM
-0 2 * * * /usr/local/bin/pgd snapshot create prod/main --label "daily-$(date +\%Y\%m\%d)"
+0 2 * * * /usr/local/bin/velo snapshot create prod/main --label "daily-$(date +\%Y\%m\%d)"
 
 # Weekly cleanup: delete snapshots older than 30 days
-0 3 * * 0 /usr/local/bin/pgd snapshot cleanup --all --days 30
+0 3 * * 0 /usr/local/bin/velo snapshot cleanup --all --days 30
 
 # Weekly WAL cleanup: delete WAL files older than 7 days
-0 4 * * 0 /usr/local/bin/pgd wal cleanup prod/main --days 7
+0 4 * * 0 /usr/local/bin/velo wal cleanup prod/main --days 7
 ```
 
 **Tip:** More snapshots = finer recovery granularity but more storage
@@ -537,18 +537,18 @@ crontab -e
 - ZFS pool: auto-detected
 - Ports: dynamically allocated by Docker
 
-**Auto-initialization on first `pgd project create`:**
+**Auto-initialization on first `velo project create`:**
 1. Detects ZFS pool
-2. Creates base dataset (`<pool>/pgd/databases`)
+2. Creates base dataset (`<pool>/velo/databases`)
 3. Initializes state.json
 4. Creates WAL archive directory
 
 **File locations:**
-- State: `~/.pgd/state.json`
-- State lock: `~/.pgd/state.json.lock`
-- WAL archive: `~/.pgd/wal-archive/<dataset>/`
-- ZFS datasets: `<pool>/pgd/databases/<project>-<branch>`
-- Docker containers: `pgd-<project>-<branch>`
+- State: `~/.velo/state.json`
+- State lock: `~/.velo/state.json.lock`
+- WAL archive: `~/.velo/wal-archive/<dataset>/`
+- ZFS datasets: `<pool>/velo/databases/<project>-<branch>`
+- Docker containers: `velo-<project>-<branch>`
 </details>
 
 <details>
@@ -578,7 +578,7 @@ Built with: [Bun](https://bun.sh), TypeScript, [Dockerode](https://github.com/ap
 ```bash
 bun install && bun run build
 bun run dev  # Development mode
-sudo cp dist/pgd /usr/local/bin/
+sudo cp dist/velo /usr/local/bin/
 ```
 </details>
 

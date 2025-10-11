@@ -8,6 +8,7 @@ import { parseNamespace } from '../../utils/namespace';
 import { getContainerName, getDatasetName } from '../../utils/naming';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { CLI_NAME } from '../../config/constants';
 
 export async function branchDeleteCommand(name: string) {
   const namespace = parseNamespace(name);
@@ -23,7 +24,7 @@ export async function branchDeleteCommand(name: string) {
   if (!result) {
     throw new UserError(
       `Branch '${name}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 
@@ -32,7 +33,7 @@ export async function branchDeleteCommand(name: string) {
   // Prevent deleting main branch
   if (branch.isPrimary) {
     throw new UserError(
-      `Cannot delete main branch. Use 'pgd project delete ${project.name}' to delete the entire project.`,
+      `Cannot delete main branch. Use '${CLI_NAME} project delete ${project.name}' to delete the entire project.`,
       `Main branches can only be deleted by deleting the entire project`
     );
   }

@@ -4,6 +4,7 @@ import { ZFSManager } from '../../managers/zfs';
 import { PATHS } from '../../utils/paths';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
+import { CLI_NAME } from '../../config/constants';
 
 export async function snapshotDeleteCommand(snapshotId: string) {
   console.log();
@@ -18,7 +19,7 @@ export async function snapshotDeleteCommand(snapshotId: string) {
   if (!snapshot) {
     throw new UserError(
       `Snapshot not found: ${snapshotId}`,
-      "Run 'pgd snapshot list' to see available snapshots"
+      `Run '${CLI_NAME} snapshot list' to see available snapshots`
     );
   }
 

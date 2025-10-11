@@ -7,6 +7,7 @@ import { formatBytes } from '../../utils/helpers';
 import { getDatasetName } from '../../utils/naming';
 import { parseNamespace } from '../../utils/namespace';
 import { UserError } from '../../errors';
+import { CLI_NAME } from '../../config/constants';
 
 export async function branchListCommand(projectName?: string) {
   const state = new StateManager(PATHS.STATE);
@@ -26,11 +27,11 @@ export async function branchListCommand(projectName?: string) {
     if (projectName) {
       throw new UserError(
         `Project '${projectName}' not found`,
-        "Run 'pgd project list' to see available projects"
+        `Run '${CLI_NAME} project list' to see available projects`
       );
     } else {
       console.log();
-      console.log(chalk.dim('No projects found. Create one with: pgd project create <name>'));
+      console.log(chalk.dim(`No projects found. Create one with: ${CLI_NAME} project create <name>`));
       console.log();
       return;
     }

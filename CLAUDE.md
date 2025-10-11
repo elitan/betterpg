@@ -3,15 +3,15 @@
 - never create markdown (`.md`) files after you are done. Never!
 - never use emojis unless told to do so.
 - i know i'm absolutly right. no need to tell me.
-- **NEVER use sudo when running pgd commands** (except for the one-time `sudo pgd setup` command). After setup, all commands run without sudo using ZFS delegation and Docker permissions.
+- **NEVER use sudo when running velo commands** (except for the one-time `sudo velo setup` command). After setup, all commands run without sudo using ZFS delegation and Docker permissions.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-pgd provides instant PostgreSQL database branching using ZFS snapshots. It combines ZFS copy-on-write, PostgreSQL backup mode, and Docker isolation to create production-safe database copies in seconds for testing migrations, debugging, and development.
+Velo provides instant PostgreSQL database branching using ZFS snapshots. It combines ZFS copy-on-write, PostgreSQL backup mode, and Docker isolation to create production-safe database copies in seconds for testing migrations, debugging, and development.
 
-**Mental Model:** Think of pgd like Git for databases:
+**Mental Model:** Think of Velo like Git for databases:
 - **Project** = Git repository (logical grouping of branches)
 - **Branch** = Git branch (complete, isolated PostgreSQL database instance)
 
@@ -36,10 +36,10 @@ bun run src/index.ts
 bun run dev
 
 # Install globally
-sudo cp dist/pgd /usr/local/bin/
+sudo cp dist/velo /usr/local/bin/
 
 # Setup permissions (one-time, required before use)
-sudo pgd setup
+sudo velo setup
 
 # Run tests (cleans up first, then runs in parallel)
 bun run test           # Runs all tests via ./scripts/test.sh
@@ -80,7 +80,7 @@ Commands follow a hierarchical namespace pattern: `<project>/<branch>`
 
 A **project** is a logical grouping of branches (like a Git repo), and each **branch** is a complete, isolated PostgreSQL database instance.
 
-**Project commands** (`pgd project <command>`):
+**Project commands** (`velo project <command>`):
 - `project create <name>` - Creates project + main branch (`<name>/main`) with PostgreSQL database
   - `--pg-version <version>` - PostgreSQL version (e.g., 17, 16) - uses `postgres:{version}-alpine`
   - `--image <image>` - Custom Docker image (e.g., `ankane/pgvector:17`, `timescale/timescaledb:latest-pg17`)
@@ -89,7 +89,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `project get <name>` - Shows project details
 - `project delete <name>` - Deletes project and all branches (removes all PostgreSQL databases)
 
-**Branch commands** (`pgd branch <command>`):
+**Branch commands** (`velo branch <command>`):
 - `branch create <project>/<branch>` - Creates branch (e.g., `api/dev`) with new PostgreSQL database
   - `--parent <project>/<branch>` - Create from specific parent branch (default: main)
   - `--pitr <timestamp>` - Create branch from point-in-time
@@ -102,7 +102,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `branch restart <project>/<branch>` - Restart a branch (restarts PostgreSQL container)
 - `branch password <project>/<branch>` - Show connection details with password
 
-**Snapshot commands** (`pgd snapshot <command>`):
+**Snapshot commands** (`velo snapshot <command>`):
 - `snapshot create <project>/<branch>` - Create manual snapshot
   - `--label <name>` - Optional label for snapshot
 - `snapshot list [project/branch]` - List snapshots (all or for specific branch)
@@ -112,7 +112,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
   - `--dry-run` - Preview without deleting
   - `--all` - Cleanup across all branches
 
-**WAL commands** (`pgd wal <command>`):
+**WAL commands** (`velo wal <command>`):
 - `wal info [project/branch]` - Show WAL archive status (all or specific branch)
 - `wal cleanup <project>/<branch>` - Clean up old WAL files
   - `--days <n>` - Remove WAL files older than n days
@@ -125,7 +125,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 ### Manager Classes
 
 **StateManager** (`src/managers/state.ts`):
-- Manages JSON state file at `~/.pgd/state.json`
+- Manages JSON state file at `~/.velo/state.json`
 - Implements file locking to prevent concurrent modifications
 - Validates state integrity (unique names, namespaced branches, main branch exists)
 - State structure: projects[] with nested branches[]
@@ -141,14 +141,14 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **DockerManager** (`src/managers/docker.ts`):
 - Uses dockerode library for Docker API
-- Container naming: `pgd-<project>-<branch>` (e.g., `pgd-api-dev`)
+- Container naming: `velo-<project>-<branch>` (e.g., `pgd-api-dev`)
 - Each container is a complete PostgreSQL database instance
 - Executes SQL commands via `execSQL()` method using Bun.spawn
 - Uses Bun.spawn for SQL execution to avoid dockerode stream issues
 
 **WALManager** (`src/managers/wal.ts`):
 - Manages Write-Ahead Log (WAL) archiving and monitoring
-- WAL archive location: `~/.pgd/wal-archive/<dataset>/`
+- WAL archive location: `~/.velo/wal-archive/<dataset>/`
 - Key methods:
   - `ensureArchiveDir()` - Creates WAL archive directory with correct permissions
   - `getArchiveInfo()` - Returns file count, total size, oldest/newest timestamps
@@ -160,19 +160,19 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **WAL Archiving Configuration:**
 - Enabled on all PostgreSQL containers via archive_command
-- WAL files archived to `~/.pgd/wal-archive/<dataset>/`
+- WAL files archived to `~/.velo/wal-archive/<dataset>/`
 - Each branch has its own isolated WAL archive directory
-- Commands: `pgd wal info [branch]`, `pgd wal cleanup <branch> --days <n>`
+- Commands: `velo wal info [branch]`, `velo wal cleanup <branch> --days <n>`
 
 **Snapshot Management:**
-- Manual snapshots: `pgd snapshot create <project>/<branch> --label <name>`
-- List snapshots: `pgd snapshot list [branch]`
-- Delete snapshots: `pgd snapshot delete <snapshot-id>`
+- Manual snapshots: `velo snapshot create <project>/<branch> --label <name>`
+- List snapshots: `velo snapshot list [branch]`
+- Delete snapshots: `velo snapshot delete <snapshot-id>`
 - Snapshots stored in state.json with metadata (id, timestamp, label, size)
 - All snapshots are application-consistent (use CHECKPOINT before ZFS snapshot)
 
 **Point-in-Time Recovery (PITR):**
-- Create branch from specific time: `pgd branch create <project>/<name> --pitr <timestamp>`
+- Create branch from specific time: `velo branch create <project>/<name> --pitr <timestamp>`
 - Auto-finds best snapshot BEFORE recovery target time
 - Replays WAL logs from snapshot to target
 - Timestamp formats: ISO 8601 ("2025-10-07T14:30:00Z") or relative ("2 hours ago")
@@ -194,19 +194,19 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - ~100ms operation (CHECKPOINT flushes dirty buffers)
 - Safe for production, migration testing, compliance
 - Uses PostgreSQL CHECKPOINT to flush all data to disk before ZFS snapshot
-- Used by: `pgd branch create`, `pgd branch reset`
+- Used by: `velo branch create`, `velo branch reset`
 
 **Manual snapshots (application-consistent)**: CHECKPOINT + ZFS snapshot
 - ~100ms operation (CHECKPOINT flushes dirty buffers)
 - Zero data loss, all committed transactions included
 - Safe for PITR recovery without WAL replay overhead
-- Used by: `pgd snapshot create`
+- Used by: `velo snapshot create`
 
 **PITR recovery**: Uses existing snapshots + WAL replay
 - Recovers PostgreSQL database to specific point in time
 - Uses application-consistent snapshots as base
 - Replays WAL logs from snapshot to target time
-- Used by: `pgd branch create --pitr <timestamp>`
+- Used by: `velo branch create --pitr <timestamp>`
 
 Implementation in `src/commands/branch/create.ts`:
 1. If `--pitr`: find existing snapshot before recovery target, skip creating new one
@@ -239,21 +239,21 @@ Naming validation: Only `[a-zA-Z0-9_-]+` allowed for project/branch names
 
 **One-time setup required:**
 ```bash
-sudo pgd setup
+sudo velo setup
 ```
 
 This command:
 1. Auto-detects ZFS pool (or prompts if multiple exist)
 2. Grants ZFS delegation permissions (create, destroy, snapshot, clone, etc.)
 3. Adds user to docker group
-4. Creates `pgd` group and adds current user
-5. Installs targeted sudoers config (`/etc/sudoers.d/pgd`) for mount/unmount operations only
+4. Creates `velo` group and adds current user
+5. Installs targeted sudoers config (`/etc/sudoers.d/velo`) for mount/unmount operations only
 
-**No configuration file needed!** pgd uses sensible hardcoded defaults:
+**No configuration file needed!** Velo uses sensible hardcoded defaults:
 - Default PostgreSQL image: `postgres:17-alpine`
 - ZFS compression: `lz4` (fast, good for databases)
 - ZFS recordsize: `8k` (PostgreSQL page size)
-- ZFS base dataset: `pgd/databases`
+- ZFS base dataset: `velo/databases`
 
 **No init command needed!** Auto-initialization happens on first `project create`:
 1. Auto-detects ZFS pool (or use `--pool` if multiple pools exist)
@@ -265,15 +265,15 @@ This command:
 **Security model:**
 - 90% of ZFS operations use delegation (no sudo required)
 - Only mount/unmount operations require sudo due to Linux kernel limitations
-- Sudo is restricted to `/sbin/zfs mount` and `/sbin/zfs unmount` only via `/etc/sudoers.d/pgd`
+- Sudo is restricted to `/sbin/zfs mount` and `/sbin/zfs unmount` only via `/etc/sudoers.d/velo`
 
 ## File Locations
 
-- State: `~/.pgd/state.json` (stores pool, dataset base, projects, branches, snapshots)
-- State lock: `~/.pgd/state.json.lock`
-- WAL archive: `~/.pgd/wal-archive/<dataset>/`
-- ZFS datasets: `<pool>/pgd/databases/<project>-<branch>` (pool auto-detected)
-- Docker containers: `pgd-<project>-<branch>` (PostgreSQL databases)
+- State: `~/.velo/state.json` (stores pool, dataset base, projects, branches, snapshots)
+- State lock: `~/.velo/state.json.lock`
+- WAL archive: `~/.velo/wal-archive/<dataset>/`
+- ZFS datasets: `<pool>/velo/databases/<project>-<branch>` (pool auto-detected)
+- Docker containers: `velo-<project>-<branch>` (PostgreSQL databases)
 
 ## Common Development Patterns
 
@@ -307,7 +307,7 @@ This command:
 - Always extract dataset name from branch.zfsDataset when needed
 
 **Working with Docker:**
-- Container names use `-` separator: `pgd-<project>-<branch>`
+- Container names use `-` separator: `velo-<project>-<branch>`
 - Each container is a complete PostgreSQL database instance
 - Use `project.dockerImage` when creating containers (branches inherit from parent project)
 - Always use `docker.getContainerByName()` to get container ID
@@ -329,7 +329,7 @@ When modifying branching logic:
 - Docker must be running with socket at `/var/run/docker.sock`
 - Bun runtime required (not Node.js)
 - ZFS pool must exist before running setup (auto-detected)
-- One-time permission setup required (`sudo pgd setup`)
+- One-time permission setup required (`sudo velo setup`)
 - Mount/unmount operations require sudo due to Linux kernel CAP_SYS_ADMIN requirement
 - Port allocation is dynamic via Docker (automatically assigns available ports)
 - Credentials stored in plain text in state.json (TODO: encrypt)

@@ -9,6 +9,7 @@ import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/na
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
 import { getPublicIP, formatConnectionString } from '../../utils/network';
+import { CLI_NAME } from '../../config/constants';
 
 export async function branchResetCommand(name: string, options: { force?: boolean } = {}) {
   const namespace = parseNamespace(name);
@@ -20,7 +21,7 @@ export async function branchResetCommand(name: string, options: { force?: boolea
   if (!result) {
     throw new UserError(
       `Branch '${name}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 

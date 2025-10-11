@@ -13,6 +13,7 @@ import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
 import { getPublicIP, formatConnectionString } from '../../utils/network';
+import { CLI_NAME } from '../../config/constants';
 
 export interface BranchCreateOptions {
   parent?: string;
@@ -62,7 +63,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   if (!sourceProject) {
     throw new UserError(
       `Project '${source.project}' not found`,
-      "Run 'pgd project list' to see available projects"
+      `Run '${CLI_NAME} project list' to see available projects`
     );
   }
 
@@ -70,7 +71,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
   if (!sourceBranch) {
     throw new UserError(
       `Source branch '${source.full}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 
@@ -107,7 +108,7 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
     if (validSnapshots.length === 0) {
       throw new UserError(
         `No snapshots found before recovery target ${formatDate(recoveryTarget)}`,
-        `Create a snapshot with: pgd snapshot create ${source.full} ${chalk.bold('--label')} <name>`
+        `Create a snapshot with: ${CLI_NAME} snapshot create ${source.full} ${chalk.bold('--label')} <name>`
       );
     }
 

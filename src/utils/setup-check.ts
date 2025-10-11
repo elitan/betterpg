@@ -2,9 +2,10 @@ import chalk from 'chalk';
 import { $ } from 'bun';
 import { getZFSPool } from './zfs-pool';
 import { DEFAULTS } from '../config/defaults';
+import { CLI_NAME } from '../config/constants';
 
 /**
- * Check if pgd setup has been completed
+ * Check if setup has been completed
  * Returns true if setup is complete, false otherwise
  */
 export async function isSetupComplete(): Promise<boolean> {
@@ -75,21 +76,21 @@ export async function isSetupComplete(): Promise<boolean> {
  */
 export function displaySetupError(): never {
   console.log();
-  console.log(chalk.red('✗ pgd setup not complete'));
+  console.log(chalk.red(`✗ ${CLI_NAME} setup not complete`));
   console.log();
-  console.log('pgd requires one-time setup to configure permissions.');
+  console.log(`${CLI_NAME} requires one-time setup to configure permissions.`);
   console.log();
   console.log('Run the following command:');
-  console.log(chalk.cyan('  sudo pgd setup'));
+  console.log(chalk.cyan(`  sudo ${CLI_NAME} setup`));
   console.log();
   console.log('This will:');
   console.log('  • Detect ZFS pool');
   console.log('  • Grant ZFS delegation permissions');
-  console.log('  • Add you to docker and pgd groups');
+  console.log(`  • Add you to docker and ${CLI_NAME} groups`);
   console.log('  • Configure minimal sudoers for mount/unmount');
   console.log();
   console.log('After setup, log out and back in, then verify with:');
-  console.log(chalk.cyan('  pgd doctor'));
+  console.log(chalk.cyan(`  ${CLI_NAME} doctor`));
   console.log();
   process.exit(1);
 }

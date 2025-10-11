@@ -8,6 +8,7 @@ import type { Snapshot } from '../../types/state';
 import { UserError } from '../../errors';
 import { withProgress } from '../../utils/progress';
 import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/naming';
+import { CLI_NAME } from '../../config/constants';
 
 export interface SnapshotCreateOptions {
   label?: string;
@@ -32,7 +33,7 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   if (!proj) {
     throw new UserError(
       `Project '${target.project}' not found`,
-      "Run 'pgd project list' to see available projects"
+      `Run '${CLI_NAME} project list' to see available projects`
     );
   }
 
@@ -40,7 +41,7 @@ export async function snapshotCreateCommand(branchName: string, options: Snapsho
   if (!branch) {
     throw new UserError(
       `Branch '${target.full}' not found`,
-      "Run 'pgd branch list' to see available branches"
+      `Run '${CLI_NAME} branch list' to see available branches`
     );
   }
 

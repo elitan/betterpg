@@ -1,19 +1,19 @@
 {
-  "name": "@elitan/pgd",
-  "displayName": "pgd",
-  "cliName": "pgd",
-  "containerPrefix": "pgd",
+  "name": "@elitan/velo",
+  "displayName": "Velo",
+  "cliName": "velo",
+  "containerPrefix": "velo",
   "version": "0.3.4",
-  "description": "Instant branching for Postgres",
+  "description": "Instant PostgreSQL branching with ZFS snapshots",
   "module": "src/index.ts",
   "type": "module",
   "bin": {
-    "pgd": "./dist/pgd"
+    "velo": "./dist/velo"
   },
   "scripts": {
     "test": "./scripts/test.sh",
     "test:watch": "sudo NODE_ENV=test $(which bun) test --watch",
-    "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/pgd",
+    "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/velo",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit"
   },

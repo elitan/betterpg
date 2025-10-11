@@ -2,6 +2,7 @@ import Table from 'cli-table3';
 import chalk from 'chalk';
 import { StateManager } from '../../managers/state';
 import { PATHS } from '../../utils/paths';
+import { CLI_NAME } from '../../config/constants';
 
 export async function projectListCommand() {
   const state = new StateManager(PATHS.STATE);
@@ -10,7 +11,7 @@ export async function projectListCommand() {
   const projects = await state.listProjects();
 
   if (projects.length === 0) {
-    console.log(chalk.dim('No projects found. Create one with: pgd project create <name>'));
+    console.log(chalk.dim(`No projects found. Create one with: ${CLI_NAME} project create <name>`));
     return;
   }
 

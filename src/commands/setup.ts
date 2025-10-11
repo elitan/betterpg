@@ -1,6 +1,8 @@
 import chalk from 'chalk';
 import { $ } from 'bun';
 import * as fs from 'fs/promises';
+import { CLI_NAME, TOOL_NAME } from '../config/constants';
+import { DEFAULTS } from '../config/defaults';
 
 /**
  * Setup command - grants ZFS permissions and configures Docker access
@@ -15,13 +17,13 @@ export async function setupCommand() {
     console.log('✗ This command must be run with sudo');
     console.log();
     console.log('Usage:');
-    console.log('  sudo pgd setup');
+    console.log(`  sudo ${CLI_NAME} setup`);
     console.log();
     console.log('This one-time setup will:');
     console.log('  • Detect ZFS pool');
     console.log('  • Grant ZFS delegation permissions');
     console.log('  • Add user to docker group');
-    console.log('  • Create pgd group');
+    console.log(`  • Create ${CLI_NAME} group`);
     console.log('  • Install minimal sudoers config for mount/unmount');
     console.log();
     process.exit(1);
@@ -39,7 +41,7 @@ export async function setupCommand() {
   }
 
   console.log();
-  console.log(chalk.bold('pgd Permission Setup'));
+  console.log(chalk.bold(`${TOOL_NAME} Permission Setup`));
   console.log(chalk.dim('═'.repeat(60)));
   console.log();
   console.log(`User: ${chalk.bold(actualUser)}`);
@@ -99,7 +101,7 @@ export async function setupCommand() {
       const stdin = Bun.stdin.stream();
       const reader = stdin.getReader();
 
-      process.stdout.write('Enter pool name to use for pgd: ');
+      process.stdout.write(`Enter pool name to use for ${CLI_NAME}: `);
 
       const { value } = await reader.read();
       reader.releaseLock();
@@ -133,7 +135,7 @@ export async function setupCommand() {
     }
 
     // Create base dataset if needed
-    const baseDataset = `${pool}/pgd`;
+    const baseDataset = `${pool}/${CLI_NAME}`;
     try {
       await $`/usr/sbin/zfs list ${baseDataset}`.quiet();
     } catch (error) {
@@ -142,7 +144,7 @@ export async function setupCommand() {
     }
 
     // Create databases dataset if needed
-    const databasesDataset = `${pool}/pgd/databases`;
+    const databasesDataset = `${pool}/${DEFAULTS.zfs.datasetBase}`;
     try {
       await $`/usr/sbin/zfs list ${databasesDataset}`.quiet();
     } catch (error) {
@@ -190,7 +192,7 @@ export async function setupCommand() {
     }
   } catch (error) {
     console.log('⚠', 'Docker not installed (optional)');
-    console.log('Install Docker before using pgd: https://docs.docker.com/engine/install/');
+    console.log(`Install Docker before using ${CLI_NAME}: https://docs.docker.com/engine/install/`);
   }
   console.log();
 
@@ -198,44 +200,45 @@ export async function setupCommand() {
   console.log(chalk.bold('[5/5]'), 'Installing sudoers configuration...');
 
   try {
-    // Create pgd group if needed
+    // Create group if needed
     try {
-      await $`getent group pgd`.quiet();
-      console.log('✓', 'pgd group exists');
+      await $`getent group ${CLI_NAME}`.quiet();
+      console.log('✓', `${CLI_NAME} group exists`);
     } catch (error) {
-      console.log('Creating pgd group...');
-      await $`groupadd pgd`;
-      console.log('✓', 'pgd group created');
+      console.log(`Creating ${CLI_NAME} group...`);
+      await $`groupadd ${CLI_NAME}`;
+      console.log('✓', `${CLI_NAME} group created`);
     }
 
-    // Add user to pgd group
-    const pgdGroups = await $`groups ${actualUser}`.text();
+    // Add user to group
+    const groups = await $`groups ${actualUser}`.text();
 
-    if (!pgdGroups.includes('pgd')) {
-      console.log(`Adding user '${actualUser}' to pgd group...`);
-      await $`usermod -aG pgd ${actualUser}`;
-      console.log('✓', 'User added to pgd group');
+    if (!groups.includes(CLI_NAME)) {
+      console.log(`Adding user '${actualUser}' to ${CLI_NAME} group...`);
+      await $`usermod -aG ${CLI_NAME} ${actualUser}`;
+      console.log('✓', `User added to ${CLI_NAME} group`);
     } else {
-      console.log('✓', 'User already in pgd group');
+      console.log('✓', `User already in ${CLI_NAME} group`);
     }
 
     // Get home directory for certificate path (must be absolute, no tilde expansion in sudoers)
     const homeDir = await $`getent passwd ${actualUser}`.text().then(s => s.trim().split(':')[5]);
 
     // Create sudoers file
-    const sudoersContent = `# pgd - PostgreSQL database branching tool
+    const sudoersPath = `/etc/sudoers.d/${CLI_NAME}`;
+    const sudoersContent = `# ${TOOL_NAME} - PostgreSQL database branching tool
 # This file grants minimal sudo permissions for required operations
 
-# Allow pgd group members to run ZFS mount/unmount commands without password
-%pgd ALL=(ALL) NOPASSWD: /sbin/zfs mount *
-%pgd ALL=(ALL) NOPASSWD: /sbin/zfs unmount *
+# Allow ${CLI_NAME} group members to run ZFS mount/unmount commands without password
+%${CLI_NAME} ALL=(ALL) NOPASSWD: /sbin/zfs mount *
+%${CLI_NAME} ALL=(ALL) NOPASSWD: /sbin/zfs unmount *
 
 # Allow chown for SSL certificates (PostgreSQL requires specific ownership)
-%pgd ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.pgd/certs/*/server.key
-%pgd ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.pgd/certs/*/server.crt
+%${CLI_NAME} ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.${CLI_NAME}/certs/*/server.key
+%${CLI_NAME} ALL=(ALL) NOPASSWD: /usr/bin/chown 70\\:70 ${homeDir}/.${CLI_NAME}/certs/*/server.crt
 
 # Allow rm for SSL certificate cleanup (files may be owned by UID 70)
-%pgd ALL=(ALL) NOPASSWD: /usr/bin/rm -rf ${homeDir}/.pgd/certs/*
+%${CLI_NAME} ALL=(ALL) NOPASSWD: /usr/bin/rm -rf ${homeDir}/.${CLI_NAME}/certs/*
 
 # Security notes:
 # - Only mount/unmount commands are allowed (not create, destroy, etc.)
@@ -245,16 +248,16 @@ export async function setupCommand() {
 # - This is much more secure than granting full sudo access
 `;
 
-    await fs.writeFile('/etc/sudoers.d/pgd', sudoersContent);
-    await $`chmod 0440 /etc/sudoers.d/pgd`;
+    await fs.writeFile(sudoersPath, sudoersContent);
+    await $`chmod 0440 ${sudoersPath}`;
 
     // Verify sudoers syntax
     try {
-      await $`visudo -c -f /etc/sudoers.d/pgd`.quiet();
+      await $`visudo -c -f ${sudoersPath}`.quiet();
       console.log('✓', 'Sudoers configuration installed');
     } catch (error) {
       console.log('✗', 'Sudoers syntax error');
-      await $`rm /etc/sudoers.d/pgd`;
+      await $`rm ${sudoersPath}`;
       process.exit(1);
     }
   } catch (error) {
@@ -272,18 +275,18 @@ export async function setupCommand() {
   console.log('Configuration summary:');
   console.log(`  • ZFS pool: ${pool}`);
   console.log('  • ZFS delegation: create, destroy, snapshot, clone, promote, etc.');
-  console.log('  • Groups: docker, pgd');
-  console.log('  • Sudoers: /etc/sudoers.d/pgd (ZFS mount/unmount + cert ownership)');
+  console.log(`  • Groups: docker, ${CLI_NAME}`);
+  console.log(`  • Sudoers: /etc/sudoers.d/${CLI_NAME} (ZFS mount/unmount + cert ownership)`);
   console.log();
   console.log(chalk.bold('IMPORTANT: Log out and log back in now!'));
-  console.log('Group membership (docker, pgd) requires a new login session.');
+  console.log(`Group membership (docker, ${CLI_NAME}) requires a new login session.`);
   console.log();
   console.log(chalk.bold('After re-logging in:'));
-  console.log('  1. Verify setup: pgd doctor');
-  console.log('  2. Create first project: pgd project create myapp');
+  console.log(`  1. Verify setup: ${CLI_NAME} doctor`);
+  console.log(`  2. Create first project: ${CLI_NAME} project create myapp`);
   console.log();
   console.log(chalk.bold('Security Note:'));
-  console.log('pgd uses sudo only for:');
+  console.log(`${TOOL_NAME} uses sudo only for:`);
   console.log('  • ZFS mount/unmount (Linux kernel limitation)');
   console.log('  • Certificate ownership (PostgreSQL security requirement)');
   console.log('All other operations use ZFS delegation - much more secure than full sudo.');
