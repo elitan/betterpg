@@ -49,9 +49,9 @@ export async function query(
  * Note: When running with sudo, state file is in /root even if HOME is preserved
  */
 export async function getState(): Promise<any> {
-  // When running with sudo (UID 0), pgd creates state in /root
+  // When running with sudo (UID 0), velo creates state in /root
   const statePath = process.getuid?.() === 0
-    ? '/root/.pgd/state.json'
+    ? '/root/.velo/state.json'
     : PATHS.STATE;
 
   const file = Bun.file(statePath);

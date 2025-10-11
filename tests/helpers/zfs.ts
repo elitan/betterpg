@@ -13,12 +13,12 @@ export async function getZfsConfig(): Promise<{ pool: string; datasetBase: strin
     const state = await getState();
     return {
       pool: state.zfsPool || 'tank',
-      datasetBase: state.zfsDatasetBase || 'pgd/databases',
+      datasetBase: state.zfsDatasetBase || 'velo/databases',
     };
   } catch {
     return {
       pool: 'tank',
-      datasetBase: 'pgd/databases',
+      datasetBase: 'velo/databases',
     };
   }
 }

@@ -14,12 +14,12 @@ async function getZfsConfig(): Promise<{ pool: string; datasetBase: string }> {
     const state = await Bun.file(PATHS.STATE).json();
     return {
       pool: state.zfsPool || 'tank',
-      datasetBase: state.zfsDatasetBase || 'pgd/databases',
+      datasetBase: state.zfsDatasetBase || 'velo/databases',
     };
   } catch {
     return {
       pool: 'tank',
-      datasetBase: 'pgd/databases',
+      datasetBase: 'velo/databases',
     };
   }
 }
@@ -30,7 +30,7 @@ async function getZfsConfig(): Promise<{ pool: string; datasetBase: string }> {
 export async function beforeAll(): Promise<void> {
   const { pool, datasetBase } = await getZfsConfig();
 
-  // Stop and remove all pgd containers
+  // Stop and remove all velo containers
   try {
     await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
   } catch {
@@ -60,7 +60,7 @@ export async function beforeAll(): Promise<void> {
   // When running with sudo (UID 0), also clean /root directories
   if (process.getuid?.() === 0) {
     try {
-      await $`rm -rf /root/.pgd`.quiet();
+      await $`rm -rf /root/.velo`.quiet();
     } catch {
       // Ignore errors
     }
@@ -73,7 +73,7 @@ export async function beforeAll(): Promise<void> {
 export async function afterAll(): Promise<void> {
   const { pool, datasetBase } = await getZfsConfig();
 
-  // Stop and remove all pgd containers
+  // Stop and remove all velo containers
   try {
     await $`docker ps -a | grep ${CONTAINER_PREFIX}- | awk '{print $1}' | xargs -r docker rm -f`.quiet();
   } catch {
@@ -103,7 +103,7 @@ export async function afterAll(): Promise<void> {
   // When running with sudo (UID 0), also clean /root directories
   if (process.getuid?.() === 0) {
     try {
-      await $`rm -rf /root/.pgd`.quiet();
+      await $`rm -rf /root/.velo`.quiet();
     } catch {
       // Ignore errors
     }

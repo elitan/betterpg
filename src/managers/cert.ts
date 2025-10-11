@@ -61,7 +61,7 @@ export class CertManager {
       await $`openssl req -new -x509 -days 3650 \
         -key ${paths.serverKey} \
         -out ${paths.serverCert} \
-        -subj "/CN=pgd-postgres/O=pgd/C=US"`.quiet();
+        -subj "/CN=velo-postgres/O=velo/C=US"`.quiet();
     } catch (error: any) {
       throw new SystemError(`Failed to generate certificate: ${error.message}`);
     }

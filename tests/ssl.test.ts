@@ -50,7 +50,7 @@ describe('SSL/TLS Tests', () => {
   test('should generate SSL certificates on project create', async () => {
     await ensureSetup();
     // Verify certificates exist
-    const certDir = join(process.env.HOME || '/root', '.pgd/certs', TEST_PROJECT);
+    const certDir = join(process.env.HOME || '/root', '.velo/certs', TEST_PROJECT);
     const serverKey = join(certDir, 'server.key');
     const serverCert = join(certDir, 'server.crt');
 
@@ -59,12 +59,12 @@ describe('SSL/TLS Tests', () => {
 
     // Verify certificate is valid
     const certInfo = await $`openssl x509 -in ${serverCert} -noout -subject`.text();
-    expect(certInfo).toMatch(/CN\s*=\s*pgd-postgres/);
+    expect(certInfo).toMatch(/CN\s*=\s*velo-postgres/);
   });
 
   test('should enable SSL in PostgreSQL container', async () => {
     await ensureSetup();
-    const containerName = `pgd-${TEST_PROJECT}-main`;
+    const containerName = `velo-${TEST_PROJECT}-main`;
 
     // Check PostgreSQL SSL settings
     const sslOn = await $`docker exec ${containerName} psql -U postgres -t -A -c "SHOW ssl;"`.text();
@@ -107,7 +107,7 @@ describe('SSL/TLS Tests', () => {
     await Bun.sleep(3000);
 
     // Verify branch container has SSL enabled
-    const containerName = `pgd-${TEST_PROJECT}-dev`;
+    const containerName = `velo-${TEST_PROJECT}-dev`;
     const sslOn = await $`docker exec ${containerName} psql -U postgres -t -A -c "SHOW ssl;"`.text();
     expect(sslOn.trim()).toBe('on');
   }, { timeout: 30000 });
@@ -115,7 +115,7 @@ describe('SSL/TLS Tests', () => {
   test('should mount SSL certificates as read-only', async () => {
     await ensureSetup();
     // Check Docker mount for main branch container
-    const containerName = `pgd-${TEST_PROJECT}-main`;
+    const containerName = `velo-${TEST_PROJECT}-main`;
     const mounts = await $`docker inspect ${containerName} --format '{{json .Mounts}}'`.text();
 
     const mountsJson = JSON.parse(mounts);

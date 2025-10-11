@@ -76,7 +76,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Auto-initialize state if needed (first project create)
   if (!state.isInitialized()) {
-    await withProgress('Initialize pgd', async () => {
+    await withProgress('Initialize velo', async () => {
       // Create WAL archive directory
       await fs.mkdir(PATHS.WAL_ARCHIVE, { recursive: true });
 
@@ -93,7 +93,7 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
 
   // Get ZFS config from state
   const stateData = state.getState();
-  const fullDatasetBase = stateData.zfsDatasetBase; // e.g., "pgd/databases"
+  const fullDatasetBase = stateData.zfsDatasetBase; // e.g., "velo/databases"
 
   // Initialize managers
   const zfs = new ZFSManager(pool, fullDatasetBase);
