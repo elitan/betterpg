@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
+import { WALManager } from '../../managers/wal';
 import { PATHS } from '../../utils/paths';
 import { parseNamespace } from '../../utils/namespace';
 import { getContainerName, getDatasetName } from '../../utils/naming';
@@ -41,6 +42,7 @@ export async function branchDeleteCommand(name: string) {
 
   const docker = new DockerManager();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
+  const wal = new WALManager();
 
   // Stop and remove container
   const containerName = getContainerName(namespace.project, namespace.branch);
@@ -61,6 +63,11 @@ export async function branchDeleteCommand(name: string) {
       await zfs.unmountDataset(datasetName);
       await zfs.destroyDataset(datasetName, true);
     }
+  });
+
+  // Clean up WAL archive for this branch
+  await withProgress('Clean up WAL archive', async () => {
+    await wal.deleteArchiveDir(datasetName);
   });
 
   // Clean up snapshots for this branch from state

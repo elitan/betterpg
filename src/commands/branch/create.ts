@@ -219,7 +219,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
       });
     }
 
-    // Create WAL archive directory for target branch
+    // Create WAL archive directory for target branch (delete any leftover archives first)
+    await wal.deleteArchiveDir(targetDatasetName);
     await wal.ensureArchiveDir(targetDatasetName);
     const targetWALArchivePath = wal.getArchivePath(targetDatasetName);
 

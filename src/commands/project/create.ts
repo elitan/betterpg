@@ -141,7 +141,8 @@ export async function projectCreateCommand(name: string, options: CreateOptions 
     });
   }
 
-  // Create WAL archive directory
+  // Create WAL archive directory (delete any leftover archives first)
+  await wal.deleteArchiveDir(mainDatasetName);
   await wal.ensureArchiveDir(mainDatasetName);
   const walArchivePath = wal.getArchivePath(mainDatasetName);
 

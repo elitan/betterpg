@@ -2,6 +2,8 @@ import chalk from 'chalk';
 import { DockerManager } from '../../managers/docker';
 import { StateManager } from '../../managers/state';
 import { ZFSManager } from '../../managers/zfs';
+import { WALManager } from '../../managers/wal';
+import { CertManager } from '../../managers/cert';
 import { PATHS } from '../../utils/paths';
 import { getContainerName, getDatasetName } from '../../utils/naming';
 import { parseNamespace } from '../../utils/namespace';
@@ -41,6 +43,8 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
 
   const docker = new DockerManager();
   const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
+  const wal = new WALManager();
+  const cert = new CertManager();
 
   // Delete all branches (in reverse order, main last)
   const branchesToDelete = [...project.branches].reverse();
@@ -71,6 +75,20 @@ export async function projectDeleteCommand(name: string, options: { force?: bool
         await zfs.destroyDataset(datasetName, true);
       }
     }
+  });
+
+  // Clean up WAL archives for all branches
+  await withProgress('Clean up WAL archives', async () => {
+    for (const branch of branchesToDelete) {
+      const namespace = parseNamespace(branch.name);
+      const datasetName = getDatasetName(namespace.project, namespace.branch);
+      await wal.deleteArchiveDir(datasetName);
+    }
+  });
+
+  // Clean up SSL certificates
+  await withProgress('Clean up SSL certificates', async () => {
+    await cert.deleteCerts(project.name);
   });
 
   // Remove from state

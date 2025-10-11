@@ -73,12 +73,8 @@ export class DockerManager {
           Name: 'unless-stopped',
         },
       },
-      Healthcheck: {
-        Test: ['CMD-SHELL', 'pg_isready -U postgres'],
-        Interval: 100000000,   // 100ms - fast health checks for quick branch creation
-        Timeout: 2000000000,   // 2s
-        Retries: 30,           // More retries since checks are more frequent
-      },
+      // No health check configured - we do our own readiness checking in waitForHealthy()
+      // This avoids ongoing CPU overhead from frequent health checks
     });
 
     return container.id;
@@ -149,22 +145,41 @@ export class DockerManager {
 
   async waitForHealthy(containerID: string, timeout = 120000): Promise<void> {
     const startTime = Date.now();
+    const container = this.docker.getContainer(containerID);
 
     while (Date.now() - startTime < timeout) {
-      const container = this.docker.getContainer(containerID);
       const info = await container.inspect();
 
-      if (info.State.Health?.Status === 'healthy') {
-        return;
+      // Container must be running first
+      if (info.State.Status !== 'running') {
+        await Bun.sleep(100);
+        continue;
       }
 
-      // No health check configured - wait briefly for stability
-      if (!info.State.Health && info.State.Status === 'running') {
-        await Bun.sleep(500);
-        return;
+      // Try pg_isready directly for fast readiness detection using Bun.spawn
+      try {
+        const containerName = info.Name.replace('/', '');
+        const proc = Bun.spawn([
+          'docker',
+          'exec',
+          containerName,
+          'pg_isready',
+          '-U', 'postgres'
+        ], {
+          stdout: 'pipe',
+          stderr: 'pipe'
+        });
+
+        await proc.exited;
+
+        if (proc.exitCode === 0) {
+          return; // PostgreSQL is ready
+        }
+      } catch {
+        // pg_isready failed, continue polling
       }
 
-      await Bun.sleep(100);  // Poll every 100ms for faster detection
+      await Bun.sleep(100);  // Poll every 100ms for fast detection
     }
 
     throw new SystemError(`Container ${containerID} failed to become healthy within ${timeout}ms`);

@@ -180,6 +180,19 @@ export class WALManager {
   }
 
   /**
+   * Delete WAL archive directory for a dataset
+   * This should be called when deleting a project or branch
+   */
+  async deleteArchiveDir(datasetName: string): Promise<void> {
+    const walArchivePath = this.getArchivePath(datasetName);
+    try {
+      await $`rm -rf ${walArchivePath}`.quiet();
+    } catch (error) {
+      // Ignore errors if directory doesn't exist
+    }
+  }
+
+  /**
    * Setup recovery configuration for PITR
    * This configures PostgreSQL to replay WALs to a specific point in time
    *
