@@ -101,9 +101,9 @@ describe('Edge Cases and Error Handling', () => {
       await expect(branchResetCommand('edge-test/main', {})).rejects.toThrow();
     });
 
-    test('should fail to create branch with invalid --from', async () => {
+    test('should fail to create branch with invalid --parent', async () => {
       await expect(
-        branchCreateCommand('edge-test/new', { from: 'edge-test/non-existent' })
+        branchCreateCommand('edge-test/new', { parent: 'edge-test/non-existent' })
       ).rejects.toThrow();
     });
 

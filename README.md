@@ -306,7 +306,7 @@ pgd project delete myapp --force     # or: pgd proj rm myapp --force
 ```bash
 # Create branch (application-consistent, uses CHECKPOINT)
 pgd branch create prod/dev
-pgd br create prod/feature --from prod/dev
+pgd br create prod/feature --parent prod/dev
 
 # List/view/delete
 pgd branch list              # or: pgd br ls
@@ -355,7 +355,7 @@ pgd snapshot cleanup prod/main --days 30 --dry-run
 # Recover to specific time
 pgd branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
 pgd branch create prod/recovered --pitr "2 hours ago"
-pgd branch create prod/recovered --from prod/dev --pitr "1 hour ago"
+pgd branch create prod/recovered --parent prod/dev --pitr "1 hour ago"
 ```
 
 **How it works:**

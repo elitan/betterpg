@@ -91,7 +91,7 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 
 **Branch commands** (`pgd branch <command>`):
 - `branch create <project>/<branch>` - Creates branch (e.g., `api/dev`) with new PostgreSQL database
-  - `--from <project>/<branch>` - Create from specific branch (default: main)
+  - `--parent <project>/<branch>` - Create from specific parent branch (default: main)
   - `--pitr <timestamp>` - Create branch from point-in-time
 - `branch list [project]` - Lists branches (all or for specific project)
 - `branch get <project>/<branch>` - Shows branch details (port, credentials, etc.)

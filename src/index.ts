@@ -97,9 +97,9 @@ branchCommand
   .command('create')
   .description('Create a new branch from parent')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .option('--from <parent>', 'parent branch (defaults to <project>/main)')
+  .option('--parent <parent>', 'parent branch (defaults to <project>/main)')
   .option('--pitr <time>', 'recover to point in time (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
-  .action(wrapCommand(async (name: string, options: { from?: string; pitr?: string }) => {
+  .action(wrapCommand(async (name: string, options: { parent?: string; pitr?: string }) => {
     await branchCreateCommand(name, options);
   }));
 

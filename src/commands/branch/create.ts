@@ -15,7 +15,7 @@ import { getContainerName, getDatasetName, getDatasetPath } from '../../utils/na
 import { getPublicIP, formatConnectionString } from '../../utils/network';
 
 export interface BranchCreateOptions {
-  from?: string;
+  parent?: string;
   pitr?: string;  // Point-in-time recovery target
 }
 
@@ -25,8 +25,8 @@ export async function branchCreateCommand(targetName: string, options: BranchCre
 
   // Determine source (parent)
   let sourceName: string;
-  if (options.from) {
-    sourceName = options.from;
+  if (options.parent) {
+    sourceName = options.parent;
   } else {
     // Default to <project>/main
     sourceName = getMainBranch(target.project);

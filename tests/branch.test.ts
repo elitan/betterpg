@@ -53,8 +53,8 @@ describe('Branch Operations', () => {
       expect(await isContainerRunning('test-branch-dev')).toBe(true);
     }, { timeout: 30000 });
 
-    test('should create branch with --from flag', async () => {
-      await branchCreateCommand('test-branch/staging', { from: 'test-branch/dev' });
+    test('should create branch with --parent flag', async () => {
+      await branchCreateCommand('test-branch/staging', { parent: 'test-branch/dev' });
       await Bun.sleep(3000);
 
       expect(await datasetExists('test-branch-staging')).toBe(true);
@@ -67,7 +67,7 @@ describe('Branch Operations', () => {
 
     test('should fail to create branch from non-existent parent', async () => {
       await expect(
-        branchCreateCommand('test-branch/new', { from: 'test-branch/non-existent' })
+        branchCreateCommand('test-branch/new', { parent: 'test-branch/non-existent' })
       ).rejects.toThrow();
     });
   });
