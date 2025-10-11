@@ -121,7 +121,7 @@ describe('Integration Tests', () => {
       await Bun.sleep(3000);
 
       // Create branch from dev
-      await branchCreateCommand('multi-test/feature', { from: 'multi-test/dev' });
+      await branchCreateCommand('multi-test/feature', { parent: 'multi-test/dev' });
       await Bun.sleep(3000);
 
       const state = await getState();
