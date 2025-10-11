@@ -319,6 +319,11 @@ pgd branch reset prod/dev
 
 # Show connection details and password
 pgd branch password prod/dev   # or: pgd br pass prod/dev
+
+# Start/stop/restart branches
+pgd branch start prod/dev      # or: pgd br start prod/dev
+pgd branch stop prod/dev       # or: pgd br stop prod/dev
+pgd branch restart prod/dev    # or: pgd br restart prod/dev
 ```
 
 **Aliases:** `branch` can be shortened to `br`, `list` to `ls`, `delete` to `rm`, `password` to `pass`
@@ -384,16 +389,11 @@ pgd wal cleanup prod/main --days 7 --dry-run
 </details>
 
 <details>
-<summary><strong>Lifecycle Commands</strong></summary>
+<summary><strong>Status & Overview</strong></summary>
 
 ```bash
 # View all projects and branches
 pgd status     # or: pgd ls
-
-# Start/stop/restart branches
-pgd start prod/dev
-pgd stop prod/dev
-pgd restart prod/dev
 ```
 
 **Aliases:** `status` can be shortened to `ls`

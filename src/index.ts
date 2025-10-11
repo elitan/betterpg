@@ -147,6 +147,30 @@ branchCommand
     await branchPasswordCommand(name);
   }));
 
+branchCommand
+  .command('start')
+  .description('Start a stopped branch')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
+  .action(wrapCommand(async (name: string) => {
+    await startCommand(name);
+  }));
+
+branchCommand
+  .command('stop')
+  .description('Stop a running branch')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
+  .action(wrapCommand(async (name: string) => {
+    await stopCommand(name);
+  }));
+
+branchCommand
+  .command('restart')
+  .description('Restart a branch')
+  .argument('<name>', 'branch name in format: <project>/<branch>')
+  .action(wrapCommand(async (name: string) => {
+    await restartCommand(name);
+  }));
+
 // ============================================================================
 // WAL commands
 // ============================================================================
@@ -225,34 +249,6 @@ snapshotCommand
       dryRun: options.dryRun,
       all: options.all,
     });
-  }));
-
-// ============================================================================
-// Lifecycle commands
-// ============================================================================
-
-program
-  .command('start')
-  .description('Start a branch')
-  .argument('<name>', 'name in format: <project>/<branch>')
-  .action(wrapCommand(async (name: string) => {
-    await startCommand(name);
-  }));
-
-program
-  .command('stop')
-  .description('Stop a branch')
-  .argument('<name>', 'name in format: <project>/<branch>')
-  .action(wrapCommand(async (name: string) => {
-    await stopCommand(name);
-  }));
-
-program
-  .command('restart')
-  .description('Restart a branch')
-  .argument('<name>', 'name in format: <project>/<branch>')
-  .action(wrapCommand(async (name: string) => {
-    await restartCommand(name);
   }));
 
 // ============================================================================

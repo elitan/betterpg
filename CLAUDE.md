@@ -97,6 +97,10 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `branch get <project>/<branch>` - Shows branch details (port, credentials, etc.)
 - `branch delete <project>/<branch>` - Deletes branch (removes PostgreSQL database)
 - `branch reset <project>/<branch>` - Resets branch to parent's current state
+- `branch start <project>/<branch>` - Start a stopped branch (starts PostgreSQL container)
+- `branch stop <project>/<branch>` - Stop a running branch (stops PostgreSQL container)
+- `branch restart <project>/<branch>` - Restart a branch (restarts PostgreSQL container)
+- `branch password <project>/<branch>` - Show connection details with password
 
 **Snapshot commands** (`pgd snapshot <command>`):
 - `snapshot create <project>/<branch>` - Create manual snapshot
@@ -113,14 +117,10 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `wal cleanup <project>/<branch>` - Clean up old WAL files
   - `--days <n>` - Remove WAL files older than n days
 
-**Lifecycle commands** (project and branch level):
-- `start <project>/<branch>` - Start a stopped branch (starts PostgreSQL container)
-- `stop <project>/<branch>` - Stop a running branch (stops PostgreSQL container)
-- `restart <project>/<branch>` - Restart a branch (restarts PostgreSQL container)
+**Global commands**:
 - `status` - Show status of all projects and branches
-
-**Diagnostics commands**:
 - `doctor` - Run comprehensive health checks and diagnostics
+- `setup` - One-time setup: grant ZFS permissions and configure Docker (requires sudo)
 
 ### Manager Classes
 
