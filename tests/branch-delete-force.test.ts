@@ -135,6 +135,9 @@ describe('Branch Delete with --force', () => {
       await branchCreateCommand('force-test/level2a', { parent: 'force-test/level1' });
       await waitForBranchReady('force-test', 'level2a');
 
+      // Small delay to ensure unique snapshot timestamps (snapshots use second-precision)
+      await Bun.sleep(1000);
+
       // Create level2b (child of level1)
       await branchCreateCommand('force-test/level2b', { parent: 'force-test/level1' });
       await waitForBranchReady('force-test', 'level2b');
@@ -174,7 +177,7 @@ describe('Branch Delete with --force', () => {
       // Only main should remain
       expect(project?.branches?.length).toBe(1);
       expect(project?.branches?.[0]?.name).toBe('force-test/main');
-    }, { timeout: 60000 });
+    }, { timeout: 60000 }); // Creates 4 branches, needs extra time
   });
 
   describe('Delete branch with sibling branches', () => {
@@ -187,6 +190,9 @@ describe('Branch Delete with --force', () => {
 
       await branchCreateCommand('force-test/sibling1', {});
       await waitForBranchReady('force-test', 'sibling1');
+
+      // Small delay to ensure unique snapshot timestamps (snapshots use second-precision)
+      await Bun.sleep(1000);
 
       await branchCreateCommand('force-test/sibling2', {});
       await waitForBranchReady('force-test', 'sibling2');
@@ -215,6 +221,6 @@ describe('Branch Delete with --force', () => {
       expect(project?.branches?.find((b: any) => b.name === 'force-test/sibling1')).toBeUndefined();
       expect(project?.branches?.find((b: any) => b.name === 'force-test/sibling1-child')).toBeUndefined();
       expect(project?.branches?.find((b: any) => b.name === 'force-test/sibling2')).toBeDefined();
-    }, { timeout: 60000 });
+    }, { timeout: 60000 }); // Creates 3 branches, needs extra time
   });
 });

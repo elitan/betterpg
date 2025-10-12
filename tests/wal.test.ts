@@ -38,7 +38,7 @@ describe('WAL Operations', () => {
     test('should show WAL info for all branches', async () => {
       await ensureSetup();
       await walInfoCommand(undefined);
-    }, { timeout: 60000 }); // PostgreSQL startup + WAL archiving can take time
+    }, { timeout: 60000 });
 
     test('should show WAL info for specific branch', async () => {
       await ensureSetup();

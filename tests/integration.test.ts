@@ -60,7 +60,7 @@ describe('Integration Tests', () => {
       // Branches should be much smaller due to CoW
       expect(devSize).toBeLessThan(parentSize);
       expect(stagingSize).toBeLessThan(parentSize);
-    }, { timeout: 60000 });
+    }, { timeout: 60000 }); // Inserts 100 rows, needs extra time
   });
 
   describe('State Integrity', () => {
@@ -139,6 +139,6 @@ describe('Integration Tests', () => {
       const project = state.projects?.find((p: any) => p.name === 'multi-test');
 
       expect(project?.branches?.length).toBe(3); // main, dev, feature
-    }, { timeout: 60000 });
+    }, { timeout: 60000 }); // Creates multiple branches, needs extra time
   });
 });

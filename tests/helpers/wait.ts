@@ -15,6 +15,7 @@ export const TIMEOUTS = {
   CONTAINER_STOP: 10_000,
   DATASET_CREATE: 5_000,
   POSTGRES_READY: 60_000,
+  PITR_RECOVERY: 180_000, // PITR recovery needs extra time for WAL replay
 } as const;
 
 /**

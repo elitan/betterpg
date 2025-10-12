@@ -6,6 +6,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { getProjectCredentials, getBranchPort, query, waitForReady, ensureWALArchived } from './helpers/database';
+import { TIMEOUTS } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -87,7 +88,7 @@ describe('Point-in-Time Recovery (PITR)', () => {
       // Should NOT have: 'after-snapshot-2' (inserted after recovery target)
       const count = await query(recoveryPort, creds.password, 'SELECT COUNT(*) FROM pitr_data;');
       expect(parseInt(count)).toBe(2);
-    }, { timeout: 180000 }); // PITR recovery needs extra time for WAL replay
+    }, { timeout: TIMEOUTS.PITR_RECOVERY });
 
     test('should fail with PITR before any snapshots', async () => {
       // Try to recover to a time way in the past
@@ -107,6 +108,6 @@ describe('Point-in-Time Recovery (PITR)', () => {
         // Either success or failure is acceptable for this test
         expect(error).toBeDefined();
       }
-    }, { timeout: 180000 }); // PITR recovery needs extra time for WAL replay on slower machines
+    }, { timeout: TIMEOUTS.PITR_RECOVERY });
   });
 });
