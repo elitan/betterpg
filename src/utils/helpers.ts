@@ -31,7 +31,9 @@ export function formatBytes(bytes: number | undefined): string {
 }
 
 export function formatTimestamp(date: Date): string {
-  return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  // Include milliseconds to prevent collisions in fast operations
+  // Format: 2025-10-12T12-30-29-123 (YYYY-MM-DDTHH-MM-SS-mmm)
+  return date.toISOString().replace(/[:.]/g, '-').slice(0, 23);
 }
 
 export function sanitizeName(name: string): string {
