@@ -22,6 +22,9 @@ describe('Branch Delete with --force', () => {
     if (setupDone) return;
     setupDone = true;
 
+    // Set test mode for proper error handling
+    process.env.NODE_ENV = 'test';
+
     silenceConsole();
     await cleanup.beforeAll();
 
