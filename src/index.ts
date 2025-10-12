@@ -24,6 +24,7 @@ import { stopCommand } from './commands/stop';
 import { restartCommand } from './commands/restart';
 import { statusCommand } from './commands/status';
 import { doctorCommand } from './commands/doctor';
+import { cleanupCommand } from './commands/cleanup';
 import { setupCommand } from './commands/setup';
 import { stateRestoreCommand } from './commands/state/restore';
 import { wrapCommand } from './utils/command-wrapper';
@@ -270,6 +271,15 @@ program
   .description('Run health checks and diagnostics')
   .action(wrapCommand(async () => {
     await doctorCommand();
+  }));
+
+program
+  .command('cleanup')
+  .description('Remove orphaned ZFS datasets and Docker containers')
+  .option('--dry-run', 'show what would be deleted without actually deleting')
+  .option('-f, --force', 'skip confirmation prompt')
+  .action(wrapCommand(async (options: { dryRun?: boolean; force?: boolean }) => {
+    await cleanupCommand(options);
   }));
 
 program

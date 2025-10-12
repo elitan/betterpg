@@ -2,12 +2,14 @@ import chalk from 'chalk';
 import { $ } from 'bun';
 import { StateManager } from '../managers/state';
 import { DockerManager } from '../managers/docker';
+import { ZFSManager } from '../managers/zfs';
 import { PATHS } from '../utils/paths';
 import { DEFAULTS } from '../config/defaults';
 import { getZFSPool } from '../utils/zfs-pool';
 import { validateAllPermissions } from '../utils/zfs-permissions';
 import * as fs from 'fs/promises';
 import { CLI_NAME } from '../config/constants';
+import { detectOrphans, formatBytes } from '../utils/orphan-detection';
 
 interface CheckResult {
   name: string;
@@ -90,6 +92,17 @@ export async function doctorCommand() {
   ];
   allResults.push(...permResults);
   printResults(permResults);
+  console.log();
+
+  // Orphaned Resources
+  console.log(chalk.bold('Orphaned Resources'));
+  console.log(chalk.dim('─'.repeat(60)));
+
+  const orphanResults = [
+    await checkOrphans(),
+  ];
+  allResults.push(...orphanResults);
+  printResults(orphanResults);
   console.log();
 
   // Summary
@@ -764,6 +777,68 @@ async function checkWALPermissions(): Promise<CheckResult> {
       name: 'WAL Directory Permissions',
       status: 'warn',
       message: 'Unable to check permissions',
+    };
+  }
+}
+
+async function checkOrphans(): Promise<CheckResult> {
+  try {
+    const state = new StateManager(PATHS.STATE);
+    await state.load();
+
+    if (!state.isInitialized()) {
+      return {
+        name: 'Orphaned Resources',
+        status: 'info',
+        message: 'Not initialized yet',
+      };
+    }
+
+    const stateData = state.getState();
+    const zfs = new ZFSManager(stateData.zfsPool, stateData.zfsDatasetBase);
+    const docker = new DockerManager();
+
+    const result = await detectOrphans(stateData, zfs, docker);
+
+    if (result.totalOrphans === 0) {
+      return {
+        name: 'Orphaned Resources',
+        status: 'pass',
+        message: 'No orphaned resources found',
+      };
+    }
+
+    const details: string[] = [];
+
+    if (result.datasets.length > 0) {
+      details.push(`ZFS datasets: ${result.datasets.length} orphaned`);
+      for (const dataset of result.datasets) {
+        details.push(`  • ${dataset.name} (${formatBytes(dataset.sizeBytes)})`);
+      }
+    }
+
+    if (result.containers.length > 0) {
+      details.push(`Docker containers: ${result.containers.length} orphaned`);
+      for (const container of result.containers) {
+        details.push(`  • ${container.name} (${container.state})`);
+      }
+    }
+
+    details.push('');
+    details.push(`Total wasted disk space: ${formatBytes(result.totalWastedBytes)}`);
+    details.push(`Run 'velo cleanup' to remove orphaned resources`);
+
+    return {
+      name: 'Orphaned Resources',
+      status: 'warn',
+      message: `Found ${result.totalOrphans} orphaned resource(s)`,
+      details,
+    };
+  } catch (error) {
+    return {
+      name: 'Orphaned Resources',
+      status: 'warn',
+      message: 'Unable to check for orphans',
     };
   }
 }
