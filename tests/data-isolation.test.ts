@@ -6,6 +6,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { getProjectCredentials, getBranchPort, query, waitForReady } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -25,9 +26,7 @@ describe('Data Isolation and Persistence', () => {
 
     // Setup: Create project with test data
     await projectCreateCommand('isolation-test', {});
-    const creds = await getProjectCredentials('isolation-test');
-    const port = await getBranchPort('isolation-test/main');
-    await waitForReady(port, creds.password, 60000);
+    await waitForProjectReady('isolation-test');
   }
 
   afterAll(async () => {
@@ -72,12 +71,10 @@ describe('Data Isolation and Persistence', () => {
       await ensureSetup();
       // Create branch
       await branchCreateCommand('isolation-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('isolation-test', 'dev');
 
       const creds = await getProjectCredentials('isolation-test');
       const devPort = await getBranchPort('isolation-test/dev');
-
-      await waitForReady(devPort, creds.password);
 
       // Verify branch has same data
       const count = await query(devPort, creds.password, 'SELECT COUNT(*) FROM users;');
@@ -126,13 +123,11 @@ describe('Data Isolation and Persistence', () => {
       await ensureSetup();
       // Create second branch
       await branchCreateCommand('isolation-test/staging', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('isolation-test', 'staging');
 
       const creds = await getProjectCredentials('isolation-test');
       const devPort = await getBranchPort('isolation-test/dev');
       const stagingPort = await getBranchPort('isolation-test/staging');
-
-      await waitForReady(stagingPort, creds.password);
 
       // Staging should have 4 rows (from main at time of creation)
       const stagingCount = await query(stagingPort, creds.password, 'SELECT COUNT(*) FROM users;');

@@ -5,7 +5,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
-import { getProjectCredentials, getBranchPort, waitForReady } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -28,9 +28,7 @@ describe('Edge Cases and Error Handling', () => {
 
     // Create a project for testing
     await projectCreateCommand('edge-test', {});
-    const creds = await getProjectCredentials('edge-test');
-    const port = await getBranchPort('edge-test/main');
-    await waitForReady(port, creds.password, 60000);
+    await waitForProjectReady('edge-test');
   }, { timeout: 120000 });
 
   afterAll(async () => {
@@ -77,7 +75,7 @@ describe('Edge Cases and Error Handling', () => {
 
     test('should allow deletion of non-main branches', async () => {
       await branchCreateCommand('edge-test/temp', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('edge-test', 'temp');
 
       await branchDeleteCommand('edge-test/temp');
     }, { timeout: 30000 });
@@ -90,7 +88,7 @@ describe('Edge Cases and Error Handling', () => {
 
     test('should prevent duplicate branch creation', async () => {
       await branchCreateCommand('edge-test/dup', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('edge-test', 'dup');
 
       await expect(branchCreateCommand('edge-test/dup', {})).rejects.toThrow();
     }, { timeout: 30000 });

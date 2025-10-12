@@ -6,6 +6,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { getProjectCredentials, getBranchPort, query, waitForReady } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -25,10 +26,10 @@ describe('Branch Reset', () => {
 
     // Setup: Create project with test data
     await projectCreateCommand('reset-test', {});
+    await waitForProjectReady('reset-test');
 
     const creds = await getProjectCredentials('reset-test');
     const mainPort = await getBranchPort('reset-test/main');
-    await waitForReady(mainPort, creds.password, 60000);
 
     // Create initial data
     await query(mainPort, creds.password, 'CREATE TABLE reset_data (id SERIAL PRIMARY KEY, value TEXT);');
@@ -47,14 +48,14 @@ describe('Branch Reset', () => {
 
       // Create branch
       await branchCreateCommand('reset-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('reset-test', 'dev');
 
       // Modify parent
       await query(mainPort, creds.password, "INSERT INTO reset_data (value) VALUES ('parent-change');");
 
       // Reset branch
       await branchResetCommand('reset-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('reset-test', 'dev');
 
       // Verify branch has parent changes
       const devPort = await getBranchPort('reset-test/dev');
@@ -77,7 +78,7 @@ describe('Branch Reset', () => {
 
       // Reset branch
       await branchResetCommand('reset-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('reset-test', 'dev');
 
       // Verify local change is gone
       const afterReset = await query(devPort, creds.password, "SELECT COUNT(*) FROM reset_data WHERE value='dev-only';");
@@ -92,7 +93,7 @@ describe('Branch Reset', () => {
       // First parent change and reset
       await query(mainPort, creds.password, "INSERT INTO reset_data (value) VALUES ('change-1');");
       await branchResetCommand('reset-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('reset-test', 'dev');
 
       // Verify first change
       const count1 = await query(devPort, creds.password, "SELECT COUNT(*) FROM reset_data WHERE value='change-1';");
@@ -101,7 +102,7 @@ describe('Branch Reset', () => {
       // Second parent change and reset
       await query(mainPort, creds.password, "INSERT INTO reset_data (value) VALUES ('change-2');");
       await branchResetCommand('reset-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('reset-test', 'dev');
 
       // Verify second change
       const count2 = await query(devPort, creds.password, "SELECT COUNT(*) FROM reset_data WHERE value='change-2';");

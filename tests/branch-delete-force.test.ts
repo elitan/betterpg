@@ -7,7 +7,8 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { datasetExists } from './helpers/zfs';
 import { isContainerRunning } from './helpers/docker';
-import { getState, getProjectCredentials, getBranchPort, waitForReady } from './helpers/database';
+import { getState } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -30,11 +31,7 @@ describe('Branch Delete with --force', () => {
 
     // Setup: Create a project
     await projectCreateCommand('force-test', {});
-
-    // Wait for container to be ready
-    const creds = await getProjectCredentials('force-test');
-    const port = await getBranchPort('force-test/main');
-    await waitForReady(port, creds.password, 60000);
+    await waitForProjectReady('force-test');
   }
 
   afterAll(async () => {
@@ -47,7 +44,7 @@ describe('Branch Delete with --force', () => {
 
       // Create a simple branch
       await branchCreateCommand('force-test/simple', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'simple');
 
       // Verify it exists
       expect(await datasetExists('force-test-simple')).toBe(true);
@@ -71,11 +68,11 @@ describe('Branch Delete with --force', () => {
     test('should fail to delete branch with children when --force is not provided', async () => {
       // Create parent branch
       await branchCreateCommand('force-test/parent', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'parent');
 
       // Create child branch
       await branchCreateCommand('force-test/child', { parent: 'force-test/parent' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'child');
 
       // Verify both exist
       expect(await datasetExists('force-test-parent')).toBe(true);
@@ -132,19 +129,19 @@ describe('Branch Delete with --force', () => {
 
       // Create level1
       await branchCreateCommand('force-test/level1', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'level1');
 
       // Create level2a (child of level1)
       await branchCreateCommand('force-test/level2a', { parent: 'force-test/level1' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'level2a');
 
       // Create level2b (child of level1)
       await branchCreateCommand('force-test/level2b', { parent: 'force-test/level1' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'level2b');
 
       // Create level3 (child of level2a)
       await branchCreateCommand('force-test/level3', { parent: 'force-test/level2a' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'level3');
 
       // Verify all branches exist
       expect(await datasetExists('force-test-level1')).toBe(true);
@@ -189,13 +186,13 @@ describe('Branch Delete with --force', () => {
       //   └─ sibling2
 
       await branchCreateCommand('force-test/sibling1', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'sibling1');
 
       await branchCreateCommand('force-test/sibling2', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'sibling2');
 
       await branchCreateCommand('force-test/sibling1-child', { parent: 'force-test/sibling1' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('force-test', 'sibling1-child');
 
       // Verify all exist
       expect(await datasetExists('force-test-sibling1')).toBe(true);

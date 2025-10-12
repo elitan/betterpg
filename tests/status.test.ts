@@ -6,6 +6,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { getState } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady, waitForContainerStopped } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -36,7 +37,7 @@ describe('Status Command', () => {
 
   test('should show status with running project', async () => {
     await projectCreateCommand('status-test', {});
-    await Bun.sleep(3000);
+    await waitForProjectReady('status-test');
 
     await statusCommand();
 
@@ -49,9 +50,9 @@ describe('Status Command', () => {
 
   test('should show status with stopped branch', async () => {
     await branchCreateCommand('status-test/dev', {});
-    await Bun.sleep(3000);
+    await waitForBranchReady('status-test', 'dev');
     await stopCommand('status-test/dev');
-    await Bun.sleep(2000);
+    await waitForContainerStopped('status-test-dev');
 
     await statusCommand();
 
@@ -63,7 +64,7 @@ describe('Status Command', () => {
 
   test('should show status with mixed running/stopped states', async () => {
     await branchCreateCommand('status-test/staging', {});
-    await Bun.sleep(3000);
+    await waitForBranchReady('status-test', 'staging');
 
     await statusCommand();
 

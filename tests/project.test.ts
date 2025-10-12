@@ -8,6 +8,7 @@ import * as cleanup from './helpers/cleanup';
 import { datasetExists } from './helpers/zfs';
 import { isContainerRunning } from './helpers/docker';
 import { getState } from './helpers/database';
+import { waitForProjectReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -29,9 +30,7 @@ describe('Project Operations', () => {
   describe('Create Project', () => {
     test('should create first project and auto-initialize', async () => {
       await projectCreateCommand('api', {});
-
-      // Small delay for container startup
-      await Bun.sleep(3000);
+      await waitForProjectReady('api');
 
       // Verify ZFS dataset
       expect(await datasetExists('api-main')).toBe(true);
@@ -42,8 +41,7 @@ describe('Project Operations', () => {
 
     test('should create second project', async () => {
       await projectCreateCommand('web', {});
-
-      await Bun.sleep(3000);
+      await waitForProjectReady('web');
 
       expect(await datasetExists('web-main')).toBe(true);
       expect(await isContainerRunning('web-main')).toBe(true);

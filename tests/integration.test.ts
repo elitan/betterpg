@@ -7,6 +7,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { getDatasetSize, getDatasetName } from './helpers/zfs';
 import { getProjectCredentials, getBranchPort, query, waitForReady, getState } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import { isContainerRunning } from './helpers/docker';
 import {
   silenceConsole,
@@ -28,11 +29,10 @@ describe('Integration Tests', () => {
     test('branches should use less space than parent due to CoW', async () => {
       // Create project with some data
       await projectCreateCommand('cow-test', {});
-      await Bun.sleep(3000);
+      await waitForProjectReady('cow-test');
 
       const creds = await getProjectCredentials('cow-test');
       const mainPort = await getBranchPort('cow-test/main');
-      await waitForReady(mainPort, creds.password);
 
       // Add significant data to parent
       await query(mainPort, creds.password, 'CREATE TABLE large_data (id SERIAL PRIMARY KEY, data TEXT);');
@@ -45,9 +45,13 @@ describe('Integration Tests', () => {
 
       // Create branches
       await branchCreateCommand('cow-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('cow-test', 'dev');
+
+      // Small delay to ensure unique snapshot timestamps (snapshots use second-precision)
+      await Bun.sleep(1000);
+
       await branchCreateCommand('cow-test/staging', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('cow-test', 'staging');
 
       // Get branch sizes
       const devSize = await getDatasetSize(getDatasetName('cow-test', 'dev'));
@@ -62,13 +66,17 @@ describe('Integration Tests', () => {
   describe('State Integrity', () => {
     test('state should track all projects and branches', async () => {
       await projectCreateCommand('state-test-1', {});
-      await Bun.sleep(3000);
+      await waitForProjectReady('state-test-1');
       await projectCreateCommand('state-test-2', {});
-      await Bun.sleep(3000);
+      await waitForProjectReady('state-test-2');
       await branchCreateCommand('state-test-1/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('state-test-1', 'dev');
+
+      // Small delay to ensure unique snapshot timestamps
+      await Bun.sleep(1000);
+
       await branchCreateCommand('state-test-1/staging', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('state-test-1', 'staging');
 
       const state = await getState();
 
@@ -114,15 +122,18 @@ describe('Integration Tests', () => {
   describe('Multi-Branch Scenarios', () => {
     test('should handle multiple branches from different parents', async () => {
       await projectCreateCommand('multi-test', {});
-      await Bun.sleep(3000);
+      await waitForProjectReady('multi-test');
 
       // Create branch from main
       await branchCreateCommand('multi-test/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('multi-test', 'dev');
+
+      // Small delay to ensure unique snapshot timestamps
+      await Bun.sleep(1000);
 
       // Create branch from dev
       await branchCreateCommand('multi-test/feature', { parent: 'multi-test/dev' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('multi-test', 'feature');
 
       const state = await getState();
       const project = state.projects?.find((p: any) => p.name === 'multi-test');

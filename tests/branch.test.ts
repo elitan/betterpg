@@ -7,7 +7,8 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as cleanup from './helpers/cleanup';
 import { datasetExists } from './helpers/zfs';
 import { isContainerRunning } from './helpers/docker';
-import { getState, getProjectCredentials, getBranchPort, waitForReady } from './helpers/database';
+import { getState } from './helpers/database';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
@@ -29,11 +30,7 @@ describe('Branch Operations', () => {
 
     // Setup: Create a project
     await projectCreateCommand('test-branch', {});
-
-    // Wait for container to be ready for connections
-    const creds = await getProjectCredentials('test-branch');
-    const port = await getBranchPort('test-branch/main');
-    await waitForReady(port, creds.password, 60000);
+    await waitForProjectReady('test-branch');
   }
 
   afterAll(async () => {
@@ -44,7 +41,7 @@ describe('Branch Operations', () => {
     test('should create branch from main', async () => {
       await ensureSetup();
       await branchCreateCommand('test-branch/dev', {});
-      await Bun.sleep(3000);
+      await waitForBranchReady('test-branch', 'dev');
 
       // Verify ZFS dataset
       expect(await datasetExists('test-branch-dev')).toBe(true);
@@ -55,7 +52,7 @@ describe('Branch Operations', () => {
 
     test('should create branch with --parent flag', async () => {
       await branchCreateCommand('test-branch/staging', { parent: 'test-branch/dev' });
-      await Bun.sleep(3000);
+      await waitForBranchReady('test-branch', 'staging');
 
       expect(await datasetExists('test-branch-staging')).toBe(true);
       expect(await isContainerRunning('test-branch-staging')).toBe(true);

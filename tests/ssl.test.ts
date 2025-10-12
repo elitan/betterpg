@@ -6,12 +6,13 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import * as cleanup from './helpers/cleanup';
+import { waitForProjectReady, waitForBranchReady } from './helpers/wait';
 import {
   silenceConsole,
   projectCreateCommand,
   branchCreateCommand,
 } from './helpers/commands';
-import { query, getProjectCredentials, getBranchPort, waitForReady } from './helpers/database';
+import { query, getProjectCredentials, getBranchPort } from './helpers/database';
 import { $ } from 'bun';
 
 const TEST_PROJECT = 'ssl-test';
@@ -31,12 +32,12 @@ describe('SSL/TLS Tests', () => {
 
     // Create test project
     await projectCreateCommand(TEST_PROJECT, {});
+    await waitForProjectReady(TEST_PROJECT);
 
-    // Wait for PostgreSQL to be ready
+    // Get credentials
     const creds = await getProjectCredentials(TEST_PROJECT);
     mainPort = (await getBranchPort(`${TEST_PROJECT}/main`)).toString();
     mainPassword = creds.password;
-    await waitForReady(mainPort, mainPassword, 60000);
   }
 
   afterAll(async () => {
@@ -104,7 +105,7 @@ describe('SSL/TLS Tests', () => {
   test('should create branch with SSL certificates from parent project', async () => {
     await ensureSetup();
     await branchCreateCommand(TEST_BRANCH, {});
-    await Bun.sleep(3000);
+    await waitForBranchReady(TEST_PROJECT, 'dev');
 
     // Verify branch container has SSL enabled
     const containerName = `velo-${TEST_PROJECT}-dev`;
