@@ -125,8 +125,9 @@ branchCommand
   .alias('rm')
   .description('Delete a branch')
   .argument('<name>', 'branch name in format: <project>/<branch>')
-  .action(wrapCommand(async (name: string) => {
-    await branchDeleteCommand(name);
+  .option('-f, --force', 'delete branch and all child branches')
+  .action(wrapCommand(async (name: string, options: { force?: boolean }) => {
+    await branchDeleteCommand(name, options);
   }));
 
 branchCommand
