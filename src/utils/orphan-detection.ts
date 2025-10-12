@@ -6,7 +6,7 @@
 
 import { ZFSManager } from '../managers/zfs';
 import { DockerManager } from '../managers/docker';
-import { State, Branch } from '../types/state';
+import type { State, Branch } from '../types/state';
 import { CONTAINER_PREFIX } from '../config/constants';
 import { getContainerName } from './naming';
 import { parseNamespace } from './namespace';
@@ -115,7 +115,7 @@ export async function detectOrphans(
         name: container.name,
         id: container.id,
         state: container.state,
-        createdAt: container.startedAt,
+        createdAt: container.startedAt || new Date(0),
       });
     }
   }
