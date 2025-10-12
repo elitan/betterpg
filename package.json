@@ -5,17 +5,56 @@
   "containerPrefix": "velo",
   "version": "0.3.4",
   "description": "Instant PostgreSQL branching with ZFS snapshots",
+  "author": "Johan Eliasson <johan@eliasson.me> (https://github.com/elitan)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elitan/velo.git"
+  },
+  "homepage": "https://github.com/elitan/velo#readme",
+  "bugs": {
+    "url": "https://github.com/elitan/velo/issues"
+  },
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "database",
+    "branching",
+    "zfs",
+    "snapshot",
+    "docker",
+    "development",
+    "testing",
+    "pitr",
+    "backup",
+    "clone"
+  ],
   "module": "src/index.ts",
   "type": "module",
   "bin": {
     "velo": "./dist/velo"
   },
+  "files": [
+    "dist/velo",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "os": [
+    "linux"
+  ],
   "scripts": {
     "test": "./scripts/test.sh",
     "test:watch": "sudo NODE_ENV=test $(which bun) test --watch",
     "build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/velo",
     "dev": "bun run src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build",
+    "release": "./scripts/release.sh patch",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -2,11 +2,11 @@
   <img src="assets/readme-hero.png" alt="Velo - Postgres with instant branching" />
   <br />
   <br />
-  <a href="https://github.com/elitan/pgd/blob/main/LICENSE">
-    <img alt="MIT License" src="https://img.shields.io/github/license/elitan/pgd" />
+  <a href="https://github.com/elitan/velo/blob/main/LICENSE">
+    <img alt="MIT License" src="https://img.shields.io/github/license/elitan/velo" />
   </a>
-  <a href="https://github.com/elitan/pgd/stargazers">
-    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/elitan/pgd?style=social" />
+  <a href="https://github.com/elitan/velo/stargazers">
+    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/elitan/velo?style=social" />
   </a>
   <a href="https://discord.gg/PtePt2wx7R">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white" />
@@ -176,8 +176,8 @@ $ psql -h localhost -p 32836 -U postgres -c "SELECT * FROM users;"
 
 **Think of it like Git for databases:**
 - `velo project create` = `git init`
-- `pgd branch create` = `git branch` (complete database instance)
-- `pgd branch reset` = `git reset --hard origin/main`
+- `velo branch create` = `git branch` (complete database instance)
+- `velo branch reset` = `git reset --hard origin/main`
 
 ## Why Velo?
 
@@ -196,14 +196,28 @@ ZFS copy-on-write + PostgreSQL CHECKPOINT = instant, space-efficient, applicatio
 
 ## Installation
 
+### Prerequisites (Ubuntu/Debian)
 ```bash
-# Install dependencies (Ubuntu/Debian)
 sudo apt install zfsutils-linux
 curl -fsSL https://get.docker.com | sh
 curl -fsSL https://bun.sh/install | bash
+```
 
-# Install Velo
-git clone https://github.com/elitan/pgd.git && cd velo
+### Install Velo
+
+**Option 1: npm (recommended)**
+```bash
+npm install -g @elitan/velo
+```
+
+**Option 2: bunx (run without installing)**
+```bash
+bunx @elitan/velo --help
+```
+
+**Option 3: From source**
+```bash
+git clone https://github.com/elitan/velo.git && cd velo
 bun install && bun run build
 sudo cp dist/velo /usr/local/bin/
 ```
@@ -218,13 +232,13 @@ zpool list  # Check existing pools
 # For testing: sudo truncate -s 10G /tmp/zfs-pool.img && sudo zpool create tank /tmp/zfs-pool.img
 # For production: sudo zpool create tank /dev/sdb
 
-# 2. Run pgd setup (grants permissions, configures Docker)
+# 2. Run velo setup (grants permissions, configures Docker)
 sudo velo setup
 
 # 3. Log out and log back in (required for group membership to take effect)
 
 # 4. Verify setup and start using Velo:
-pgd doctor              # Check if everything is configured correctly
+velo doctor              # Check if everything is configured correctly
 velo project create myapp
 ```
 
@@ -237,7 +251,7 @@ velo project create myapp
 
 **Security:** Only mount/unmount require sudo (Linux kernel limitation). All other operations use ZFS delegation.
 
-**Troubleshooting:** Run `pgd doctor` to diagnose configuration issues. The command checks:
+**Troubleshooting:** Run `velo doctor` to diagnose configuration issues. The command checks:
 - System requirements (OS, Bun, Docker, ZFS)
 - Permissions (ZFS delegation, Docker group)
 - Velo state (projects, branches, containers)
@@ -285,14 +299,14 @@ sudo zpool create tank mirror /dev/sdb /dev/sdc
 ```bash
 # Create project (auto-creates <project>/main branch)
 velo project create myapp
-pgd proj create legacy --pg-version 14
-pgd proj create vectordb --image ankane/pgvector:17
-pgd proj create myapp --pool tank2  # If multiple ZFS pools
+velo proj create legacy --pg-version 14
+velo proj create vectordb --image ankane/pgvector:17
+velo proj create myapp --pool tank2  # If multiple ZFS pools
 
 # List/view/delete
-pgd project list     # or: pgd proj ls
-pgd project get myapp
-pgd project delete myapp --force     # or: pgd proj rm myapp --force
+velo project list     # or: velo proj ls
+velo project get myapp
+velo project delete myapp --force     # or: velo proj rm myapp --force
 ```
 
 **Docker image inheritance:** All branches inherit parent project's Docker image
@@ -305,25 +319,25 @@ pgd project delete myapp --force     # or: pgd proj rm myapp --force
 
 ```bash
 # Create branch (application-consistent, uses CHECKPOINT)
-pgd branch create prod/dev
-pgd br create prod/feature --parent prod/dev
+velo branch create prod/dev
+velo br create prod/feature --parent prod/dev
 
 # List/view/delete
-pgd branch list              # or: pgd br ls
-pgd branch list prod         # Specific project
-pgd branch get prod/dev
-pgd branch delete prod/dev   # or: pgd br rm prod/dev
+velo branch list              # or: velo br ls
+velo branch list prod         # Specific project
+velo branch get prod/dev
+velo branch delete prod/dev   # or: velo br rm prod/dev
 
 # Reset branch to parent's current state
-pgd branch reset prod/dev
+velo branch reset prod/dev
 
 # Show connection details and password
-pgd branch password prod/dev   # or: pgd br pass prod/dev
+velo branch password prod/dev   # or: velo br pass prod/dev
 
 # Start/stop/restart branches
-pgd branch start prod/dev      # or: pgd br start prod/dev
-pgd branch stop prod/dev       # or: pgd br stop prod/dev
-pgd branch restart prod/dev    # or: pgd br restart prod/dev
+velo branch start prod/dev      # or: velo br start prod/dev
+velo branch stop prod/dev       # or: velo br stop prod/dev
+velo branch restart prod/dev    # or: velo br restart prod/dev
 ```
 
 **Aliases:** `branch` can be shortened to `br`, `list` to `ls`, `delete` to `rm`, `password` to `pass`
@@ -334,18 +348,18 @@ pgd branch restart prod/dev    # or: pgd br restart prod/dev
 
 ```bash
 # Create snapshot (application-consistent, uses CHECKPOINT)
-pgd snapshot create prod/main --label "before-migration"
-# or: pgd snap create prod/main --label "before-migration"
+velo snapshot create prod/main --label "before-migration"
+# or: velo snap create prod/main --label "before-migration"
 
 # List/delete
-pgd snapshot list                      # or: pgd snap ls
-pgd snapshot list prod/main            # or: pgd snap ls prod/main
-pgd snapshot delete <snapshot-id>      # or: pgd snap rm <snapshot-id>
+velo snapshot list                      # or: velo snap ls
+velo snapshot list prod/main            # or: velo snap ls prod/main
+velo snapshot delete <snapshot-id>      # or: velo snap rm <snapshot-id>
 
 # Cleanup old snapshots
-pgd snapshot cleanup prod/main --days 30
-pgd snapshot cleanup --all --days 30
-pgd snapshot cleanup prod/main --days 30 --dry-run
+velo snapshot cleanup prod/main --days 30
+velo snapshot cleanup --all --days 30
+velo snapshot cleanup prod/main --days 30 --dry-run
 ```
 
 **Best practice:** Automate snapshots via cron for PITR
@@ -358,9 +372,9 @@ pgd snapshot cleanup prod/main --days 30 --dry-run
 
 ```bash
 # Recover to specific time
-pgd branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
-pgd branch create prod/recovered --pitr "2 hours ago"
-pgd branch create prod/recovered --parent prod/dev --pitr "1 hour ago"
+velo branch create prod/recovered --pitr "2025-10-07T14:30:00Z"
+velo branch create prod/recovered --pitr "2 hours ago"
+velo branch create prod/recovered --parent prod/dev --pitr "1 hour ago"
 ```
 
 **How it works:**
@@ -377,12 +391,12 @@ pgd branch create prod/recovered --parent prod/dev --pitr "1 hour ago"
 
 ```bash
 # View WAL archive info (file count, size, age)
-pgd wal info
-pgd wal info prod/main
+velo wal info
+velo wal info prod/main
 
 # Cleanup old WAL files
-pgd wal cleanup prod/main --days 7
-pgd wal cleanup prod/main --days 7 --dry-run
+velo wal cleanup prod/main --days 7
+velo wal cleanup prod/main --days 7 --dry-run
 ```
 
 **WAL location:** `~/.velo/wal-archive/<dataset>/`
@@ -393,7 +407,7 @@ pgd wal cleanup prod/main --days 7 --dry-run
 
 ```bash
 # View all projects and branches
-pgd status     # or: pgd ls
+velo status     # or: velo ls
 ```
 
 **Aliases:** `status` can be shortened to `ls`
@@ -404,8 +418,8 @@ pgd status     # or: pgd ls
 
 ```bash
 # Get connection details
-pgd status                      # Overview of all projects and branches
-pgd branch password prod/dev    # Show full connection string with password
+velo status                      # Overview of all projects and branches
+velo branch password prod/dev    # Show full connection string with password
 
 # Connect with psql
 psql -h localhost -p <port> -U <username> -d <database>
@@ -420,7 +434,7 @@ psql postgresql://<username>:<password>@localhost:<port>/<database>
 
 ```bash
 # Run comprehensive health checks
-pgd doctor
+velo doctor
 ```
 
 **Checks performed:**
