@@ -228,6 +228,37 @@ The StateManager validates:
 4. No duplicate project or branch names
 5. ZFS dataset naming follows `<project>-<branch>` pattern
 
+### State Backup & Recovery
+
+**Automatic Backups (Terraform-style):**
+- StateManager automatically creates `~/.velo/state.json.backup` before every write
+- Backup contains the previous state (single backup, not versioned)
+- No user action required - happens on every `state.save()`
+
+**Manual Restore:**
+```bash
+velo state restore
+```
+- Shows backup info (timestamp, size)
+- Confirms before restoring
+- Copies `.backup` file to `.json`
+- Reloads state after restore
+
+**Implementation in `src/managers/state.ts`:**
+```typescript
+async save(): Promise<void> {
+  // 1. Write new state to .tmp file
+  // 2. Copy current state.json → state.json.backup (if exists)
+  // 3. Atomic rename: .tmp → state.json
+}
+```
+
+This prevents catastrophic data loss from:
+- State file corruption
+- Accidental deletion
+- Bugs in state modification code
+- Failed operations that partially update state
+
 ### Namespace Utilities
 
 `src/utils/namespace.ts` provides:
@@ -273,6 +304,7 @@ This command:
 ## File Locations
 
 - State: `~/.velo/state.json` (stores pool, dataset base, projects, branches, snapshots)
+- State backup: `~/.velo/state.json.backup` (automatic backup of previous state)
 - State lock: `~/.velo/state.json.lock`
 - WAL archive: `~/.velo/wal-archive/<dataset>/`
 - ZFS datasets: `<pool>/velo/databases/<project>-<branch>` (pool auto-detected)

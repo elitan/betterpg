@@ -67,12 +67,24 @@ export class StateManager {
 
     try {
       const tempFile = `${this.filePath}.tmp`;
+      const backupFile = `${this.filePath}.backup`;
+
+      // Write new state to temp file
       await fs.writeFile(tempFile, JSON.stringify(this.state, null, 2), 'utf-8');
 
       // Ensure data is written to disk before rename
       const fd = await fs.open(tempFile, 'r');
       await fd.sync();
       await fd.close();
+
+      // Create backup of current state before replacing (if state file exists)
+      try {
+        await fs.access(this.filePath);
+        // State file exists, create backup
+        await fs.copyFile(this.filePath, backupFile);
+      } catch (error) {
+        // State file doesn't exist yet (first write), skip backup
+      }
 
       // Atomically replace old file with new file
       await fs.rename(tempFile, this.filePath);
@@ -83,6 +95,53 @@ export class StateManager {
       await dir.close();
     } finally {
       await this.releaseLock();
+    }
+  }
+
+  async restoreFromBackup(): Promise<void> {
+    const backupFile = `${this.filePath}.backup`;
+
+    await this.acquireLock();
+
+    try {
+      // Check if backup exists
+      try {
+        await fs.access(backupFile);
+      } catch (error) {
+        throw new Error('No backup file found');
+      }
+
+      // Copy backup to main state file
+      await fs.copyFile(backupFile, this.filePath);
+
+      // Reload state from restored file
+      await this.load();
+    } finally {
+      await this.releaseLock();
+    }
+  }
+
+  async hasBackup(): Promise<boolean> {
+    const backupFile = `${this.filePath}.backup`;
+    try {
+      await fs.access(backupFile);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async getBackupInfo(): Promise<{ exists: boolean; modifiedAt?: Date; size?: number }> {
+    const backupFile = `${this.filePath}.backup`;
+    try {
+      const stat = await fs.stat(backupFile);
+      return {
+        exists: true,
+        modifiedAt: stat.mtime,
+        size: stat.size,
+      };
+    } catch (error) {
+      return { exists: false };
     }
   }
 

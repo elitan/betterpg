@@ -25,6 +25,7 @@ import { restartCommand } from './commands/restart';
 import { statusCommand } from './commands/status';
 import { doctorCommand } from './commands/doctor';
 import { setupCommand } from './commands/setup';
+import { stateRestoreCommand } from './commands/state/restore';
 import { wrapCommand } from './utils/command-wrapper';
 import packageJson from '../package.json';
 
@@ -276,6 +277,21 @@ program
   .description('One-time setup: grant ZFS permissions and configure Docker (requires sudo)')
   .action(wrapCommand(async () => {
     await setupCommand();
+  }));
+
+// ============================================================================
+// State commands
+// ============================================================================
+
+const stateCommand = program
+  .command('state')
+  .description('Manage state file');
+
+stateCommand
+  .command('restore')
+  .description('Restore state from backup')
+  .action(wrapCommand(async () => {
+    await stateRestoreCommand();
   }));
 
 program.parse();
