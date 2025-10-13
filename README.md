@@ -19,7 +19,7 @@
 
 Postgres with instant branching.
 
-<video src="https://github.com/user-attachments/assets/d0a15f06-cf58-40b2-a6d9-ac13e8f3d2fa" controls></video>
+https://github.com/elitan/velo/assets/534488/velo-explainer.mp4
 
 ## Install
 
