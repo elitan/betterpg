@@ -2,9 +2,6 @@
   <img src="assets/readme-hero.png" alt="Velo - Postgres with instant branching" />
   <br />
   <br />
-  <a href="https://github.com/elitan/velo/blob/main/LICENSE">
-    <img alt="MIT License" src="https://img.shields.io/github/license/elitan/velo" />
-  </a>
   <a href="https://github.com/elitan/velo/stargazers">
     <img alt="GitHub Stars" src="https://img.shields.io/github/stars/elitan/velo?style=social" />
   </a>
