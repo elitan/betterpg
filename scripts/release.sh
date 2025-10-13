@@ -44,13 +44,25 @@ print_info "Current version: ${CURRENT_VERSION}"
 
 # Get version bump type (patch, minor, major)
 VERSION_TYPE=${1:-patch}
+SKIP_TESTS=false
+
+# Check for --skip-tests flag
+if [ "$2" = "--skip-tests" ] || [ "$1" = "--skip-tests" ]; then
+    SKIP_TESTS=true
+    if [ "$1" = "--skip-tests" ]; then
+        VERSION_TYPE="patch"
+    fi
+fi
 
 if [ "$VERSION_TYPE" != "patch" ] && [ "$VERSION_TYPE" != "minor" ] && [ "$VERSION_TYPE" != "major" ]; then
     print_error "Invalid version type: ${VERSION_TYPE}"
-    echo "Usage: ./scripts/release.sh [patch|minor|major]"
+    echo "Usage: ./scripts/release.sh [patch|minor|major] [--skip-tests]"
     echo "  patch: 0.3.4 -> 0.3.5 (bug fixes)"
     echo "  minor: 0.3.4 -> 0.4.0 (new features)"
     echo "  major: 0.3.4 -> 1.0.0 (breaking changes)"
+    echo ""
+    echo "Options:"
+    echo "  --skip-tests: Skip running tests before release"
     exit 1
 fi
 
@@ -142,15 +154,19 @@ bun run build
 print_success "Build complete"
 
 # Run tests
-print_info "Running tests..."
-if ./scripts/test.sh > /dev/null 2>&1; then
-    print_success "All tests passed"
+if [ "$SKIP_TESTS" = true ]; then
+    print_warning "Skipping tests"
 else
-    print_error "Tests failed. Fix them before releasing."
-    # Revert changes
-    git checkout package.json "$CHANGELOG_FILE" 2>/dev/null || true
-    rm -f package.json.bak "${CHANGELOG_FILE}.bak"
-    exit 1
+    print_info "Running tests..."
+    if ./scripts/test.sh > /dev/null 2>&1; then
+        print_success "All tests passed"
+    else
+        print_error "Tests failed. Fix them before releasing."
+        # Revert changes
+        git checkout package.json "$CHANGELOG_FILE" 2>/dev/null || true
+        rm -f package.json.bak "${CHANGELOG_FILE}.bak"
+        exit 1
+    fi
 fi
 
 # Commit changes
