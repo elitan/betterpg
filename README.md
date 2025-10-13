@@ -32,12 +32,6 @@ npm install -g @elitan/velo
 ## Usage
 
 ```bash
-velo --help
-```
-
-## See it in action
-
-```bash
 # Create project with PostgreSQL 17 (auto-creates demo/main branch)
 $ velo project create demo
 
