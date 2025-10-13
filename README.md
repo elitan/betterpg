@@ -23,6 +23,18 @@
 
 Postgres with instant branching.
 
+## Install
+
+```bash
+npm install -g @elitan/velo
+```
+
+## Usage
+
+```bash
+velo --help
+```
+
 ## See it in action
 
 ```bash
