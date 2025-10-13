@@ -57,10 +57,7 @@
     "prepublishOnly": "bun run build",
     "release": "./scripts/release.sh patch",
     "release:minor": "./scripts/release.sh minor",
-    "release:major": "./scripts/release.sh major",
-    "release:skip-tests": "./scripts/release.sh patch --skip-tests",
-    "release:minor:skip-tests": "./scripts/release.sh minor --skip-tests",
-    "release:major:skip-tests": "./scripts/release.sh major --skip-tests"
+    "release:major": "./scripts/release.sh major"
   },
   "devDependencies": {
     "@types/bun": "latest",
