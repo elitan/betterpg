@@ -8,7 +8,6 @@
   <a href="https://discord.gg/PtePt2wx7R">
     <img alt="Discord" src="https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white" />
   </a>
-  <br />
   <a href="https://x.com/elitasson">
     <img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/elitasson?style=social" />
   </a>
