@@ -164,13 +164,14 @@ print_info "Creating git tag..."
 git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 print_success "Tag v${NEW_VERSION} created"
 
+# Push to GitHub
+print_info "Pushing to GitHub..."
+git push
+git push --tags
+print_success "Pushed to GitHub"
+
 echo
-print_success "Release v${NEW_VERSION} ready!"
+print_success "Release v${NEW_VERSION} complete!"
 echo
-echo "Next steps:"
-echo "  1. Review the changelog: ${CHANGELOG_FILE}"
-echo "  2. Push to GitHub: git push && git push --tags"
-echo "  3. Publish to npm: npm publish"
-echo
-echo "Or run these commands:"
-echo "  ${GREEN}git push && git push --tags && npm publish${NC}"
+print_info "GitHub Actions will automatically publish to npm"
+echo "Monitor the workflow at: https://github.com/elitan/velo/actions"
