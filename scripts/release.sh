@@ -90,7 +90,8 @@ print_info "Starting release process..."
 
 # Update version in package.json
 print_info "Updating package.json..."
-sed -i "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" package.json
+sed -i.bak "s/\"version\": \"${CURRENT_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" package.json
+rm -f package.json.bak
 print_success "Updated package.json"
 
 # Update CHANGELOG.md
@@ -117,7 +118,7 @@ EOF
 else
     print_info "Updating CHANGELOG.md..."
     # Insert new version section after the header
-    sed -i "/^## \[/i\\
+    sed -i.bak "/^## \[/i\\
 ## [${NEW_VERSION}] - ${DATE}\\
 \\
 ### Added\\
@@ -130,6 +131,7 @@ else
 - (Add bug fixes here)\\
 \\
 " "$CHANGELOG_FILE"
+    rm -f "${CHANGELOG_FILE}.bak"
     print_success "Updated CHANGELOG.md"
     print_warning "Remember to update the changelog entries!"
 fi
@@ -146,7 +148,8 @@ if ./scripts/test.sh > /dev/null 2>&1; then
 else
     print_error "Tests failed. Fix them before releasing."
     # Revert changes
-    git checkout package.json "$CHANGELOG_FILE"
+    git checkout package.json "$CHANGELOG_FILE" 2>/dev/null || true
+    rm -f package.json.bak "${CHANGELOG_FILE}.bak"
     exit 1
 fi
 
