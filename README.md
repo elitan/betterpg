@@ -19,7 +19,7 @@
 
 Postgres with instant branching.
 
-https://github.com/user-attachments/assets/cad7533f-6cd6-4b65-9e2e-0633c5085682
+https://github.com/user-attachments/assets/56c45d02-d084-4b70-9ef1-543a8d0861ef
 
 ## Install
 
