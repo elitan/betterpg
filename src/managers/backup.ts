@@ -184,14 +184,134 @@ export class BackupManager {
 
   /**
    * Pull backup: Download from S3 → restore ZFS dataset
+   *
+   * Flow:
+   * 1. Find backup to restore (by ID or latest)
+   * 2. Restore snapshot data from Kopia to temp directory
+   * 3. Create new ZFS dataset
+   * 4. Copy restored data to ZFS mount point
+   * 5. If PITR: restore WAL archives and configure recovery
+   * 6. Return dataset name for container creation
    */
   async pullBackup(
     branchName: string,
     zfsPool: string,
     zfsDatasetBase: string,
+    targetDatasetName: string,
     options: PullBackupOptions = {}
-  ): Promise<void> {
-    throw new SystemError('Pull backup not yet implemented');
+  ): Promise<{ datasetName: string; mountPath: string }> {
+    const { from, pitr } = options;
+
+    try {
+      // 1. Find backup to restore
+      let backupToRestore: BackupMetadata;
+
+      if (from) {
+        // Restore specific backup by ID
+        const allBackups = await this.listBackups(branchName);
+        const backup = allBackups.find(b => b.id === from || b.snapshotName === from);
+        if (!backup) {
+          throw new UserError(`Backup '${from}' not found for branch '${branchName}'`);
+        }
+        backupToRestore = backup;
+      } else {
+        // Restore latest backup
+        const backups = await this.listBackups(branchName);
+        if (backups.length === 0) {
+          throw new UserError(`No backups found for branch '${branchName}'`);
+        }
+        backupToRestore = backups[0]; // Already sorted by timestamp DESC
+      }
+
+      console.log(`Restoring backup: ${backupToRestore.snapshotName} (${backupToRestore.timestamp.toISOString()})`);
+
+      // 2. Find the Kopia snapshot ID
+      const snapshotsResult = await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot list --json`.text();
+      const snapshots = JSON.parse(snapshotsResult);
+
+      const snapshot = snapshots.find((s: any) => {
+        const tags = s.tags || {};
+        return tags['tag:velo_branch'] === branchName &&
+               tags['tag:velo_snapshot'] === backupToRestore.snapshotName &&
+               !tags['tag:velo_type']; // Exclude WAL-only snapshots
+      });
+
+      if (!snapshot) {
+        throw new SystemError(`Kopia snapshot not found for backup '${backupToRestore.snapshotName}'`);
+      }
+
+      // 3. Restore to temporary directory
+      const tempDir = `/tmp/velo-restore-${Date.now()}`;
+      await $`mkdir -p ${tempDir}`.quiet();
+
+      console.log(`Restoring data from Kopia snapshot ${snapshot.id}...`);
+      await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot restore ${snapshot.id} ${tempDir}`;
+
+      // 4. Create ZFS dataset
+      const fullDatasetPath = `${zfsPool}/${zfsDatasetBase}/${targetDatasetName}`;
+      const mountPath = `/${fullDatasetPath}`;
+
+      console.log(`Creating ZFS dataset: ${fullDatasetPath}`);
+      const createResult = await $`zfs create -o compression=lz4 -o recordsize=8k ${fullDatasetPath}`.nothrow();
+      if (createResult.exitCode !== 0) {
+        throw new SystemError(`Failed to create ZFS dataset: ${createResult.stderr}`);
+      }
+
+      // Note: ZFS automatically mounts the dataset at creation
+
+      // 5. Copy restored data to ZFS mount point
+      console.log(`Copying data to ${mountPath}...`);
+      // Use rsync for reliable copy with permissions
+      const rsyncResult = await $`rsync -av --delete ${tempDir}/ ${mountPath}/`.nothrow();
+      if (rsyncResult.exitCode !== 0) {
+        throw new SystemError(`Failed to copy data: ${rsyncResult.stderr}`);
+      }
+
+      // 6. Set correct ownership (postgres:postgres = 999:999 in Docker)
+      const chownResult = await $`sudo chown -R 999:999 ${mountPath}`.nothrow();
+      if (chownResult.exitCode !== 0) {
+        throw new SystemError(`Failed to set ownership: ${chownResult.stderr}`);
+      }
+
+      // 7. Handle PITR if requested
+      if (pitr) {
+        console.log(`Setting up point-in-time recovery to: ${pitr}`);
+
+        // Find and restore WAL archives
+        const walSnapshot = snapshots.find((s: any) => {
+          const tags = s.tags || {};
+          return tags['tag:velo_branch'] === branchName &&
+                 tags['tag:velo_type'] === 'wal';
+        });
+
+        if (walSnapshot) {
+          const walArchivePath = this.walManager.getArchivePath(targetDatasetName);
+          await $`mkdir -p ${walArchivePath}`.quiet();
+
+          console.log(`Restoring WAL archives...`);
+          await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot restore ${walSnapshot.id} ${walArchivePath}`;
+        }
+
+        // Setup PITR recovery configuration
+        await this.walManager.setupPITRecovery(mountPath, pitr);
+      }
+
+      // 8. Cleanup temp directory
+      await $`rm -rf ${tempDir}`.quiet();
+
+      console.log(`Restore complete: ${fullDatasetPath}`);
+
+      return {
+        datasetName: targetDatasetName,
+        mountPath,
+      };
+
+    } catch (error: any) {
+      if (error instanceof UserError) {
+        throw error;
+      }
+      throw new SystemError(`Failed to pull backup: ${error.message}`);
+    }
   }
 
   /**

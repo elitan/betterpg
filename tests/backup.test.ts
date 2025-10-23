@@ -14,6 +14,7 @@ import {
   projectCreateCommand,
   branchCreateCommand,
   backupPushCommand,
+  backupPullCommand,
   backupListCommand,
 } from './helpers/commands';
 import { StateManager } from '../src/managers/state';
@@ -187,6 +188,45 @@ describe('S3 Backup Operations', () => {
       // Verify repository status
       const statusResult = await $`KOPIA_PASSWORD=velo-backup-password KOPIA_CONFIG_PATH=${config.kopiaConfigPath} kopia repository status`.nothrow();
       expect(statusResult.exitCode).toBe(0);
+    });
+  });
+
+  describe('Backup Restore (Pull)', () => {
+    test('should restore branch from backup with data verification', async () => {
+      // 1. Insert test data into backup-test/main
+      const testData = `test-data-${Date.now()}`;
+      await $`docker exec velo-backup-test-main psql -U postgres -c "CREATE TABLE backup_test (id SERIAL PRIMARY KEY, data TEXT);"`.quiet();
+      await $`docker exec velo-backup-test-main psql -U postgres -c "INSERT INTO backup_test (data) VALUES ('${testData}');"`.quiet();
+
+      // Verify data exists in original
+      const beforeResult = await $`docker exec velo-backup-test-main psql -U postgres -t -c "SELECT data FROM backup_test WHERE data = '${testData}';"`.text();
+      expect(beforeResult.trim()).toBe(testData);
+
+      // 2. Push backup
+      await backupPushCommand('backup-test/main', {});
+
+      // 3. Restore from backup to a new branch
+      await backupPullCommand('backup-test/main', { to: 'backup-test/restored' });
+      await waitForProjectReady('backup-test');
+
+      // 4. Verify restored data matches original
+      const afterResult = await $`docker exec velo-backup-test-restored psql -U postgres -t -c "SELECT data FROM backup_test WHERE data = '${testData}';"`.text();
+      expect(afterResult.trim()).toBe(testData);
+
+      // 5. Verify container is running
+      const isRunning = await isContainerRunning('velo-backup-test-restored');
+      expect(isRunning).toBe(true);
+
+      // 6. Verify ZFS dataset exists
+      const datasetExistsResult = await datasetExists('backup-test-restored');
+      expect(datasetExistsResult).toBe(true);
+
+      // 7. Verify data integrity - compare table schemas
+      const originalSchema = await $`docker exec velo-backup-test-main psql -U postgres -c "\\d backup_test"`.text();
+      const restoredSchema = await $`docker exec velo-backup-test-restored psql -U postgres -c "\\d backup_test"`.text();
+      expect(restoredSchema).toContain('backup_test');
+      expect(restoredSchema).toContain('id');
+      expect(restoredSchema).toContain('data');
     });
   });
 });

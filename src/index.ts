@@ -290,7 +290,8 @@ backupCommand
   .argument('<branch>', 'branch name in format: <project>/<branch>')
   .option('--from <backup-id>', 'restore from specific backup ID')
   .option('--pitr <time>', 'point-in-time recovery (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
-  .action(wrapCommand(async (branch: string, options: { from?: string; pitr?: string }) => {
+  .option('--to <branch>', 'target branch name (default: same as source branch)')
+  .action(wrapCommand(async (branch: string, options: { from?: string; pitr?: string; to?: string }) => {
     await backupPullCommand(branch, options);
   }));
 
