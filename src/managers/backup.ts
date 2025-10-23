@@ -27,6 +27,7 @@ export interface PullBackupOptions {
 
 export class BackupManager {
   private walManager: WALManager;
+  private readonly KOPIA_PASSWORD = 'velo-backup-password';
 
   constructor(private config: BackupConfig) {
     this.walManager = new WALManager();
@@ -42,7 +43,7 @@ export class BackupManager {
       await $`mkdir -p ${configPath}`.quiet();
 
       // Check if repository is already connected
-      const checkResult = await $`KOPIA_CONFIG_PATH=${configPath} kopia repository status`.nothrow().quiet();
+      const checkResult = await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${configPath} kopia repository status`.nothrow().quiet();
       if (checkResult.exitCode === 0) {
         throw new UserError('Kopia repository already initialized');
       }
@@ -51,10 +52,7 @@ export class BackupManager {
       // Check if endpoint is localhost (use HTTP instead of HTTPS)
       const disableTLS = this.config.endpoint.includes('localhost') || this.config.endpoint.includes('127.0.0.1');
 
-      // Use a default password for the repository (users can change this later if needed)
-      const password = 'velo-backup-password';
-
-      await $`echo ${password} | KOPIA_CONFIG_PATH=${configPath} kopia repository create s3 \
+      await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${configPath} kopia repository create s3 \
         --bucket=${this.config.bucket} \
         --endpoint=${this.config.endpoint} \
         --access-key=${this.config.accessKeyId} \
@@ -103,7 +101,7 @@ export class BackupManager {
         snapshotSizeBytes = parseInt(sizeResult.trim());
 
         // Backup snapshot data via Kopia
-        await $`KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${mountPath} \
+        await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${mountPath} \
           --tags=velo:branch:${branch.name},velo:dataset:${datasetName},velo:snapshot:${snapshotName}`;
       }
 
@@ -115,7 +113,7 @@ export class BackupManager {
 
         if (walFileCount > 0) {
           // Backup WAL archive directory via Kopia
-          await $`KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${walArchivePath} \
+          await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${walArchivePath} \
             --tags=velo:branch:${branch.name},velo:dataset:${datasetName},velo:type:wal`;
         }
       }
@@ -141,7 +139,7 @@ export class BackupManager {
   async listBackups(branchName?: string): Promise<BackupMetadata[]> {
     try {
       // List all snapshots from Kopia
-      const result = await $`KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot list --json`.text();
+      const result = await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot list --json`.text();
       const snapshots = JSON.parse(result);
 
       const backups: BackupMetadata[] = [];
@@ -203,7 +201,7 @@ export class BackupManager {
       for (const backup of backups) {
         if (backup.timestamp < cutoffDate) {
           // Delete from Kopia
-          await $`KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot delete ${backup.id} --delete`;
+          await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot delete ${backup.id} --delete`;
           deletedCount++;
         }
       }
@@ -219,7 +217,7 @@ export class BackupManager {
    */
   async verifyConnection(): Promise<boolean> {
     try {
-      await $`KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia repository status`.quiet();
+      await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia repository status`.quiet();
       return true;
     } catch {
       return false;
