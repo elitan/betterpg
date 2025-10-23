@@ -120,6 +120,22 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
 - `wal cleanup <project>/<branch>` - Clean up old WAL files
   - `--days <n>` - Remove WAL files older than n days
 
+**Backup commands** (`velo backup <command>`):
+- `backup init` - Initialize S3 backup configuration (optional, one-time setup)
+  - Prompts for: S3 endpoint, bucket, access key ID, secret access key
+  - Supports S3-compatible storage (AWS S3, Backblaze B2, Cloudflare R2, MinIO)
+  - Creates Kopia repository for deduplicated, encrypted, incremental backups
+- `backup push <project>/<branch>` - Backup branch to S3 (snapshot + WAL)
+  - `--snapshot-only` - Only backup ZFS snapshot, skip WAL
+  - `--wal-only` - Only backup WAL files, skip snapshot
+- `backup pull <project>/<branch>` - Restore branch from S3 backup (TBD)
+  - `--from <backup-id>` - Restore from specific backup ID
+  - `--pitr <timestamp>` - Point-in-time recovery
+- `backup list [project/branch]` - List available backups
+- `backup cleanup <project>/<branch>` - Delete old backups from S3
+  - `--days <n>` - Retention period in days (default: 30)
+  - `--dry-run` - Preview without deleting
+
 **Global commands**:
 - `status` - Show status of all projects and branches
 - `doctor` - Run comprehensive health checks and diagnostics
@@ -158,6 +174,19 @@ A **project** is a logical grouping of branches (like a Git repo), and each **br
   - `cleanupWALsBefore()` / `cleanupOldWALs()` - Remove WAL files by date
   - `verifyArchiveIntegrity()` - Check for gaps in WAL sequence
   - `setupPITRecovery()` - Configure recovery.signal and postgresql.auto.conf
+
+**BackupManager** (`src/managers/backup.ts`):
+- Manages S3 backups using Kopia for deduplication and encryption
+- Backup configuration stored in state.json (optional, only after `backup init`)
+- Key methods:
+  - `initRepository()` - Initialize Kopia repository to S3 backend
+  - `pushBackup()` - CHECKPOINT → ZFS snapshot → backup data + WAL to S3 via Kopia
+  - `listBackups()` - List available backups with metadata
+  - `cleanupBackups()` - Delete old backups by retention policy
+  - `verifyConnection()` - Check Kopia repository status
+- Auto-detects localhost endpoints and disables TLS for local testing
+- Uses KOPIA_PASSWORD environment variable for repository encryption
+- Supports all S3-compatible storage providers (AWS S3, Backblaze B2, MinIO, etc.)
 
 ### WAL Archiving & Point-in-Time Recovery (PITR)
 
