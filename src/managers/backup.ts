@@ -101,8 +101,12 @@ export class BackupManager {
         snapshotSizeBytes = parseInt(sizeResult.trim());
 
         // Backup snapshot data via Kopia
+        // Note: Kopia prefixes all tag keys with "tag:" automatically
+        // Use underscore separator for sub-keys to avoid "duplicate key" errors
         await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${mountPath} \
-          --tags=velo:branch:${branch.name},velo:dataset:${datasetName},velo:snapshot:${snapshotName}`;
+          --tags=velo_branch:${branch.name} \
+          --tags=velo_dataset:${datasetName} \
+          --tags=velo_snapshot:${snapshotName}`;
       }
 
       // Backup WAL archives (unless --snapshot-only)
@@ -114,7 +118,9 @@ export class BackupManager {
         if (walFileCount > 0) {
           // Backup WAL archive directory via Kopia
           await $`KOPIA_PASSWORD=${this.KOPIA_PASSWORD} KOPIA_CONFIG_PATH=${this.config.kopiaConfigPath} kopia snapshot create ${walArchivePath} \
-            --tags=velo:branch:${branch.name},velo:dataset:${datasetName},velo:type:wal`;
+            --tags=velo_branch:${branch.name} \
+            --tags=velo_dataset:${datasetName} \
+            --tags=velo_type:wal`;
         }
       }
 
@@ -146,10 +152,11 @@ export class BackupManager {
 
       for (const snapshot of snapshots) {
         const tags = snapshot.tags || {};
-        const branch = tags['velo:branch'];
-        const dataset = tags['velo:dataset'];
-        const snapshotName = tags['velo:snapshot'];
-        const type = tags['velo:type'];
+        // Kopia prefixes all tag keys with "tag:"
+        const branch = tags['tag:velo_branch'];
+        const dataset = tags['tag:velo_dataset'];
+        const snapshotName = tags['tag:velo_snapshot'];
+        const type = tags['tag:velo_type'];
 
         // Skip WAL-only snapshots for now (we'll aggregate them)
         if (type === 'wal') continue;

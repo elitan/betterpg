@@ -127,15 +127,13 @@ describe('S3 Backup Operations', () => {
       const snapshotsResult = await $`KOPIA_PASSWORD=velo-backup-password KOPIA_CONFIG_PATH=${config.kopiaConfigPath} kopia snapshot list --json`.text();
       const snapshots = JSON.parse(snapshotsResult);
 
-      // For debugging - temporarily skip assertions to see what we get
       expect(snapshots.length).toBeGreaterThan(0);
 
-      // Check if tags are in a different format
-      const allTags = snapshots.map((s: any) => s.tags).filter((t: any) => t);
-      if (allTags.length === 0) {
-        // Maybe Kopia uses 'labels' instead of 'tags'?
-        console.log('Sample snapshot structure:', JSON.stringify(snapshots[0], null, 2));
-      }
+      // Kopia prefixes all tag keys with "tag:"
+      const testSnapshot = snapshots.find((s: any) =>
+        s.tags && s.tags['tag:velo_branch'] === 'backup-test/main'
+      );
+      expect(testSnapshot).toBeDefined();
     });
 
     test('should backup with snapshot-only flag', async () => {
@@ -152,8 +150,9 @@ describe('S3 Backup Operations', () => {
       const snapshotsResult = await $`KOPIA_PASSWORD=velo-backup-password KOPIA_CONFIG_PATH=${config.kopiaConfigPath} kopia snapshot list --json`.text();
       const snapshots = JSON.parse(snapshotsResult);
 
+      // Kopia prefixes all tag keys with "tag:"
       const devSnapshot = snapshots.find((s: any) =>
-        s.tags && s.tags['velo:branch'] === 'backup-test/dev'
+        s.tags && s.tags['tag:velo_branch'] === 'backup-test/dev'
       );
       expect(devSnapshot).toBeDefined();
     });
