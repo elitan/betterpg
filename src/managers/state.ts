@@ -158,6 +158,17 @@ export class StateManager {
     await this.save();
   }
 
+  // Backup configuration
+  setBackupConfig(config: import('../types/state').BackupConfig): void {
+    if (!this.state) throw new Error('State not loaded');
+    this.state.backupConfig = config;
+  }
+
+  getBackupConfig(): import('../types/state').BackupConfig | undefined {
+    if (!this.state) throw new Error('State not loaded');
+    return this.state.backupConfig;
+  }
+
   // Project operations
   async addProject(proj: Project): Promise<void> {
     if (!this.state) throw new Error('State not loaded');

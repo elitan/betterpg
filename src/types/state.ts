@@ -5,6 +5,7 @@ export interface State {
   zfsDatasetBase: string;
   projects: Project[];
   snapshots: Snapshot[];
+  backupConfig?: BackupConfig;  // Optional - only present after 'backup init'
 }
 
 export interface Project {
@@ -47,4 +48,14 @@ export interface Snapshot {
   createdAt: string;
   label?: string;      // Optional user label
   sizeBytes?: number;  // Snapshot size in bytes (optional)
+}
+
+export interface BackupConfig {
+  provider: 's3';                    // Currently only S3-compatible storage supported
+  endpoint: string;                  // S3 endpoint (e.g., s3.amazonaws.com, localhost:9000)
+  bucket: string;                    // S3 bucket name
+  accessKeyId: string;               // S3 access key
+  secretAccessKey: string;           // S3 secret key
+  repositoryPath: string;            // Path in S3 to Kopia repository
+  kopiaConfigPath: string;           // Local path to Kopia config directory
 }

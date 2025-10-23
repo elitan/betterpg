@@ -52,6 +52,13 @@ export { snapshotCleanupCommand } from '../../src/commands/snapshot/cleanup';
 export { walInfoCommand } from '../../src/commands/wal/info';
 export { walCleanupCommand } from '../../src/commands/wal/cleanup';
 
+// Backup commands
+export { backupInitCommand } from '../../src/commands/backup/init';
+export { backupPushCommand } from '../../src/commands/backup/push';
+export { backupPullCommand } from '../../src/commands/backup/pull';
+export { backupListCommand } from '../../src/commands/backup/list';
+export { backupCleanupCommand } from '../../src/commands/backup/cleanup';
+
 // Lifecycle commands
 export { startCommand } from '../../src/commands/start';
 export { stopCommand } from '../../src/commands/stop';
