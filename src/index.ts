@@ -19,6 +19,11 @@ import { snapshotCreateCommand } from './commands/snapshot/create';
 import { snapshotListCommand } from './commands/snapshot/list';
 import { snapshotDeleteCommand } from './commands/snapshot/delete';
 import { snapshotCleanupCommand } from './commands/snapshot/cleanup';
+import { backupInitCommand } from './commands/backup/init';
+import { backupPushCommand } from './commands/backup/push';
+import { backupPullCommand } from './commands/backup/pull';
+import { backupListCommand } from './commands/backup/list';
+import { backupCleanupCommand } from './commands/backup/cleanup';
 import { startCommand } from './commands/start';
 import { stopCommand } from './commands/stop';
 import { restartCommand } from './commands/restart';
@@ -251,6 +256,63 @@ snapshotCommand
       days: options.days ? parseInt(options.days, 10) : 30,
       dryRun: options.dryRun,
       all: options.all,
+    });
+  }));
+
+// ============================================================================
+// Backup commands
+// ============================================================================
+
+const backupCommand = program
+  .command('backup')
+  .description('Manage S3 backups for disaster recovery');
+
+backupCommand
+  .command('init')
+  .description('Initialize S3 backup configuration (one-time setup)')
+  .action(wrapCommand(async () => {
+    await backupInitCommand();
+  }));
+
+backupCommand
+  .command('push')
+  .description('Backup branch to S3 (snapshot + WAL)')
+  .argument('<branch>', 'branch name in format: <project>/<branch>')
+  .option('--snapshot-only', 'only backup ZFS snapshot, skip WAL')
+  .option('--wal-only', 'only backup WAL files, skip snapshot')
+  .action(wrapCommand(async (branch: string, options: { snapshotOnly?: boolean; walOnly?: boolean }) => {
+    await backupPushCommand(branch, options);
+  }));
+
+backupCommand
+  .command('pull')
+  .description('Restore branch from S3 backup')
+  .argument('<branch>', 'branch name in format: <project>/<branch>')
+  .option('--from <backup-id>', 'restore from specific backup ID')
+  .option('--pitr <time>', 'point-in-time recovery (e.g., "2025-10-07T14:30:00Z", "2 hours ago")')
+  .action(wrapCommand(async (branch: string, options: { from?: string; pitr?: string }) => {
+    await backupPullCommand(branch, options);
+  }));
+
+backupCommand
+  .command('list')
+  .alias('ls')
+  .description('List available backups')
+  .argument('[branch]', 'branch name in format: <project>/<branch> (optional, lists all if not specified)')
+  .action(wrapCommand(async (branch?: string) => {
+    await backupListCommand(branch);
+  }));
+
+backupCommand
+  .command('cleanup')
+  .description('Delete old backups from S3')
+  .argument('<branch>', 'branch name in format: <project>/<branch>')
+  .option('--days <days>', 'retention period in days (default: 30)', '30')
+  .option('--dry-run', 'show what would be deleted without actually deleting')
+  .action(wrapCommand(async (branch: string, options: { days?: string; dryRun?: boolean }) => {
+    await backupCleanupCommand(branch, {
+      days: options.days ? parseInt(options.days, 10) : 30,
+      dryRun: options.dryRun,
     });
   }));
 

@@ -9,4 +9,5 @@ export const PATHS = {
   STATE: path.join(pgdDir, 'state.json'),
   WAL_ARCHIVE: path.join(pgdDir, 'wal-archive'),
   DATA_DIR: pgdDir,
+  BASE_DIR: pgdDir,
 };
